@@ -38,7 +38,7 @@ describe('shareMeta constants used to build index.html preview meta', () => {
   })
 
   test('preview copy never mentions a real patient name or raw vital numbers', () => {
-    const forbidden = ['血壓值', 'mmHg', '李', '沈']
+    const forbidden = ['血壓值', 'mmHg', '李', '王']
     for (const word of forbidden) {
       expect(SHARE_PREVIEW_TITLE).not.toContain(word)
       expect(SHARE_PREVIEW_DESCRIPTION).not.toContain(word)

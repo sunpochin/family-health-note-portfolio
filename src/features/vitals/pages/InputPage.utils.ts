@@ -9,12 +9,13 @@ import timezone from 'dayjs/plugin/timezone'
 import { supabase } from '../../../lib/supabase'
 import { TZ } from '../../../lib/timezone'
 import { getSession, type Session } from '../../../lib/session'
-import { localized, type Locale } from '../../../lib/i18n'
+import { localized, type Locale, type LocalizedText } from '../../../lib/i18n'
 import { describeSaveError, isConnectionError, isPermissionError, matchesConstraint } from '../../../lib/dataErrors'
 import { isDemoPatientId } from '../../../lib/demoData'
 import { getDemoBpRecords, isDemoMode } from '../../../lib/demoStorage'
 import { careDateKey, careDayWindow } from '../../../lib/careDay'
 import type { AlertLevel } from '../../../types/database'
+import { PENDING_SYNC_TEXT } from '../../../components/ui/PendingSyncStatus'
 
 dayjs.extend(utc)
 dayjs.extend(timezone)
@@ -28,15 +29,48 @@ const BP_DAILY_LIMIT_TEXT = {
 } as const
 
 /**
+ * 這次儲存是不是被資料庫的每日血壓上限擋下（issue #1060）。
+ * 錯誤訊息與「被擋讀數的危險等級提示」必須用同一個判斷：只有一邊認得出來時，畫面會出現
+ * 「上限說明」卻沒有等級 badge（或反過來），看護會看不懂這筆到底存了沒。
+ * 權限與連線錯誤先排除，因為它們的錯誤字串偶爾會夾帶觸發器名稱，卻不是真的被配額擋下。
+ */
+export function isDailyBpLimitError(error: unknown): boolean {
+  return matchesConstraint(error, 'daily_blood_pressure_limit') && !isPermissionError(error) && !isConnectionError(error)
+}
+
+/**
  * 繁體中文註解：把常見的登入/RLS/設定錯誤分開，讓看護知道可採取的下一步，而不是被同一句泛用錯誤卡住。
  * 通用的判斷（權限、連線）已移到 lib/dataErrors 共用，這裡只保留血壓特有的配額訊息，
  * 避免同一份 unknown 錯誤解析在體溫、血壓、PRN 各留一份副本後慢慢漂移。
  */
 export function saveErrorMessage(error: unknown, locale: Locale = 'id'): string {
-  if (matchesConstraint(error, 'daily_blood_pressure_limit') && !isPermissionError(error) && !isConnectionError(error)) {
+  if (isDailyBpLimitError(error)) {
     return localized(BP_DAILY_LIMIT_TEXT, locale)
   }
   return localized(describeSaveError(error), locale)
+}
+
+// 補送時被伺服器拒絕、又不是權限或上限的情況（例如資料格式、欄位不符）：看護按幾次「現在同步」都不會好，
+// 所以不沿用「儲存失敗，請再試一次」，改說重試沒用、請通知家屬（能修的人）。
+const QUEUED_REJECTED_FALLBACK_TEXT = {
+  id: 'Server tidak menerima data ini, dan mencoba lagi tidak akan berhasil. Beri tahu keluarga.',
+  zh: '伺服器不接受這筆資料，重試也不會成功，請通知家屬。',
+  en: 'The server did not accept this record, and retrying will not help. Tell the family.',
+} as const
+
+/**
+ * 離線佇列補送時被永久拒絕的那一筆，狀態列該講的真正原因（issue #1125）。
+ * 以前一律顯示「請確認網路後再重新同步」：權限過期要重新登入、超過每日上限要改今天的紀錄，
+ * 看護照著檢查網路只會一直按同步，那筆血壓始終沒存進去，家人也一直沒收到通知。
+ * 判斷順序與 saveErrorMessage 相同（上限 → 權限 → 其他），兩邊對同一個錯誤講同一件事。
+ */
+export function queuedRejectionText(error: unknown): LocalizedText {
+  const reason = isDailyBpLimitError(error) ? BP_DAILY_LIMIT_TEXT : describeSaveError(error, QUEUED_REJECTED_FALLBACK_TEXT)
+  return {
+    id: `Ada catatan yang gagal disinkronkan: ${reason.id}`,
+    zh: `有紀錄沒有同步成功：${reason.zh}`,
+    en: `A record could not be synced: ${reason.en}`,
+  }
 }
 
 // ── Bilingual string table (Indonesian first, Chinese second) ──────────────
@@ -50,11 +84,75 @@ export const L = {
   saving:    { id: 'Menyimpan…',          zh: '儲存中…' ,en: 'Saving...' },
   saved:     { id: '✓ Tersimpan!',        zh: '✓ 已記錄！' ,en: 'Recorded' },
   queued:    { id: 'Tersimpan di perangkat', zh: '已暫存於本機' ,en: "Saved on this device" },
-  pending: (count: number) => ({ id: `${count} catatan menunggu sinkronisasi`, zh: `${count} 筆紀錄等待同步` ,en: `${count} records waiting to sync` }),
-  pendingLastAttempt: (timeStr: string) => ({ id: `Percobaan sinkronisasi terakhir pukul ${timeStr}`, zh: `最後一次嘗試同步時間：${timeStr}` ,en: `Last sync attempt at ${timeStr}` }),
-  pendingSyncing: { id: 'Menyinkronkan catatan…', zh: '正在同步紀錄…' ,en: "Syncing records…" },
-  pendingSyncError: { id: 'Periksa koneksi lalu coba sinkronisasi lagi.', zh: '請確認網路後再重新同步。' ,en: "Check your connection and try syncing again." },
-  retryPending: { id: 'Sinkronkan sekarang', zh: '現在同步' ,en: "Sync now" },
+  // 佇列裡有「需要通知家人」等級的讀數還沒送出時顯示（issue #1126）。離線儲存不再是紅字失敗，
+  // 只剩琥珀色「已暫存」，看護沒有理由打電話；但家人要等補送成功才會收到通知（北極星鐵律 3、4）。
+  queuedFamilyAlertPending: {
+    id: 'Ada tekanan darah yang perlu diberitahukan ke keluarga, tetapi belum terkirim. Keluarga belum tahu. Telepon keluarga langsung. Data akan dikirim otomatis saat koneksi kembali, tidak perlu memasukkan ulang.',
+    zh: '有需要通知家人的血壓還沒送出，家人還不知道。請直接打電話給家人；連線恢復後會自動補送，不用重新輸入。',
+    en: 'A reading the family needs to know about has not been sent yet, so the family does not know. Call the family directly. It will be sent automatically when the connection is back; no need to enter it again.',
+  },
+  // 同上，但讀不到這位的個別血壓標準、入佇列時也沒記下判讀（Codex review on PR #1127）：一般成人門檻可能漏掉
+  // 長輩標準下的偏低警示，所以不能說「不用通知」，改講無法判斷、數值偏高偏低就打電話。
+  queuedFamilyAlertUnknown: {
+    id: 'Ada tekanan darah yang belum terkirim, jadi keluarga belum tahu. Standar tekanan darah pribadi belum bisa dimuat, jadi belum bisa dipastikan apakah keluarga perlu diberi tahu. Jika angkanya tinggi atau rendah, telepon keluarga langsung. Data akan dikirim otomatis saat koneksi kembali, tidak perlu memasukkan ulang.',
+    zh: '有血壓還沒送出，家人還不知道。目前讀不到這位的個人血壓標準，無法判斷是否需要通知家人；若數值偏高或偏低，請直接打電話給家人。連線恢復後會自動補送，不用重新輸入。',
+    en: 'A reading has not been sent yet, so the family does not know. This person\'s blood pressure targets cannot be loaded right now, so it is not clear whether the family needs to know. If the numbers are high or low, call the family directly. It will be sent automatically when the connection is back; no need to enter it again.',
+  },
+  // 需要通知家人的讀數補送時被伺服器拒絕、再試也不會成功（每日上限、資料格式；issue #1125）：不會自動補送，家人不會收到通知。
+  // 上面兩句都說「連線恢復後會自動補送」，對這筆是錯的，看護會以為等一下就好而不打電話。被拒絕的原因在狀態列。
+  queuedFamilyAlertRejected: {
+    id: 'Ada tekanan darah yang perlu diberitahukan ke keluarga, tetapi ditolak sistem. Data ini tidak akan dikirim otomatis dan keluarga tidak akan menerima notifikasi. Telepon keluarga langsung.',
+    zh: '有需要通知家人的血壓沒有被系統接受，不會自動補送，家人不會收到通知。請直接打電話給家人。',
+    en: 'A reading the family needs to know about was not accepted by the system. It will not be sent automatically, and the family will not be notified. Call the family directly.',
+  },
+  // 同上，但讀不到這位的個別血壓標準、入佇列時也沒記下判讀：說不準要不要通知家人，但不能因此什麼都不講（issue #1125 審查）。
+  queuedFamilyAlertRejectedUnknown: {
+    id: 'Ada tekanan darah yang ditolak sistem, jadi tidak akan dikirim otomatis dan keluarga tidak akan menerima notifikasi. Standar tekanan darah pribadi belum bisa dimuat, jadi belum bisa dipastikan apakah keluarga perlu diberi tahu. Jika angkanya tinggi atau rendah, telepon keluarga langsung.',
+    zh: '有血壓沒有被系統接受，不會自動補送，家人不會收到通知。目前讀不到這位的個人血壓標準，無法判斷是否需要通知家人；若數值偏高或偏低，請直接打電話給家人。',
+    en: "A reading was not accepted by the system. It will not be sent automatically, and the family will not be notified. This person's blood pressure targets cannot be loaded right now, so it is not clear whether the family needs to know. If the numbers are high or low, call the family directly.",
+  },
+  // 儲存進行中鎖住「切換對象」時顯示的說明（issue #1103）；禁用控制項若不講原因，看護只會以為按鈕壞了。
+  // 寫入結果不明（暫時性失敗或逾時後本機佇列又存不了，issue #1117）：伺服器可能已經寫入，叫看護重新輸入會多一筆（新 UUID），
+  // 所以請她先看今日紀錄再決定。
+  saveOutcomeUnknown: {
+    id: 'Tekanan darah tadi belum pasti tersimpan (penyimpanan HP tidak tersedia). Periksa catatan hari ini dulu; kalau belum ada, masukkan lagi.',
+    zh: '剛才的血壓不確定有沒有存進去（手機暫存空間不可用），請先看今日紀錄，沒有的話再重新輸入。',
+    en: 'It is not certain the blood pressure just entered was saved (phone storage unavailable). Check today\'s records first; enter it again only if it is missing.',
+  },
+  switchLockedWhileSaving: { id: 'Tekanan darah sedang disimpan. Tunggu sebentar sebelum berganti ke orang lain.', zh: '血壓儲存中，請稍候再切換對象。' ,en: 'Saving blood pressure. Please wait a moment before switching to someone else.' },
+  // 待同步狀態列的文案住在共用元件（服藥打卡也用同一塊，issue #822）；這裡只留別名讓既有呼叫與測試不必改。
+  pending: PENDING_SYNC_TEXT.pending,
+  pendingLastAttempt: PENDING_SYNC_TEXT.lastAttempt,
+  pendingSyncing: PENDING_SYNC_TEXT.syncing,
+  pendingSyncError: PENDING_SYNC_TEXT.syncError,
+  retryPending: PENDING_SYNC_TEXT.retry,
+  // 手機自認有網路（navigator.onLine），補送卻持續失敗超過一段時間（issue #1125）：DNS、內容攔截器、
+  // 公共 Wi-Fi 登入頁或 CSP 擋掉請求時都長這樣，看護「檢查網路」只會看到網路明明是通的。
+  // 給她一個自己做得到的動作（換網路），做不到就交給家屬；不寫「稍後會自動重試」，因為卡住的原因常常不會自己消失。
+  pendingUnreachable: {
+    id: 'HP terlihat terhubung ke internet, tetapi server tetap tidak bisa dihubungi. Coba ganti jaringan (misalnya matikan Wi-Fi), lalu tekan "Sinkronkan sekarang". Jika masih gagal, beri tahu keluarga.',
+    zh: '手機顯示有網路，但一直連不到伺服器。請換個網路（例如關掉 Wi-Fi）再按「現在同步」；還是不行請通知家屬。',
+    en: 'The phone shows a connection, but the server still cannot be reached. Try another network (for example, turn off Wi-Fi), then tap "Sync now". If it still fails, tell the family.',
+  },
+  // 另一位照護對象的待送紀錄被伺服器拒絕（issue #1125）。原因（權限、那位的每日上限）屬於那位，
+  // 這裡只說去那位的畫面看；不講的話，這個畫面只會一直顯示「其他照護對象還有 N 筆」卻永遠不會少。
+  // 那位的照護權限被收回或已封存時，切換清單裡根本沒有她，所以要附上做不到時的退路（通知家屬）。
+  otherPatientsRejected: {
+    id: 'Ada catatan orang lain yang dirawat yang gagal disinkronkan. Pindah ke orang tersebut untuk melihat alasannya; jika orang itu tidak ada di daftar, beri tahu keluarga.',
+    zh: '其他照護對象有紀錄沒有同步成功，請切換到該對象查看原因；切換清單裡找不到該對象時，請通知家屬。',
+    en: 'A record for another care recipient could not be synced. Switch to that person to see why; if they are not in the list, tell the family.',
+  },
+  // 下一句的名字查不到時（例如那位已封存、不在已授權清單）的代稱；查不到名字也必須提醒。
+  anotherCareRecipient: { id: 'Orang lain yang dirawat', zh: '另一位照護對象', en: 'Another care recipient' },
+  // 某筆血壓存進去了，但家屬通知可能沒到（沒送出、無法確認、或沒有任何通知管道），而且寫不進「這筆」的提示（issue #1125／#1138）：
+  // 那筆屬於另一位照護對象、看護已切到別人或別的分頁、或提示已被較新的一筆接手。用「這筆」的提示會讓看護以為是眼前這位，
+  // 所以改成點名是誰、不顯示數值。離線補送與線上儲存都走這句，文案不寫「離線」。
+  // 寫「可能沒有收到」而不是「無法確認」：沒送出與沒有管道是確定沒收到，「無法確認」會講得太輕。
+  otherPatientNotifyProblem: (name: string) => ({
+    id: `${name}: tekanan darah sudah tersimpan, tetapi keluarga mungkin belum menerima notifikasi. Hubungi keluarga langsung.`,
+    zh: `${name}：血壓已存檔，但家人可能沒有收到通知，請直接聯絡家人。`,
+    en: `${name}: a blood pressure reading was saved, but the family may not have been notified. Contact the family directly.`,
+  }),
   normal:      { id: 'Normal',              zh: '正常' ,en: 'Normal' },
   warning:     { id: 'Agak Tinggi',         zh: '略高' ,en: 'Slightly high' },
   danger:      { id: '⚠️ Terlalu Tinggi!',  zh: '⚠️ 血壓偏高！' ,en: '⚠️ High blood pressure!' },
@@ -78,6 +176,16 @@ export const L = {
     // 沒有顯示時段名時，完成訊息也不應留下假的時段或多餘空白。
     id: (session: string) => session ? `✓ 2 catatan tersimpan untuk ${session}` : '✓ 2 catatan tersimpan',
     zh: () => `✓ 此時段雙筆已記錄`, en: (session: string) => session ? `✓ Two readings recorded for ${session}` : '✓ Two readings recorded',
+  },
+  // issue #1060：被每日上限擋下的那一筆沒有進資料庫，也不會觸發任何家屬通知。
+  // 標籤要明講「沒存」，否則 badge 看起來像一筆成功紀錄的判讀結果。
+  limitBlockedLabel: { id: 'Hasil ukur ini tidak tersimpan:', zh: '這筆沒有存進去：', en: 'This reading was not saved:' },
+  // 危險級才出現的大字提示。重點是「家人不會知道，要你打電話」：上限是防濫用，被擋就是被擋，
+  // 系統不會偷偷暫存或重送；能把危險讀數送到家人手上的只剩看護本人的一通電話。
+  limitBlockedDanger: {
+    id: 'Tensi ini berbahaya dan tidak tersimpan, jadi keluarga tidak akan menerima notifikasi. Telepon keluarga sekarang.',
+    zh: '這筆血壓危險，而且沒有存進系統，家人不會收到通知。請直接打電話給家屬。',
+    en: 'This reading is dangerous and was not saved, so the family will not be notified. Call the family directly now.',
   },
   // 血壓已存進資料庫，只有 Telegram 通知失敗；用警示色而非紅色錯誤，避免看護誤以為血壓沒存到。
   notifyFailed: {
@@ -151,12 +259,6 @@ export const L = {
     zh: '✓ 血壓已存檔，但家人群組通知沒有送出，也不會自動重試；個人通知無法確認是否送達。請直接聯絡家人確認。',
     en: '✓ Blood pressure saved, but the family group notification was not sent and will not be retried automatically; the personal notifications could not be confirmed as delivered. Contact the family directly to confirm.',
   },
-}
-
-// 待同步狀態列要顯示「最後一次嘗試同步」的時間，統一用照護日所在的台北時區格式化，
-// 避免看護裝置系統時區跟 App 內其他時間戳（如量測時間）對不上。
-export function formatPendingAttemptTime(epochMs: number): string {
-  return dayjs(epochMs).tz(TZ).format('HH:mm')
 }
 
 // 「沒有任何家屬通知送出」的提示只對需要現在行動的讀數顯示（北極星鐵律 3：警報分級、寧缺勿濫）。

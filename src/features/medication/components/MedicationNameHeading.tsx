@@ -31,8 +31,9 @@ export function MedicationNamePairText({ primary, secondary, category, size = 'b
     <span className={`block min-w-0 ${className}`}>
       {/* 藥名是照護時最容易吃錯藥的關鍵資訊；用固定紅色與最重的字重，跟其餘一般文字明確區隔開來。 */}
       <span className={`block break-words font-black text-red-700 ${sizeClasses.primary}`}>{primary}</span>
-      {/* 緊接在藥名下方、同字級呈現，並用強烈的桃紅色跟紅色藥名區隔，讓長者一眼就能看到「這是什麼作用的藥」。 */}
-      {category && <span className={`block break-words font-black text-fuchsia-700 ${sizeClasses.primary}`}>{category}</span>}
+      {/* 緊接在藥名下方、同字級呈現，並用深灰（slate-700）跟紅色藥名區隔，讓長者一眼就能看到「這是什麼作用的藥」。
+          原本的桃紅（fuchsia）是退役色（設計系統 #1146）；區隔改靠「紅 vs 深灰」＋獨立一行，不再多一個彩色。 */}
+      {category && <span className={`block break-words font-black text-slate-700 ${sizeClasses.primary}`}>{category}</span>}
       {secondary && <span className={`block break-words font-semibold text-slate-500 ${sizeClasses.secondary}`}>{secondary}</span>}
     </span>
   )

@@ -36,6 +36,8 @@
 
   --color-surface: #f8fafc;
   --color-line: #e2e8f0;
+  /* 表單控制項邊框（WCAG 1.4.11 要求 3:1）：slate-500 對白底 4.76:1。卡片分隔線仍用 line。 */
+  --color-control-border: #64748b;
 
   --color-danger-50: #fef2f2;
   --color-danger-700: #b91c1c;
@@ -94,11 +96,11 @@
 .vital-diastolic { color: #2563EB; }
 .vital-pulse { color: #7C3AED; }
 
-@media (prefers-color-scheme: dark) {
-  .vital-systolic { color: #F87171; }
-  .vital-diastolic { color: #60A5FA; }
-  .vital-pulse { color: #C084FC; }
-}
+/*
+ * 刻意不在 prefers-color-scheme: dark 換成暗色值（issue #1152）：app 只有亮色表面，
+ * 手機切深色模式時卡片仍是白底，淺色的 #F87171／#60A5FA／#C084FC 畫在白底只有 2.5～2.8:1，
+ * 看護半夜看血壓會變淡。暗色值保留在 VITAL_COLORS.dark，等真的有暗色表面再一起接上。
+ */
 
 .record-filter-hidden {
   display: none !important;

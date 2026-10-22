@@ -19,7 +19,10 @@ import { isNativeApp, readIsStandalonePwa } from './platform'
 //     的 "administrator deletes records within granted patients" RLS policy——這是 Postgres
 //     policy，無法讀 Deno 環境變數，只能寫新 migration 直接改字面 email 或改造成從設定表讀取。
 export const ADMIN_EMAIL = 'admin@careapp.local'
-export const MOTHER_SELF_ONLY_EMAIL = 'demo.mother@example.test'
+// 「只看自己」的病人本人帳號：常數名稱刻意只描述角色（病人本人、只能操作自己的 patient），
+// 不寫這個帳號在家庭裡是誰——這個檔案會進公開作品集，email 字面值會被產線替換，但識別字名稱不會，
+// 所以也不留舊名稱的相容別名（別名本身就會把家庭關係帶進公開版；PR #1013 review）。
+export const SELF_ONLY_PATIENT_EMAIL = 'demo.mother@example.test'
 
 export interface PatientIdentity {
   patientId: string
@@ -120,12 +123,12 @@ export async function profileForEmail(email: string | undefined | null, provisio
   if (accessResult.error) console.error('[care_access fetch error]', accessResult.error)
   const ownPatientId = String(profileResult.data.patient_id)
   const ownDisplayName = profileResult.data.display_name?.trim() || defaultDisplayNameForEmail(email)
-  const selfOnlyAccount = normalizedEmail === MOTHER_SELF_ONLY_EMAIL
+  const selfOnlyAccount = normalizedEmail === SELF_ONLY_PATIENT_EMAIL
   const accessByPatientId = new Map<string, PatientIdentity>()
   for (const row of accessResult.data ?? []) {
     if (!row.patient_id) continue
     const patientId = String(row.patient_id)
-    // 媽媽帳號只負責自己的紀錄；即使舊版資料庫殘留寵物 access，前端也不能把它變成可切換的健康對象。
+    // 病人本人帳號只負責自己的紀錄；即使舊版資料庫殘留其他 patient 的 access，前端也不能把它變成可切換的健康對象。
     if (selfOnlyAccount && patientId !== ownPatientId) continue
     const patient = row as unknown as { can_manage_medication: boolean; can_record?: boolean; patients: { display_name: string; care_recipient_type: PatientIdentity['careRecipientType']; archived_at: string | null } | { display_name: string; care_recipient_type: PatientIdentity['careRecipientType']; archived_at: string | null }[] | null }
     // Supabase 的一對一關聯在不同查詢版本可能回傳物件或陣列；先正規化，不能讓 UUID 權限資料遺失病人名稱。
@@ -184,7 +187,7 @@ export const DEMO_RABBIT_PATIENT_ID = '99999999-9999-4999-a999-999999999999'
 export const DEMO_OTHER_PET_PATIENT_ID = 'aaaaaaaa-aaaa-4aaa-aaaa-aaaaaaaaaaaa'
 
 export function fetchDemoProfileIdentity(): ProfileIdentity {
-  // 李阿姨永遠排在展示對象第一位：藥單直接對照真實案例的服藥清單，讓服藥打卡／每週藥單／排藥／變更藥物
+  // 李阿姨永遠排在展示對象第一位：她帶著一份固定的示範藥單，讓服藥打卡／每週藥單／排藥／變更藥物
   // 四個分頁與藥名顯示規則（英文優先、紅色醒目）每次都能立即在 staging 驗證，不必依賴任何登入帳號的真實資料。
   const lee: PatientIdentity = {
     patientId: DEMO_LEE_PATIENT_ID,

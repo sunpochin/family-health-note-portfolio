@@ -12,6 +12,7 @@
 import { afterEach, beforeEach, describe, expect, mock, test } from 'bun:test'
 import { installReactHookHarness, renderHook } from './helpers/reactHookHarness'
 import { fire, findAll, findButton, textContent } from './helpers/elementTree'
+import { Icon } from '../../src/components/ui/Icon'
 
 installReactHookHarness()
 
@@ -36,9 +37,7 @@ let demoMode = false
 const actualDemoStorage = await import('../../src/lib/demoStorage')
 mock.module('../../src/lib/demoStorage', () => ({
   ...actualDemoStorage,
-  // 繁體中文註解：Bun 的 mock.module 在同一行程跨測試檔全域生效，若 demoMode 為 false 時固定回傳 false，
-  // 會破壞後續測試檔依賴 window.location.pathname === '/demo' 的展示模式判定。
-  isDemoMode: () => demoMode || (typeof window !== 'undefined' && window.location?.pathname === '/demo'),
+  isDemoMode: () => demoMode,
 }))
 
 const { MedicationAiDraftSection, DEMO_SCRIPTED_DRAFT_DELAY_MS } = await import('../../src/features/medication/components/MedicationAiDraftSection')
@@ -97,7 +96,6 @@ beforeEach(() => {
 })
 
 afterEach(() => {
-  demoMode = false
   if (previousDocument) Object.defineProperty(globalThis, 'document', previousDocument)
   else Reflect.deleteProperty(globalThis, 'document')
   if (previousCreateImageBitmap) Object.defineProperty(globalThis, 'createImageBitmap', previousCreateImageBitmap)
@@ -113,7 +111,7 @@ describe('demo mode（展示模式：固定劇本，不呼叫真正的 Function�
     const rendered = textContent(view.current)
     expect(rendered).toContain('Concor')
     expect(rendered).toContain('Exforge')
-    expect(rendered).toContain('⚠️ 低信心辨識，請格外仔細核對')
+    expect(rendered).toContain('低信心辨識，請格外仔細核對')
     // 展示模式選了任何照片都完全不打網路請求——不只是「這次剛好沒打」，是整條路徑都不會呼叫 invoke。
     expect(invokeCalls).toEqual([])
     view.unmount()
@@ -164,12 +162,22 @@ describe('demo mode（展示模式：固定劇本，不呼叫真正的 Function�
 
 describe('三語文案', () => {
   test.each([
-    ['zh', '📷 AI 拍藥袋辨識'],
-    ['id', '📷 Pindai resep dengan AI'],
-    ['en', '📷 Scan prescription with AI'],
+    ['zh', 'AI 拍藥袋辨識'],
+    ['id', 'Pindai resep dengan AI'],
+    ['en', 'Scan prescription with AI'],
   ])('%s locale 的拍照按鈕文案完整', (locale, label) => {
     const view = renderHook(() => MedicationAiDraftSection({ patientId: 'patient-1', onApplyDraft: () => {} }), { defaultContext: { locale, setLocale: () => {} } })
     expect(findButton(view.current, label)).toBeDefined()
+    view.unmount()
+  })
+
+  // 按鈕上的 📷／🖼️ 改成 <Icon>（issue #1150）：文字比對看不到 SVG，所以另外鎖住圖示真的還在，避免被悄悄拿掉。
+  test('拍照與選照片按鈕各自帶 camera／image 圖示，且文字裡沒有 emoji', () => {
+    const view = renderHook(() => MedicationAiDraftSection({ patientId: 'patient-1', onApplyDraft: () => {} }), { defaultContext: LOCALE_CONTEXT_VALUE })
+    const iconNames = (label: string) => findAll(findButton(view.current, label), el => el.type === Icon).map(el => el.props.name)
+    expect(iconNames('AI 拍藥袋辨識')).toEqual(['camera'])
+    expect(iconNames('選擇照片')).toEqual(['image'])
+    expect(textContent(view.current)).not.toMatch(/[\u{1F300}-\u{1FAFF}]/u)
     view.unmount()
   })
 })
@@ -181,7 +189,7 @@ describe('拍照或選擇既有照片', () => {
     expect(inputs).toHaveLength(2)
     expect(inputs[0].props.capture).toBe('environment')
     expect(inputs[1].props.capture).toBeUndefined()
-    expect(findButton(view.current, '🖼️ 選擇照片')).toBeDefined()
+    expect(findButton(view.current, '選擇照片')).toBeDefined()
     view.unmount()
   })
 
@@ -205,13 +213,37 @@ describe('額度用完（issue #683 推廣策略 + 後續放大文案／灰階�
     const rendered = textContent(view.current)
     expect(rendered).toContain('今天的免費體驗已經用完囉')
     expect(rendered).toContain('今天已經用了 5 次免費 AI 藥袋辨識')
-    expect(rendered).toContain('現在就去請您的家庭照護管理者開通吧')
+    // #1047：升級提示改成「付費升級後次數提升」，不再叫使用者去找沒有開通權限的家庭照護管理者。
+    expect(rendered).toContain('付費升級 Premium 後，每日可用次數會大幅提升')
+    expect(rendered).not.toContain('管理者')
     // Repository Privacy Boundary：畫面上不得出現任何真實 email 或聯絡窗口。
     expect(rendered).not.toContain('@')
     // 額度用完當天不可能再拍出結果，但按鈕仍要看得到、只是停用：disabled 屬性本身會阻止點擊，
     // 留著才能持續提醒免費用戶「這功能值得升級」。
-    expect(findButton(view.current, '📷 AI 拍藥袋辨識')?.props.disabled).toBe(true)
-    expect(findButton(view.current, '🖼️ 選擇照片')?.props.disabled).toBe(true)
+    expect(findButton(view.current, 'AI 拍藥袋辨識')?.props.disabled).toBe(true)
+    expect(findButton(view.current, '選擇照片')?.props.disabled).toBe(true)
+    view.unmount()
+  })
+
+  // #1047 完成條件：三種語言的升級提示都不能再叫使用者找管理者，印尼文是看護實際會看到的版本，不能只驗中文。
+  test.each([
+    { locale: 'zh' as const, usedPhrase: '今天已經用了 7 次免費 AI 藥袋辨識', mentionsPaidUpgrade: '付費升級 Premium 後', adminWords: ['管理者', '開通'] },
+    { locale: 'id' as const, usedPhrase: 'Anda sudah memakai 7 kali pemindaian AI gratis', mentionsPaidUpgrade: 'upgrade berbayar ke Premium', adminWords: ['pengelola', 'mengaktifkan', 'admin'] },
+    { locale: 'en' as const, usedPhrase: "You've used today's 7 free AI scans", mentionsPaidUpgrade: 'paid upgrade to Premium', adminWords: ['administrator', 'enable', 'admin'] },
+  ])('免費額度用完的升級提示（$locale）只說付費升級後次數提升，不叫人去找管理者開通，並仍引用實際生效的免費次數', async ({ locale, usedPhrase, mentionsPaidUpgrade, adminWords }) => {
+    invokeImpl = async () => ({ data: null, error: Object.assign(new Error('invoke failed'), { context: { json: async () => ({ error: 'daily_medication_ai_draft_limit', tier: 'none', freeDailyLimit: 7 }) } }) })
+    const view = renderHook(() => MedicationAiDraftSection({ patientId: 'patient-1', onApplyDraft: () => {} }), { defaultContext: { locale, setLocale: () => {} } })
+    view.act(() => fire(fileInput(view.current), 'onChange', { target: { files: [fakeFile], value: '' } }))
+    await flush()
+    const rendered = textContent(view.current)
+    expect(rendered).toContain(mentionsPaidUpgrade)
+    // 免費次數照舊引用 freeDailyLimit（這裡刻意用 7，不是預設的 3）；付費後的次數不寫死，所以不會出現資料庫預設的 20。
+    expect(rendered).toContain(usedPhrase)
+    expect(rendered).not.toMatch(/\b20\b/)
+    for (const word of adminWords) expect(rendered.toLowerCase()).not.toContain(word.toLowerCase())
+    // 不放任何聯絡窗口或價格（Repository Privacy Boundary；付費方式仍在 #1037 規劃）。
+    expect(rendered).not.toContain('@')
+    expect(rendered).not.toMatch(/NT\$|US\$|Rp\s?\d/)
     view.unmount()
   })
 
@@ -223,8 +255,27 @@ describe('額度用完（issue #683 推廣策略 + 後續放大文案／灰階�
     const rendered = textContent(view.current)
     expect(rendered).toContain('今天的 AI 藥袋辨識次數已經用完了')
     expect(rendered).not.toContain('升級')
-    expect(findButton(view.current, '📷 AI 拍藥袋辨識')?.props.disabled).toBe(true)
-    expect(findButton(view.current, '🖼️ 選擇照片')?.props.disabled).toBe(true)
+    expect(findButton(view.current, 'AI 拍藥袋辨識')?.props.disabled).toBe(true)
+    expect(findButton(view.current, '選擇照片')?.props.disabled).toBe(true)
+    view.unmount()
+  })
+
+  // #1177：kill switch 掛起時 Function 回 tier='none'＋suspended=true。付費家庭此時升級也拿不回次數，
+  // 所以三種語言都要說「暫停提供」、引用免費次數，且不得出現升級推銷。
+  test.each([
+    { locale: 'zh' as const, suspendedPhrase: 'Premium 的 AI 加值次數目前暫停提供', usedPhrase: '今天的 3 次免費次數已經用完', upgradeWords: ['升級'] },
+    { locale: 'id' as const, suspendedPhrase: 'sedang dihentikan sementara', usedPhrase: '3 kali pemindaian gratis hari ini sudah habis', upgradeWords: ['upgrade'] },
+    { locale: 'en' as const, suspendedPhrase: 'temporarily unavailable', usedPhrase: "today's 3 free scans have been used up", upgradeWords: ['upgrade'] },
+  ])('付費加值被暫停時用完（$locale）顯示「暫停提供」而不是升級提示，按鈕同樣停用', async ({ locale, suspendedPhrase, usedPhrase, upgradeWords }) => {
+    invokeImpl = async () => ({ data: null, error: Object.assign(new Error('invoke failed'), { context: { json: async () => ({ error: 'daily_medication_ai_draft_limit', tier: 'none', freeDailyLimit: 3, suspended: true }) } }) })
+    const view = renderHook(() => MedicationAiDraftSection({ patientId: 'patient-1', onApplyDraft: () => {} }), { defaultContext: { locale, setLocale: () => {} } })
+    view.act(() => fire(fileInput(view.current), 'onChange', { target: { files: [fakeFile], value: '' } }))
+    await flush()
+    const rendered = textContent(view.current)
+    expect(rendered).toContain(suspendedPhrase)
+    expect(rendered).toContain(usedPhrase)
+    for (const word of upgradeWords) expect(rendered.toLowerCase()).not.toContain(word.toLowerCase())
+    expect(findButton(view.current, locale === 'zh' ? 'AI 拍藥袋辨識' : locale === 'id' ? 'Pindai resep dengan AI' : 'Scan prescription with AI')?.props.disabled).toBe(true)
     view.unmount()
   })
 })
@@ -242,7 +293,7 @@ describe('拍照辨識結果', () => {
     view.act(() => fire(fileInput(view.current), 'onChange', { target: { files: [fakeFile], value: '' } }))
     await flush()
     const rendered = textContent(view.current)
-    expect(rendered).toContain('⚠️ 低信心辨識，請格外仔細核對')
+    expect(rendered).toContain('低信心辨識，請格外仔細核對')
     expect(rendered).toContain('藥袋上沒讀到，請自行填寫。')
     expect(rendered).toContain('Paracetamol')
     view.unmount()

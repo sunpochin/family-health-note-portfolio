@@ -14,6 +14,7 @@ import { resolveTutorialProgress } from '../../lib/tutorialProgress'
 // 逾時之後改用置中純文字卡，寧可少一個高亮框，也不要留下指錯地方的箭頭。
 const TARGET_RESOLVE_TIMEOUT_MS = 1500
 
+// 為什麼補足 44px：手機上的獨立操作要留出足夠點擊面，降低漏點與誤觸。
 export function TutorialOverlay() {
   const { isActive, currentStepIndex, steps, nextStep, prevStep, skipTutorial } = useTutorial()
   const { text } = useI18n()
@@ -244,10 +245,12 @@ export function TutorialOverlay() {
       {/* 遮罩背景：移除 backdrop-blur-sm 避免畫面過度模糊，改用適當透明度的半透明黑，既能聚焦又看得清背景內容 */}
       <div className="fixed inset-0 z-50 bg-slate-950/45 transition-opacity pointer-events-auto" />
       
-      {/* 目標元素高亮框：帶有柔和的深色光暈與亮藍色外框，清楚標示正在介紹的項目 */}
+      {/* 目標元素高亮框：帶有柔和的光暈與品牌色（brand-700）外框，清楚標示正在介紹的項目。
+          光暈的 rgba(4,120,87,0.5) 是 brand-700（#047857）的 RGB：任意值 shadow 吃不到 token 的透明度，
+          只能寫字面值；改品牌色時這一處要跟著改（#1144 把原本的 indigo 換成品牌色）。 */}
       {hasTargetHighlight && (
         <div 
-          className="fixed z-50 rounded-xl ring-4 ring-indigo-500 bg-indigo-500/10 shadow-[0_0_24px_rgba(99,102,241,0.5)] transition-all duration-300 pointer-events-none"
+          className="fixed z-50 rounded-xl ring-4 ring-brand-700 bg-brand-700/10 shadow-[0_0_24px_rgba(4,120,87,0.5)] transition-all duration-300 pointer-events-none"
           style={{
             top: targetRect.top - 6,
             left: targetRect.left - 6,
@@ -263,25 +266,25 @@ export function TutorialOverlay() {
           className="fixed z-50 pointer-events-none flex flex-col items-center animate-bounce transition-all duration-300"
           style={{
             left: `${targetRect.left + targetRect.width / 2}px`,
-            top: currentStep.position === 'top' 
-              ? `${targetRect.top - 36}px` 
+            // 箭頭原本上方還有一個 👇 emoji（32px 高）；拿掉後元件矮了 32px。容器高度現在是 svg 的 20px 扣掉 -mt-1 的 4px ＝ 16px，
+            // 所以偏移量從 -36 改成 -4：箭頭尖端（容器底）仍落在目標上緣內 12px 處（-4 + 16），與先前（-36 + 48）一致。
+            top: currentStep.position === 'top'
+              ? `${targetRect.top - 4}px`
               : `${targetRect.bottom + 10}px`,
             transform: 'translateX(-50%)',
           }}
         >
           {currentStep.position === 'top' ? (
-            <div className="flex flex-col items-center text-indigo-500 drop-shadow-[0_4px_10px_rgba(0,0,0,0.3)]">
-              <span className="text-2xl">👇</span>
-              <svg className="w-5 h-5 -mt-1 fill-indigo-500" viewBox="0 0 24 24">
+            <div className="flex flex-col items-center text-brand-700 drop-shadow-[0_4px_10px_rgba(0,0,0,0.3)]">
+              <svg className="w-5 h-5 -mt-1 fill-brand-700" viewBox="0 0 24 24">
                 <path d="M12 21l-7-8h4V4h6v9h4l-7 8z" />
               </svg>
             </div>
           ) : (
-            <div className="flex flex-col items-center text-indigo-500 drop-shadow-[0_4px_10px_rgba(0,0,0,0.3)]">
-              <svg className="w-5 h-5 -mb-1 fill-indigo-500" viewBox="0 0 24 24">
+            <div className="flex flex-col items-center text-brand-700 drop-shadow-[0_4px_10px_rgba(0,0,0,0.3)]">
+              <svg className="w-5 h-5 -mb-1 fill-brand-700" viewBox="0 0 24 24">
                 <path d="M12 3l7 8h-4v9h-6v-9H5l7-8z" />
               </svg>
-              <span className="text-2xl">👆</span>
             </div>
           )}
         </div>
@@ -300,7 +303,8 @@ export function TutorialOverlay() {
           <h3 id="tutorial-dialog-title" className="font-bold text-slate-900 text-lg">
             {text(currentStep.title)}
           </h3>
-          <span className="text-xs font-semibold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full whitespace-nowrap">
+          {/* 進度 pill 用 slate-600 而不是對照表的 slate-500：slate-500 在 slate-100 底上只有 4.35:1（<4.5），換色票前的舊灰階值反而剛好過線。 */}
+          <span className="text-xs font-semibold text-slate-600 bg-slate-100 px-2 py-0.5 rounded-full whitespace-nowrap">
             {progress.chapter ? `${text(progress.chapter)}・` : ''}{progress.current} / {progress.total}
           </span>
         </div>
@@ -312,7 +316,7 @@ export function TutorialOverlay() {
         <div className="flex items-center justify-between mt-auto pt-2">
           <button 
             onClick={skipTutorial}
-            className="text-sm font-medium text-slate-500 hover:text-slate-700 transition-colors"
+            className="text-sm font-medium text-slate-500 hover:text-slate-700 transition-colors min-h-11"
           >
             {text({ id: 'Lewati', zh: '跳過', en: 'Skip' })}
           </button>
@@ -321,7 +325,7 @@ export function TutorialOverlay() {
             {currentStepIndex > 0 && (
               <button 
                 onClick={prevStep}
-                className="text-sm font-medium text-indigo-600 bg-indigo-50 hover:bg-indigo-100 px-4 py-2 rounded-xl transition-colors active:scale-95"
+                className="text-sm font-medium text-brand-700 bg-brand-50 hover:bg-emerald-100 px-4 py-2 rounded-xl transition-colors active:scale-95 min-h-11"
               >
                 {text({ id: 'Kembali', zh: '上一步', en: 'Back' })}
               </button>
@@ -329,7 +333,7 @@ export function TutorialOverlay() {
             <button
               ref={nextBtnRef}
               onClick={handlePrimaryAction}
-              className="text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700 px-5 py-2 rounded-xl shadow-sm transition-colors active:scale-95"
+              className="text-sm font-bold text-white bg-brand-700 hover:bg-emerald-800 px-5 py-2 rounded-xl shadow-sm transition-colors active:scale-95 min-h-11"
             >
               {primaryLabel}
             </button>

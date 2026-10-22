@@ -1,11 +1,15 @@
+/*
+檔案用途：驗證 getSession 把一天 24 小時對應到五個量測時段的邊界（每個 bucket 的起訖小時）。
+所在層：tests/unit；純函式測試，不掛 React、不 mock Supabase。
+主要關聯：src/lib/session.ts；時段定義也被輸入頁與每日照護摘要共用，改邊界要同步看這裡的斷言。
+*/
 import { describe, test, expect } from 'bun:test'
 import { getSession } from '../../src/lib/session'
 
-// pagi 5–11, siang 12–16, malam1 17–18, malam2 19–20, malam3 21–4 (wraps
-// past midnight). Mother's night-time hypotension monitoring may happen at
-// separate evening checkpoints (~18:00 / ~20:00 / ~22:00), so malam is split
-// three ways instead of one big 17:00–04:59 bucket. These are grouping
-// buckets, not a promise that every night has exactly three readings.
+// 時段切法：pagi 5–11、siang 12–16、malam1 17–18、malam2 19–20、malam3 21–4（跨過午夜）。
+// 為什麼晚上要拆成三個 bucket：長輩若有夜間低血壓的傾向，照護者可能在 18:00／20:00／22:00
+// 分別量測；原本單一的 17:00–04:59「malam」會讓後面的量測點誤沿用第一個量測點的「休息／完成」
+// 流程。這些只是分組用的 bucket，不代表每晚一定要量三次。（通用照護情境，不描述任何特定使用者。）
 describe('getSession', () => {
   test('early morning hours fall into malam3 (last night-check bucket, not yet pagi)', () => {
     expect(getSession(0)).toBe('malam3')

@@ -12,8 +12,10 @@ import { AttentionItem, type AttentionTone } from '../../../components/ui/Attent
 import {
   LAB_ITEM_CODES,
   LAB_ITEM_META,
+  canEditLabResult,
   createLabResult,
   deleteLabResult,
+  isLabResultNotEditableError,
   labRangeStatus,
   listLabResults,
   sampledAtFromDateKey,
@@ -54,7 +56,7 @@ function defaultFormState(itemCode: LabItemCode, today: string): FormState {
   return { itemCode, value: '', sampledAt: today, referenceLow: '', referenceHigh: '', institution: '', notes: '' }
 }
 
-export function LabResultsPage({ patientId }: {
+export function LabResultsPage({ patientId, userEmail }: {
   patientId: string
   patientName?: string
   userEmail?: string
@@ -143,6 +145,13 @@ export function LabResultsPage({ patientId }: {
       return
     }
 
+    // 沒有登入 email 就無法滿足 INSERT／UPDATE policy 的 recorded_by 檢查；在送出前直接說明，
+    // 不要讓照護者看到通用的「儲存失敗」（比照 FluidBalancePage）。
+    if (!userEmail) {
+      setErrorMessage({ id: 'Akun login tidak terbaca. Masuk ulang lalu coba lagi.', zh: '讀不到登入帳號，請重新登入後再試。', en: 'Your sign-in could not be read. Sign in again and retry.' })
+      return
+    }
+
     setBusyId(editingId ?? 'new')
     try {
       const input = {
@@ -155,7 +164,7 @@ export function LabResultsPage({ patientId }: {
         institution: form.institution.trim() || null,
         notes: form.notes.trim() || null,
       }
-      const saved = editingId ? await updateLabResult(editingId, input) : await createLabResult(input)
+      const saved = editingId ? await updateLabResult(editingId, input) : await createLabResult(input, userEmail)
       if (!isCurrentPatient(mutationPatientId)) return
       setResults(current => {
         const next = editingId ? current.map(item => item.id === saved.id ? saved : item) : [...current, saved]
@@ -169,8 +178,13 @@ export function LabResultsPage({ patientId }: {
       // 每日配額（30 筆）觸發時資料庫回傳 P0001 daily_lab_results_limit；其餘錯誤顯示通用訊息，
       // 不揣測是哪一種 constraint 失敗，避免對照護者顯示過度技術性的原始錯誤碼。
       const isQuotaExceeded = (error as { message?: string })?.message?.includes('daily_lab_results_limit')
+      // 編輯時 42501＝非原登錄者（UPDATE 的 WITH CHECK 拒絕新列）；PGRST116＝這筆已被刪除或 USING 不通過。
+      // 畫面已經只給原登錄者編輯按鈕，這裡是清單過期時的保險，給一句看得懂的原因而不是通用失敗。
+      const isNotEditable = Boolean(editingId) && isLabResultNotEditableError(error)
       setErrorMessage(isQuotaExceeded
         ? { id: 'Hasil lab hari ini sudah mencapai batas. Coba lagi besok.', zh: '今天的檢驗值筆數已達上限，請明天再試。', en: 'Today’s lab result entries have reached the daily limit. Try again tomorrow.' }
+        : isNotEditable
+        ? { id: 'Hanya orang yang mencatat hasil lab ini yang dapat mengubahnya, atau data sudah dihapus. Muat ulang halaman.', zh: '只有登錄這筆檢驗值的人能編輯，或這筆已被刪除。請重新整理頁面。', en: 'Only the person who entered this lab result can edit it, or it was deleted. Reload the page.' }
         : { id: 'Hasil lab gagal disimpan. Coba lagi nanti.', zh: '檢驗值儲存失敗，請稍後再試。', en: 'The lab result could not be saved. Try again later.' })
     } finally {
       if (isCurrentPatient(mutationPatientId)) setBusyId(null)
@@ -209,65 +223,65 @@ export function LabResultsPage({ patientId }: {
         {errorMessage && <p role="alert" className="mb-3 rounded-xl bg-red-50 p-3 text-base font-semibold text-red-700">{text(errorMessage)}</p>}
 
         <div className="mb-4 flex justify-end">
-          <button type="button" disabled={!patientReady || loading} onClick={patientReady && showForm && !editingId ? closeForm : openAddForm} className="min-h-11 rounded-2xl bg-sky-700 px-4 text-sm font-black text-white shadow-sm active:bg-sky-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-600 focus-visible:ring-offset-2 disabled:opacity-60">
+          <button type="button" disabled={!patientReady || loading} onClick={patientReady && showForm && !editingId ? closeForm : openAddForm} className="min-h-11 rounded-2xl bg-brand-700 px-4 text-sm font-black text-white shadow-sm active:bg-emerald-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-700 focus-visible:ring-offset-2 disabled:opacity-60">
             {patientReady && showForm && !editingId ? text({ id: 'Tutup formulir', zh: '關閉表單', en: 'Close form' }) : text({ id: '+ Tambah hasil lab', zh: '＋ 新增檢驗值', en: '＋ Add lab result' })}
           </button>
         </div>
 
-        {patientReady && showForm && <section className="mb-4 rounded-3xl border border-sky-200 bg-sky-50 p-4 shadow-sm">
-          <h3 className="text-base font-black text-sky-950">{editingId ? text({ id: 'Ubah hasil lab', zh: '編輯檢驗值', en: 'Edit lab result' }) : text({ id: 'Hasil lab baru', zh: '新增檢驗值', en: 'New lab result' })}</h3>
+        {patientReady && showForm && <section className="mb-4 rounded-3xl border border-brand-200 bg-brand-50 p-4 shadow-sm">
+          <h3 className="text-base font-black text-slate-900">{editingId ? text({ id: 'Ubah hasil lab', zh: '編輯檢驗值', en: 'Edit lab result' }) : text({ id: 'Hasil lab baru', zh: '新增檢驗值', en: 'New lab result' })}</h3>
           <div className="mt-3 space-y-3">
             <label className="block">
-              <span className="mb-1 block text-sm font-bold text-sky-900">{text({ id: 'Jenis pemeriksaan', zh: '項目', en: 'Item' })}</span>
+              <span className="mb-1 block text-sm font-bold text-slate-800">{text({ id: 'Jenis pemeriksaan', zh: '項目', en: 'Item' })}</span>
               <select
                 value={form.itemCode}
                 disabled={Boolean(editingId)}
                 onChange={event => setForm(current => ({ ...defaultFormState(event.target.value as LabItemCode, today), sampledAt: current.sampledAt }))}
-                className="min-h-11 w-full rounded-xl border border-sky-300 bg-white px-3 text-base font-semibold text-slate-900"
+                className="min-h-11 w-full rounded-xl border-2 border-control-border bg-white px-3 text-base font-semibold text-slate-900"
               >
                 {LAB_ITEM_CODES.map(code => <option key={code} value={code}>{text(LAB_ITEM_META[code].label)}</option>)}
               </select>
             </label>
 
             <label className="block">
-              <span className="mb-1 block text-sm font-bold text-sky-900">{text({ id: `Nilai (${LAB_ITEM_META[form.itemCode].unit})`, zh: `數值（${LAB_ITEM_META[form.itemCode].unit}）`, en: `Value (${LAB_ITEM_META[form.itemCode].unit})` })}</span>
-              <input type="number" min={0} step="any" value={form.value} onChange={event => setForm(current => ({ ...current, value: event.target.value }))} className="min-h-11 w-full rounded-xl border border-sky-300 bg-white px-3 text-base font-semibold text-slate-900" />
+              <span className="mb-1 block text-sm font-bold text-slate-800">{text({ id: `Nilai (${LAB_ITEM_META[form.itemCode].unit})`, zh: `數值（${LAB_ITEM_META[form.itemCode].unit}）`, en: `Value (${LAB_ITEM_META[form.itemCode].unit})` })}</span>
+              <input type="number" min={0} step="any" value={form.value} onChange={event => setForm(current => ({ ...current, value: event.target.value }))} className="min-h-11 w-full rounded-xl border-2 border-control-border bg-white px-3 text-base font-semibold text-slate-900" />
             </label>
 
             <label className="block">
-              <span className="mb-1 block text-sm font-bold text-sky-900">{text({ id: 'Tanggal pengambilan sampel', zh: '採檢日期', en: 'Sample date' })}</span>
-              <input type="date" value={form.sampledAt} onChange={event => setForm(current => ({ ...current, sampledAt: event.target.value }))} className="min-h-11 w-full rounded-xl border border-sky-300 bg-white px-3 text-base font-semibold text-slate-900" />
+              <span className="mb-1 block text-sm font-bold text-slate-800">{text({ id: 'Tanggal pengambilan sampel', zh: '採檢日期', en: 'Sample date' })}</span>
+              <input type="date" value={form.sampledAt} onChange={event => setForm(current => ({ ...current, sampledAt: event.target.value }))} className="min-h-11 w-full rounded-xl border-2 border-control-border bg-white px-3 text-base font-semibold text-slate-900" />
             </label>
 
             <div className="grid grid-cols-2 gap-3">
               <label className="block">
-                <span className="mb-1 block text-sm font-bold text-sky-900">{text({ id: 'Batas bawah referensi', zh: '參考值下限', en: 'Reference low' })}</span>
-                <input type="number" step="any" value={form.referenceLow} onChange={event => setForm(current => ({ ...current, referenceLow: event.target.value }))} className="min-h-11 w-full rounded-xl border border-sky-300 bg-white px-3 text-base font-semibold text-slate-900" />
+                <span className="mb-1 block text-sm font-bold text-slate-800">{text({ id: 'Batas bawah referensi', zh: '參考值下限', en: 'Reference low' })}</span>
+                <input type="number" step="any" value={form.referenceLow} onChange={event => setForm(current => ({ ...current, referenceLow: event.target.value }))} className="min-h-11 w-full rounded-xl border-2 border-control-border bg-white px-3 text-base font-semibold text-slate-900" />
               </label>
               <label className="block">
-                <span className="mb-1 block text-sm font-bold text-sky-900">{text({ id: 'Batas atas referensi', zh: '參考值上限', en: 'Reference high' })}</span>
-                <input type="number" step="any" value={form.referenceHigh} onChange={event => setForm(current => ({ ...current, referenceHigh: event.target.value }))} className="min-h-11 w-full rounded-xl border border-sky-300 bg-white px-3 text-base font-semibold text-slate-900" />
+                <span className="mb-1 block text-sm font-bold text-slate-800">{text({ id: 'Batas atas referensi', zh: '參考值上限', en: 'Reference high' })}</span>
+                <input type="number" step="any" value={form.referenceHigh} onChange={event => setForm(current => ({ ...current, referenceHigh: event.target.value }))} className="min-h-11 w-full rounded-xl border-2 border-control-border bg-white px-3 text-base font-semibold text-slate-900" />
               </label>
             </div>
-            <p className="text-xs font-medium text-sky-800">{text({ id: 'Kosongkan jika laporan tidak mencantumkan rentang referensi; hasilnya akan ditampilkan tanpa kategori.', zh: '若報告未附參考值可留空，此筆將只顯示數值、不做分類。', en: 'Leave blank if the report has no reference range; this entry will show only the value, uncategorized.' })}</p>
+            <p className="text-xs font-medium text-slate-600">{text({ id: 'Kosongkan jika laporan tidak mencantumkan rentang referensi; hasilnya akan ditampilkan tanpa kategori.', zh: '若報告未附參考值可留空，此筆將只顯示數值、不做分類。', en: 'Leave blank if the report has no reference range; this entry will show only the value, uncategorized.' })}</p>
 
             <label className="block">
-              <span className="mb-1 block text-sm font-bold text-sky-900">{text({ id: 'Institusi (opsional)', zh: '檢驗機構（選填）', en: 'Institution (optional)' })}</span>
-              <input type="text" maxLength={80} value={form.institution} onChange={event => setForm(current => ({ ...current, institution: event.target.value }))} className="min-h-11 w-full rounded-xl border border-sky-300 bg-white px-3 text-base font-semibold text-slate-900" />
+              <span className="mb-1 block text-sm font-bold text-slate-800">{text({ id: 'Institusi (opsional)', zh: '檢驗機構（選填）', en: 'Institution (optional)' })}</span>
+              <input type="text" maxLength={80} value={form.institution} onChange={event => setForm(current => ({ ...current, institution: event.target.value }))} className="min-h-11 w-full rounded-xl border-2 border-control-border bg-white px-3 text-base font-semibold text-slate-900" />
             </label>
 
             <label className="block">
-              <span className="mb-1 block text-sm font-bold text-sky-900">{text({ id: 'Catatan (opsional)', zh: '備註（選填）', en: 'Notes (optional)' })}</span>
-              <textarea maxLength={240} value={form.notes} onChange={event => setForm(current => ({ ...current, notes: event.target.value }))} className="min-h-20 w-full rounded-xl border border-sky-300 bg-white px-3 py-2 text-base font-semibold text-slate-900" />
+              <span className="mb-1 block text-sm font-bold text-slate-800">{text({ id: 'Catatan (opsional)', zh: '備註（選填）', en: 'Notes (optional)' })}</span>
+              <textarea maxLength={240} value={form.notes} onChange={event => setForm(current => ({ ...current, notes: event.target.value }))} className="min-h-20 w-full rounded-xl border-2 border-control-border bg-white px-3 py-2 text-base font-semibold text-slate-900" />
             </label>
           </div>
           <div className="mt-4 grid grid-cols-2 gap-3">
             <button type="button" onClick={closeForm} className="min-h-12 rounded-2xl border border-slate-300 bg-white px-4 text-base font-black text-slate-700 active:bg-slate-100">{text({ id: 'Batal', zh: '取消', en: 'Cancel' })}</button>
-            <button type="button" disabled={busyId === (editingId ?? 'new')} onClick={submitForm} className="min-h-12 rounded-2xl bg-sky-700 px-4 text-base font-black text-white shadow-sm active:bg-sky-900 disabled:opacity-60">{text({ id: 'Simpan', zh: '儲存', en: 'Save' })}</button>
+            <button type="button" disabled={busyId === (editingId ?? 'new')} onClick={submitForm} className="min-h-12 rounded-2xl bg-brand-700 px-4 text-base font-black text-white shadow-sm active:bg-emerald-800 disabled:opacity-60">{text({ id: 'Simpan', zh: '儲存', en: 'Save' })}</button>
           </div>
         </section>}
 
-        {loading && <p className="py-12 text-center text-base text-gray-500">{text({ id: 'Memuat…', zh: '載入中…', en: 'Loading…' })}</p>}
+        {loading && <p className="py-12 text-center text-base text-slate-500">{text({ id: 'Memuat…', zh: '載入中…', en: 'Loading…' })}</p>}
 
         {!loading && patientResults.length === 0 && <section className="rounded-3xl border border-dashed border-slate-300 bg-white p-6 text-center shadow-sm">
           <p className="text-sm font-medium leading-6 text-slate-600">{text({ id: 'Belum ada hasil lab.', zh: '目前沒有檢驗值紀錄。', en: 'There are no lab results yet.' })}</p>
@@ -290,8 +304,11 @@ export function LabResultsPage({ patientId }: {
                 badge={text(rangeStatusLabel(status))}
                 description={description}
                 actions={<>
-                  <button type="button" disabled={busyId === result.id} onClick={() => openEditForm(result)} className="min-h-9 rounded-xl border border-slate-300 bg-white px-3 text-xs font-black text-slate-700 active:bg-slate-100">{text({ id: 'Ubah', zh: '編輯', en: 'Edit' })}</button>
-                  <button type="button" disabled={busyId === result.id} onClick={() => removeResult(result)} className="min-h-9 rounded-xl border border-red-300 bg-red-50 px-3 text-xs font-black text-red-800 active:bg-red-100">{text({ id: 'Hapus', zh: '刪除', en: 'Delete' })}</button>
+                  {/* 只有原登錄者能編輯（資料庫 UPDATE policy 的規則）；別人登錄的那筆不給按鈕，改用一句話說明原因。刪除沒有這個限制。編輯／刪除相鄰且刪除不可逆，原 36px 單手容易按錯，兩顆都是 min-h-11（44px，#1198）。 */}
+                  {canEditLabResult(result, userEmail)
+                    ? <button type="button" disabled={busyId === result.id} onClick={() => openEditForm(result)} className="min-h-11 rounded-xl border border-slate-300 bg-white px-3 text-xs font-black text-slate-700 active:bg-slate-100">{text({ id: 'Ubah', zh: '編輯', en: 'Edit' })}</button>
+                    : <span className="self-center text-xs font-semibold text-slate-500">{text({ id: 'Hanya pencatat yang dapat mengubah', zh: '只有登錄者能編輯', en: 'Only the person who entered it can edit' })}</span>}
+                  <button type="button" disabled={busyId === result.id} onClick={() => removeResult(result)} className="min-h-11 rounded-xl border border-red-300 bg-red-50 px-3 text-xs font-black text-red-800 active:bg-red-100">{text({ id: 'Hapus', zh: '刪除', en: 'Delete' })}</button>
                 </>}
               />
             )

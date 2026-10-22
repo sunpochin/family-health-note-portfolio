@@ -4,7 +4,8 @@
 主要關聯：接收 lib/dashboardStats 的 DashboardSummary，判讀走 useBpEvaluator（病人綁定的標準），
 卡片與徽章配色一律取自 lib/alertPresentation，不在本檔另建一份等級對照表。
 */
-import { ALERT_CARD_CLASS, ALERT_CHIP_CLASS, alertTone } from '../../../lib/alertPresentation'
+import { Icon } from '../../../components/ui/Icon'
+import { ALERT_CARD_CLASS, ALERT_CHIP_CLASS, ALERT_ICON, alertLabelText, alertTone } from '../../../lib/alertPresentation'
 import { useBpEvaluator } from '../hooks/useBpEvaluator'
 import { LatestVitals } from './LatestVitals'
 import { VitalReading } from './VitalReading'
@@ -25,10 +26,13 @@ export function DashboardStatsCards({
   const latest = summary.latest
   // 最新一筆有自己的 measured_at，所以用**那個時間點**生效的標準判讀，與下方 chip 一致。
   const latestRule = latest ? evaluator.evaluateAt(latest.systolic, latest.diastolic, latest.pulse, latest.measured_at) : null
+  // 沒有最新一筆時的底色框線原本用了一個不存在的「gray 250」階：Tailwind 沒有這一階，class 不會產生，
+  // 框線退回 currentColor（深色框），所以空狀態那張卡會長出一圈黑框；改成 slate-200（issue #1147）。
+  // 本檔卡片內 12px 說明字一律用 slate-600：警示底色（紅／橘淺色）上 slate-500 只有約 4.1:1，未達 4.5:1。
   const latestCardStyle = latestRule
-    ? `${ALERT_CARD_CLASS[alertTone(latestRule)]} text-gray-900 shadow-sm`
-    : 'bg-white border-gray-250 text-gray-900'
-  const latestValueStyle = 'text-gray-950'
+    ? `${ALERT_CARD_CLASS[alertTone(latestRule)]} text-slate-900 shadow-sm`
+    : 'bg-white border-slate-200 text-slate-900'
+  const latestValueStyle = 'text-slate-950'
 
   // 2. 期間平均血壓判定與樣式定義
   const hasAvg = summary.avgSystolic != null && summary.avgDiastolic != null
@@ -37,8 +41,8 @@ export function DashboardStatsCards({
   // 報告表頭的 R5 標示也會把兩份標準都列出來，不會讓這張卡假裝整段都用同一份。
   const avgRule = hasAvg ? evaluator.evaluateNow(summary.avgSystolic!, summary.avgDiastolic!, summary.avgPulse) : null
   const avgTone = avgRule ? alertTone(avgRule) : 'normal'
-  const avgCardStyle = avgRule ? ALERT_CARD_CLASS[avgTone] : 'bg-white border-gray-200'
-  const avgValueStyle = 'text-gray-950'
+  const avgCardStyle = avgRule ? ALERT_CARD_CLASS[avgTone] : 'bg-white border-slate-200'
+  const avgValueStyle = 'text-slate-950'
   const avgBadgeStyle = ALERT_CHIP_CLASS[avgTone]
 
   // 3. 偏高統計樣式定義 (合併 warning-high 和 danger-high)
@@ -90,7 +94,7 @@ export function DashboardStatsCards({
         <h2 id="dashboard-overview-title" className="text-base font-extrabold tracking-tight text-slate-950">
           {text({ id: 'Ringkasan', zh: '總覽' ,en: 'Summary' })}
         </h2>
-        <span className="text-xs font-semibold text-slate-400">
+        <span className="text-xs font-semibold text-slate-500">
           {text({ id: `${summary.recordCount} catatan`, zh: `共 ${summary.recordCount} 筆` ,en: `${summary.recordCount} records` })}
         </span>
       </div>
@@ -99,7 +103,7 @@ export function DashboardStatsCards({
         {/* Row 1: Terakhir / 最新 (最新血壓) */}
         <div className={`rounded-2xl border p-3.5 transition-all duration-300 ${latestCardStyle}`}>
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <span className="text-xs font-bold tracking-wider text-gray-500 uppercase">{text({ id: 'Terakhir', zh: '最新' ,en: 'Latest' })}</span>
+            <span className="text-xs font-bold tracking-wider text-slate-600 uppercase">{text({ id: 'Terakhir', zh: '最新' ,en: 'Latest' })}</span>
             {latest && <VitalAlertBadge systolic={latest.systolic} diastolic={latest.diastolic} pulse={latest.pulse} measuredAt={latest.measured_at} />}
           </div>
           <LatestVitals
@@ -108,32 +112,36 @@ export function DashboardStatsCards({
             record={latest}
           />
           {latestRule && (latestRule.recommendations.id || latestRule.recommendations.zh) && (
-            <div className="mt-2.5 border-t border-black/5 pt-2 text-xs leading-relaxed text-gray-700">
+            <div className="mt-2.5 border-t border-black/5 pt-2 text-xs leading-relaxed text-slate-700">
               <span className="font-bold">{text(latestRule.recommendations)}</span>
             </div>
           )}
-          {!latest && <div className="mt-2 border-t border-black/5 pt-2 text-xs text-gray-400">{text({ id: 'Belum ada', zh: '尚無資料' ,en: 'No User Memberships found' })}</div>}
+          {!latest && <div className="mt-2 border-t border-black/5 pt-2 text-xs text-slate-600">{text({ id: 'Belum ada', zh: '尚無資料' ,en: 'No User Memberships found' })}</div>}
         </div>
 
         {/* Row 2: Rata-rata / 平均 (統計平均) */}
         <div className={`rounded-2xl border p-3.5 transition-all duration-300 ${avgCardStyle}`}>
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <span className="text-xs font-bold tracking-wider text-gray-500 uppercase">{text({ id: 'Rata-rata', zh: '平均' ,en: 'Average' })}</span>
+            <span className="text-xs font-bold tracking-wider text-slate-600 uppercase">{text({ id: 'Rata-rata', zh: '平均' ,en: 'Average' })}</span>
             {hasAvg && avgRule && (
-              <span className={`rounded-full px-2.5 py-0.5 text-xs font-bold ${avgBadgeStyle}`}>
-                {text(avgRule.labels)}
+              // issue #1153：與「最新」列的 VitalAlertBadge 一樣，SVG 圖示＋剝掉推播用 emoji 的文字。
+              <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-bold ${avgBadgeStyle}`}>
+                <Icon name={ALERT_ICON[avgTone]} className="h-3.5 w-3.5 shrink-0" />
+                {text(alertLabelText(avgRule.labels))}
               </span>
             )}
           </div>
           <div className="mt-2.5 flex items-baseline justify-between gap-2">
             <div>
+              {/* 繁體中文註解：平均卡會套警示淡色底，slate-500 單位字在那裡只剩約 4.06:1，所以比預設深一階用 slate-600，
+                  與上方「最新」列（LatestVitals）一致（issue #1152）。 */}
               {hasAvg
-                ? <VitalReading systolic={summary.avgSystolic!} diastolic={summary.avgDiastolic!} pulse={summary.avgPulse} className={`text-2xl font-extrabold tracking-tight ${avgValueStyle}`} />
+                ? <VitalReading systolic={summary.avgSystolic!} diastolic={summary.avgDiastolic!} pulse={summary.avgPulse} className={`text-2xl font-extrabold tracking-tight ${avgValueStyle}`} unitClassName="text-slate-600" />
                 : <span className={`text-2xl font-extrabold tracking-tight ${avgValueStyle}`}>-</span>}
             </div>
-            <div className="text-right text-xs text-gray-500">
-              <span className="text-gray-400">{text({ id: 'Jumlah:', zh: '樣本：' ,en: 'Samples:' })}</span>{' '}
-              <span className="font-semibold text-gray-700">{text({ id: `${summary.recordCount} catatan`, zh: `${summary.recordCount} 筆` ,en: `${summary.recordCount} records` })}</span>
+            <div className="text-right text-xs text-slate-600">
+              <span className="text-slate-600">{text({ id: 'Jumlah:', zh: '樣本：' ,en: 'Samples:' })}</span>{' '}
+              <span className="font-semibold text-slate-700">{text({ id: `${summary.recordCount} catatan`, zh: `${summary.recordCount} 筆` ,en: `${summary.recordCount} records` })}</span>
             </div>
           </div>
         </div>
@@ -141,7 +149,7 @@ export function DashboardStatsCards({
         {/* Row 3: Tinggi / 偏高 (高血壓統計) */}
         <div className={`rounded-2xl border p-3.5 transition-all duration-300 ${highCardStyle}`}>
           <div className="flex items-center justify-between gap-2">
-            <span className="text-xs font-bold tracking-wider text-gray-500 uppercase">{text({ id: 'Tinggi', zh: '偏高' ,en: 'Somewhat high' })}</span>
+            <span className="text-xs font-bold tracking-wider text-slate-600 uppercase">{text({ id: 'Tinggi', zh: '偏高' ,en: 'Somewhat high' })}</span>
             {hasDangerHigh && (
               <span className="rounded-full bg-red-600 px-2.5 py-0.5 text-xs font-bold text-white">
                 {text({ id: 'Bahaya', zh: '危險' ,en: 'Danger' })}
@@ -153,7 +161,7 @@ export function DashboardStatsCards({
               <span className={`text-2xl font-extrabold tracking-tight ${highValueStyle}`}>
                 {totalHigh}
               </span>
-              <span className="text-xs text-gray-400 font-semibold ml-0.5">
+              <span className="text-xs text-slate-600 font-semibold ml-0.5">
                 {text({ id: 'kali', zh: '次' ,en: 'times' })}
               </span>
             </div>
@@ -173,7 +181,7 @@ export function DashboardStatsCards({
         {/* Row 4: Rendah Malam / 夜間偏低 */}
         <div className={`rounded-2xl border p-3.5 transition-all duration-300 ${lowCardStyle}`}>
           <div className="flex items-center justify-between gap-2">
-            <span className="text-xs font-bold tracking-wider text-gray-500 uppercase">{text({ id: 'Rendah Malam', zh: '夜間偏低' ,en: 'Low at night' })}</span>
+            <span className="text-xs font-bold tracking-wider text-slate-600 uppercase">{text({ id: 'Rendah Malam', zh: '夜間偏低' ,en: 'Low at night' })}</span>
             {nightLow > 0 && (
               <span className="rounded-full bg-red-600 px-2.5 py-0.5 text-xs font-bold text-white">
                 {text({ id: 'Perlu dilihat', zh: '需留意' ,en: 'Needs attention' })}
@@ -185,7 +193,7 @@ export function DashboardStatsCards({
               <span className={`text-2xl font-extrabold tracking-tight ${lowValueStyle}`}>
                 {nightLow}
               </span>
-              <span className="text-xs text-gray-400 font-semibold ml-0.5">
+              <span className="text-xs text-slate-600 font-semibold ml-0.5">
                 {text({ id: 'kali', zh: '次' ,en: 'times' })}
               </span>
             </div>
@@ -194,9 +202,9 @@ export function DashboardStatsCards({
                 <span>{text({ id: 'Malam:', zh: '夜間：' ,en: 'Nighttime:' })}</span>
                 <span className="font-bold">{nightLow}</span>
               </div>
-              <div className="flex items-center gap-1 text-gray-500 font-medium">
+              <div className="flex items-center gap-1 text-slate-600 font-medium">
                 <span>{text({ id: 'Total:', zh: '累計：' ,en: 'Total:' })}</span>
-                <span className="font-semibold text-gray-700">{totalLow}</span>
+                <span className="font-semibold text-slate-700">{totalLow}</span>
               </div>
             </div>
           </div>

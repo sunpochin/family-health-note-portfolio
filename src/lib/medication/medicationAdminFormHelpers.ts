@@ -1,7 +1,7 @@
 /*
 檔案用途：useMedicationAdminForm 用到的純函式／常數（劑型顆數摘要、錯誤訊息轉譯、劑型雙語標籤、mg 劑量剖析）。
 所在層：src/lib/medication；不持有狀態，供 hook 與其協作 hook共用，方便單元測試與局部理解。
-主要關聯：src/features/medication/hooks/useMedicationAdminForm.ts（唯一呼叫端）。
+主要關聯：useMedicationAdminForm、useMedicationPlanBatchForm 與單筆／批次劑量選單。
 */
 import type { AdminMedicationPlan, MedicationOption } from './medicationAdmin'
 import { type LocalizedText } from '../i18n'
@@ -24,6 +24,16 @@ export function medicationErrorStatus(error: unknown, fallback: LocalizedText): 
   // Supabase 有時會丟出不是 Error 實例的物件（例如 AuthError 的舊版形狀），String() 對那種物件
   // 只會印出 "[object Object]"，等於把真正的錯誤原因吃掉。
   const message = readErrorFields(error).message
+  // 批次衝突可能只是另一位照護者剛停掉一個時段；翻譯成可採取行動的提示，不洩漏原始 RPC 訊息。
+  if (message.includes('Medication plan batch does not match this medication')) {
+    return { id: 'Daftar obat telah berubah. Muat ulang dan periksa jadwal sebelum mencoba lagi.', zh: '藥單已變更，請重新讀取並核對時段後再試。', en: 'The medication list has changed. Reload and check the schedules before trying again.' }
+  }
+  if (message.includes('Medication plan batch change is incomplete')) {
+    return { id: 'Pilih setidaknya satu jadwal dan dosis yang sesuai sebelum mengirim.', zh: '請至少勾選一個時段，並選擇有效劑量後再送出。', en: 'Select at least one schedule and a valid dose before submitting.' }
+  }
+  if (message.includes('Invalid medication plan batch change')) {
+    return { id: 'Pilihan perubahan obat tidak valid. Muat ulang lalu pilih kembali jadwal dan dosis.', zh: '藥單變更選項無效，請重新讀取後再選擇時段與劑量。', en: 'The medication change selection is invalid. Reload and select the schedules and dose again.' }
+  }
   if (message.includes('shared with another patient')) {
     // 修正混雜印尼文的英文翻譯，並明確說明共用藥品保護機制
     return { id: 'Obat ini juga dipakai oleh orang lain, jadi datanya tidak bisa diubah dari sini. Tambahkan sebagai obat terpisah jika perlu.', zh: '這顆藥同時被其他病人使用，無法從這裡修改共用資料；如需不同資料請改成新增一筆獨立的藥品。' ,en: "This medication is also used by another person, so its shared details cannot be modified here. Add a separate medication if needed." }
@@ -46,10 +56,12 @@ export const DOSAGE_FORM_LABELS: Record<string, LocalizedText> = {
   powder: { id: 'Bubuk (sachet)', zh: '粉劑（一包）' ,en: 'Powder (sachet)' },
 }
 
-// 步距改成 0.25：媽媽正在減藥，需要 1/4、3/4 這種更細的單次劑量可選，不能只到半顆。
+// 步距改成 0.25：照護對象減藥時需要 1/4、3/4 這種更細的單次劑量可選，不能只到半顆。
 const DOSE_STEP = 0.25
 const MIN_DOSE_AMOUNT = DOSE_STEP
 const MAX_DOSE_AMOUNT = 9
+// 單筆與整顆藥共用同一份選項，避免其中一個入口漏掉四分之一劑量。
+export const DOSE_OPTIONS = Array.from({ length: MAX_DOSE_AMOUNT / DOSE_STEP }, (_, index) => (index + 1) * DOSE_STEP)
 
 export function validDoseAmount(value: string) {
   const amount = Number(value)

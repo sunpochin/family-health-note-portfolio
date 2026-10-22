@@ -14,11 +14,11 @@
 
 # Audit 覆蓋範圍設計：哪些表、什麼形狀、誰改的、誰能看、留多久
 
-- 狀態：**已核准**（owner 於 2026-09-26 在 [issue #910](https://github.com/portfolio-author/jia-jian-log/issues/910) 核准 ADR-008；AUDIT-1～3 本季實作，AUDIT-4 延到 2027-Q1）。本文件只出設計，不寫程式、不開 migration；實作票依 §10 開立，票號見 §10。
+- 狀態：**已核准**（owner 於 2026-09-26 在 [issue #910](https://github.com/demo-xq7/jia-jian-log/issues/910) 核准 ADR-008；AUDIT-1～3 本季實作，AUDIT-4 延到 2027-Q1）。本文件只出設計，不寫程式、不開 migration；實作票依 §10 開立，票號見 §10。
 - 日期：2026-09-24
 - 審查模型：Fable 5.1（依 [`docs/ai/model-routing.md`](../ai/model-routing.md)「跨三個以上子系統的一次性整體設計與 ADR」；本題同時跨 #847 domain model、A3 身分欄、ADR-002 備份邊界、#655 分享摘要四個面向）
 - 基準：`origin/staging` commit `05a2fe10`（197 支 migration）
-- 來源：[#848](https://github.com/portfolio-author/jia-jian-log/issues/848) § A7；[#847](https://github.com/portfolio-author/jia-jian-log/issues/847) 已於 2026-09-24 核准六題全部採用「採用方案」（[核准紀錄](https://github.com/portfolio-author/jia-jian-log/issues/847#issuecomment-5811367851)），A7 因此解鎖
+- 來源：[#848](https://github.com/demo-xq7/jia-jian-log/issues/848) § A7；[#847](https://github.com/demo-xq7/jia-jian-log/issues/847) 已於 2026-09-24 核准六題全部採用「採用方案」（[核准紀錄](https://github.com/demo-xq7/jia-jian-log/issues/847#issuecomment-5811367851)），A7 因此解鎖
 
 ## 0. ELI5（給完全不懂技術的人看）
 
@@ -78,7 +78,7 @@
 | --- | --- | --- | --- |
 | 體溫 24 天清理 | `purge_expired_body_temperature_records()`（`20260810100000:161-162`），pg_cron `30 17 * * *`（`:249-253`） | 每天，每筆體溫最終都會被刪一次 | 繞過 audit；否則 24 天保留的儲存量只是搬到 audit 表 |
 | 體重每日保留 | `enforce_patient_weight_daily_retention`（同上） | 每次寫入 | 繞過 audit |
-| 照護事件照片保留 | `supabase/functions/care-event-photo-retention/index.ts:50`（只 SELECT 列）、`:89`（只刪 Storage 物件） | 每天 | **不寫列**，與本設計無關（已驗證，不是推測） |
+| 照護事件照片保留 | `supabase/functions/care-event-photo-retention/index.ts:50`（SELECT 列）、`:86` 呼叫 `clear_care_event_photo_paths_if_unchanged()`（`20260814100000`，把 `care_timeline_entries.photo_paths` 清成 `[]`） | 每天 | **會寫列**（本表第一版寫「不寫列」是錯的，AUDIT-2 實作時更正）。刻意**不** bypass：紀錄本身還在、只有可見欄位被系統改掉，記為 `service_role` 正好回答「照片怎麼不見了」，也沒有延長任何已刪資料的保存期 |
 | 帳號刪除 | `delete_user_account()`（最新定義 `20260914042410_add_patient_lab_results.sql:266-294`）：以 `recorded_by = email` 刪血壓、體溫、體液、lab 列，再刪 `care_access`／`household_members`／`app_profiles`／`auth.users` | 極少 | 健康列的刪除繞過 audit；授權列的刪除保留（§6.4） |
 
 ### 2.3 Edge Function 以 service_role 寫入的表
@@ -105,7 +105,7 @@
 
 | 表 | 為什麼 | 寫入路徑（全是 RPC 或 trigger，無 client DML） |
 | --- | --- | --- |
-| `care_access` | 病人資料的唯一授權真相（AGENTS.md § 3.4）；能力位 `can_record`／`can_manage_medication`／`can_share_readonly` 的變化就是「誰能改媽媽的資料」的變化 | `approve_caregiver_invitation`、`accept_patient_care_invitation`、`set_household_patient_access`、`remove_household_member`、`auto_provision_profile`、`enforce_mother_patient_only_access` trigger、`delete_user_account`、`bind_care_access_user_id` trigger（只補 `user_id`，UPDATE 會被記為一筆「綁定」，可接受） |
+| `care_access` | 病人資料的唯一授權真相（AGENTS.md § 3.4）；能力位 `can_record`／`can_manage_medication`／`can_share_readonly` 的變化就是「誰能改被照護者的資料」的變化 | `approve_caregiver_invitation`、`accept_patient_care_invitation`、`set_household_patient_access`、`remove_household_member`、`auto_provision_profile`、`enforce_mother_patient_only_access` trigger、`delete_user_account`、`bind_care_access_user_id` trigger（只補 `user_id`，UPDATE 會被記為一筆「綁定」，可接受） |
 | `household_members` | `role` 是家庭層權限；今天 `DO UPDATE SET role` 零痕跡 | `add_household_member`、`remove_household_member`、`repair_*_household_memberships` migration、`delete_user_account` cascade |
 | `patients` | `display_name`、`archived_at`、`care_recipient_type`；封存一個病人等於讓所有紀錄從畫面消失（`archive_household_pet`：`UPDATE patients SET archived_at = NOW()`，最新 `20260914130000:640`） | `add_household_care_recipient`、`archive_household_pet`、`auto_provision_profile` |
 
@@ -156,7 +156,7 @@
 
 **被否決方案（Q1）**
 
-- **A7 選項 2「只補授權表」**：便宜，但回答不了「誰把媽媽的體重改掉」——那才是 A7 推測情境的第一句。而且一旦通用 trigger function 存在，Tier B 的邊際成本是每張表一行 `CREATE TRIGGER`，不值得為了省這幾行留一個「以後再說」。
+- **A7 選項 2「只補授權表」**：便宜，但回答不了「誰把被照護者的體重改掉」——那才是 A7 推測情境的第一句。而且一旦通用 trigger function 存在，Tier B 的邊際成本是每張表一行 `CREATE TRIGGER`，不值得為了省這幾行留一個「以後再說」。
 - **全部 30 張病人級表 INSERT 也記**：儲存量翻倍（§4.3），沒有多回答任何問題。
 - **只記 Tier B、不記 Tier A**：`care_access` 是整個 RLS 的根；「誰把看護降成 viewer」的答案缺席時，Tier B 的「誰改了數值」也失去可信基礎（改完數值再把自己移出授權，兩邊都查不到）。
 
@@ -249,7 +249,7 @@ CREATE TRIGGER audit_record_change AFTER UPDATE OR DELETE ON blood_pressure_reco
 
 1. **legacy 同步的回寫會觸發 no-op UPDATE**：`weight_records` 的 `sync_legacy_*` trigger 在 `AFTER INSERT OR UPDATE` 時寫 `patient_weight_measurement_records`；若 canonical 表的 audit trigger 沒有 `WHEN (OLD.* IS DISTINCT FROM NEW.*)`，一次體重修改可能記兩筆（一筆真改、一筆同值回寫）。`rls-authorization.sql` 要有「改一次體重只產生一筆 audit」的案例。
 2. **AFTER trigger 的 `NEW` 是所有 BEFORE trigger 跑完的結果**：#847 delta #2 的 `answered_at` BEFORE UPDATE trigger 補的值會出現在 `after_diff`，這是**正確**行為（audit 記的是最終落地的列）；但 `changed_columns` 會多出 `answered_at`，讀取層顯示時要能區分「使用者改的」與「系統推導的」欄位。最簡單的做法是讀取層維護一份「推導欄位」清單（`answered_at`、`updated_at`、`care_date`），不在資料庫層處理。
-3. **整張表不加任何 FK（`actor_user_id`、`patient_id`、`household_id` 都不加）**。三個欄位的問題同源：FK 的 `ON DELETE SET NULL`／`CASCADE` 會對 audit 表執行 UPDATE／DELETE，被 immutability trigger 擋下，父列的刪除因此失敗——`actor_user_id` 加 FK 會讓 `delete_user_account` 失敗；`patient_id`／`household_id` 加 `CASCADE` 會讓刪病人／刪家庭失敗，而且 `patients` 的 `AFTER DELETE` audit trigger 還會試圖插入一筆指向已刪病人的列，撞 FK（Codex review）。`app_admin_config_audit_log`／`medication_catalog_change_logs` 的 `actor_user_id` 都沒有 FK，是同一個理由（雖然它們的 migration 沒寫出來）。dangling uid 由讀取層解析成「已刪除的帳號」；dangling `patient_id`／`household_id` 的孤兒列由 purge 清理（6.3）。今天 `patients` 實際上不會被硬刪（`care_access.patient_id` 是 `ON DELETE RESTRICT`，`archive_household_pet` 只設 `archived_at`），但設計不能靠這個巧合。
+3. **整張表不加任何 FK（`actor_user_id`、`patient_id`、`household_id` 都不加）**。三個欄位的問題同源：FK 的 `ON DELETE SET NULL`／`CASCADE` 會對 audit 表執行 UPDATE／DELETE，被 immutability trigger 擋下，父列的刪除因此失敗——`actor_user_id` 加 FK 會讓 `delete_user_account` 失敗；`patient_id`／`household_id` 加 `CASCADE` 會讓刪病人／刪家庭失敗，而且 `patients` 的 `AFTER DELETE` audit trigger 還會試圖插入一筆指向已刪病人的列，撞 FK（Codex review）。`app_admin_config_audit_log`／`medication_catalog_change_logs` 的 `actor_user_id` 都沒有 FK，是同一個理由（雖然它們的 migration 沒寫出來）。dangling uid 由讀取層解析成「未知成員」；dangling `patient_id`／`household_id` 的孤兒列由 purge 清理（6.3）。今天 `patients` 實際上不會被硬刪（`care_access.patient_id` 是 `ON DELETE RESTRICT`，`archive_household_pet` 只設 `archived_at`），但設計不能靠這個巧合。
 
 **被否決方案（Q2）**
 
@@ -316,7 +316,7 @@ after_diff := insert → v_new；update → v_new 中「值與 v_old 不同」�
 - **`actor_user_id` 加 FK `ON DELETE SET NULL`**：見 4.4 第 3 點，會讓刪帳號失敗。
 - **要求每支 RPC 都傳 `actor_source`**：42 處 `DELETE FROM care_access` 逐支改是 A2（單一 membership 解析點）的工作；本設計只要求清理函式與規則 trigger 必設，其餘可選。
 - **只靠 `auth.uid()` 判 `user`／`system`、不做覆寫（本檔第一版）**：`SECURITY DEFINER` 函式與 trigger 在呼叫者 session 內跑，`auth.uid()` 全程存在，規則 trigger 的系統撤銷會被記成觸發它的使用者做的（Codex review）。
-- **`delete_user_account` 記成 `system`（本檔第一版 6.4 的寫法）**：刪帳號的人就是操作者，記 `system` 是把「她自己刪的」改寫成「系統刪的」；如實記 `user`＋dangling uid，讀取層顯示「已刪除的帳號」，資訊更準確。
+- **`delete_user_account` 記成 `system`（本檔第一版 6.4 的寫法）**：刪帳號的人就是操作者，記 `system` 是把「她自己刪的」改寫成「系統刪的」；如實記 `user`＋dangling uid，讀取層顯示「未知成員」，資訊更準確。
 
 ## 6. Q4：RLS、隱私、保留期限、帳號刪除、備份
 
@@ -356,9 +356,9 @@ CREATE POLICY "household owners read membership change logs" ON record_change_lo
 | Tier A（授權）、Tier A′（判讀設定） | NULL（永久） | 量級以「次」計；「半年前是誰把她加進來的」仍需可答 |
 | Tier B（健康數值） | `changed_at + 180 天` | 比體溫 24 天、照片保留期長；涵蓋一到兩個回診間隔（回診通常 1–3 個月，**推測**），讓「上次回診後誰改過」可答；比永久短，讓多家庭情境的儲存量有上限（4.3）。**數字由 owner 調整，寫成 trigger 的參數而不是常數** |
 
-清理：`purge_expired_record_change_logs()` 一支函式（`SET LOCAL app.audit_bypass = 'on'` 後 `DELETE … WHERE expires_at < now()`，**同一支函式一併刪除孤兒列**：`patient_id IS NOT NULL AND NOT EXISTS (SELECT 1 FROM patients WHERE id = patient_id)`，`household_id` 同理——因為表上沒有 FK（4.4 第 3 點），父列硬刪後的 audit 列沒有任何 policy 能讀到它，留著只是無人可讀的健康快照），以 pg_cron 每日執行，**寫法與 guard 完全比照** `purge_expired_body_temperature_records`（`20260810100000:240-260`：擴充不存在時不阻斷 migration），並在 [`docs/operations/cron-inventory.md`](../operations/cron-inventory.md) 新增一列（它是 migration 內 pg_cron，不是 Dashboard Cron）。
+清理：`purge_expired_record_change_logs()` 一支函式（`SET LOCAL app.audit_bypass = 'on'` 後 `DELETE … WHERE expires_at < now()`，**同一支函式一併刪除孤兒列**——因為表上沒有 FK（4.4 第 3 點），父列硬刪後的 audit 列沒有任何 policy 能讀到它，留著只是無人可讀的健康快照。AUDIT-2 實作時把孤兒判定收窄成「`patient_id` 與 `household_id` **都**已沒有活父列」：本段第一版寫「任一指向已刪父列」，但 `patients` 自己的 audit 列兩個鍵都有，病人被硬刪而家庭還在時，家庭 owner 仍經 household policy 讀得到「病人被刪除」這筆永久紀錄，照第一版會把它清掉），以 pg_cron 每日執行，**寫法與 guard 完全比照** `purge_expired_body_temperature_records`（`20260810100000:240-260`：擴充不存在時不阻斷 migration），並在 [`docs/operations/cron-inventory.md`](../operations/cron-inventory.md) 新增一列（它是 migration 內 pg_cron，不是 Dashboard Cron）。
 
-**系統清理繞過 audit**（4.3 結論 2）：`purge_expired_body_temperature_records()`、`enforce_patient_weight_daily_retention()` 在函式開頭 `PERFORM set_config('app.audit_bypass', 'on', true)`（transaction-local），結尾設回 `'off'`。`log_record_change()` 第一行檢查此 GUC，`'on'` 就 `RETURN NULL`。這兩支是**全部**需要繞過的既有路徑（§2.2）；新增清理路徑時比照。
+**系統清理繞過 audit**（4.3 結論 2）：`purge_expired_body_temperature_records()`、`enforce_patient_weight_daily_retention()` 在刪除那一句之前 `PERFORM set_config('app.audit_bypass', 'on', true)`（transaction-local），之後還原成呼叫前的值（AUDIT-2 實作：不寫死 `'off'`，否則呼叫端本來就在 bypass 脈絡時會被提早關掉）。體重保留再細分（AUDIT-2 獨立複審）：只 bypass「其他日期」的換日壓縮；寫入過去日期而把當天原本的量測擠掉時照常記 `delete`（actor 是寫入者、`actor_source = 'enforce_patient_weight_daily_retention'`），否則繞過 UI 寫一筆過去日期就能無痕抹掉歷史體重。`log_record_change()` 第一行檢查此 GUC，`'on'` 就 `RETURN NULL`。這兩支是**全部**需要繞過的既有路徑（§2.2）；新增清理路徑時比照。
 
 ### 6.4 帳號刪除（`delete_user_account`）
 
@@ -366,7 +366,7 @@ CREATE POLICY "household owners read membership change logs" ON record_change_lo
 
 1. **健康列的刪除段落設 `app.audit_bypass = 'on'`**：這些是被刪帳號自己記的紀錄，記一筆「system 刪了一筆血壓、before_row 含數值」等於把要被抹除的資料換個地方留 180 天。
 2. **授權列的刪除段落不繞過**（設回 `'off'`，並 `SET LOCAL app.audit_source = 'delete_user_account'`）：`care_access`／`household_members` 的 DELETE（含 `auth.users` cascade）**如實記為 `user`**——`auth.uid()` 在這支 `SECURITY DEFINER` 函式內全程存在，而且刪帳號的人確實就是操作者，記成 `system` 反而是說謊（本檔第一版寫 `system`，Codex review 指出做不到；改為 `user` 之後更準確）。`before_row` 因 5.2 剝除了 `profile_email`，只剩 `patient_id`、dangling `user_id`、能力位。家庭 owner 因此能回答「為什麼看護的權限不見了 → 她自己刪了帳號」（`actor_source` 說明原因），而被刪帳號在資料庫裡不再有任何可識別字串。
-3. **`actor_user_id` 因無 FK 而 dangling**，不需要額外 UPDATE；讀取層對解析不到 `app_profiles` 的 uid 顯示「已刪除的帳號」。
+3. **`actor_user_id` 因無 FK 而 dangling**，不需要額外 UPDATE；讀取層對解析不到 `app_profiles` 的 uid 顯示「未知成員」。
 
 這一條與 A5 選項 2「`delete_user_account` 資料驅動化」相容：資料驅動化之後，繞過與否是每張表的一個旗標。
 
@@ -412,10 +412,11 @@ CREATE POLICY "household owners read membership change logs" ON record_change_lo
 
 ### 8.2 未來最小讀取入口（`[Sonnet]`，2027-Q1，需 owner 另核）
 
-- **紀錄層級**：既有編輯入口（`DailyBloodPressureRecords.tsx` 的編輯／刪除、`useTrajectoryEntryEditor.ts`、回診問題清單）各加一個「異動歷史」抽屜，讀 `fetchRecordChangeHistory`。這直接回答「誰把媽媽的體重改掉」，不需要新頁面。
+- **紀錄層級**：既有編輯入口（`DailyBloodPressureRecords.tsx` 的編輯／刪除、`useTrajectoryEntryEditor.ts`、回診問題清單）各加一個「異動歷史」抽屜，讀 `fetchRecordChangeHistory`。這直接回答「誰把被照護者的體重改掉」，不需要新頁面。
 - **病人層級**：設定頁一個「最近 30 天異動」清單，讀 `fetchRecentPatientChanges`；只對 `can_record` 顯示。
-- **actor 顯示名稱**：`app_profiles(user_id PK, display_name)` 可依 uid 解析；**無法在本設計驗證**：照護者能否讀到同病人其他照護者的 `app_profiles` 列（RLS）。若不能，改用 `fetch_household_members` RPC 已回傳的成員身分做對照；解析不到的 uid 顯示「已刪除的帳號」（三語）。
-- **系統列顯示**：`actor_kind = 'system'` ＋ `actor_source` 顯示為「系統（自動清理）」「系統（帳號刪除）」等，不顯示成空白。
+- **actor 顯示名稱**：`app_profiles(user_id PK, display_name)` 可依 uid 解析；**無法在本設計驗證**：照護者能否讀到同病人其他照護者的 `app_profiles` 列（RLS）。若不能，改用 `fetch_household_members` RPC 已回傳的成員身分做對照；解析不到的 uid 顯示「未知成員」（三語）。
+- **系統列顯示**：`actor_kind = 'system'` ＋ `actor_source` 顯示為「系統（自動清理）」「系統（權限規則）」等，不顯示成空白。「系統（帳號刪除）」不存在：`delete_user_account` 全程有 `auth.uid()`、也沒設 `app.audit_actor_kind`，永遠記成 `user`（5.3、6.4）；體溫清理在 bypass 下不寫列，也不會有「系統（體溫清理）」。
+- **user 列的來源註記**（#1054）：`actor_kind = 'user'` 時 label 永遠是寫入者本人，但 `actor_source` 若是已知的規則／流程來源，讀取層另外在 `ResolvedActor.sourceNote` 帶出三語註記（`formatActorSourceNote()`），UI 不必也不該自己去解 `actor_source`。目前兩種：`enforce_patient_weight_daily_retention` →「由保留規則代刪」（寫入過去日期的體重擠掉當天原本的量測，6.3；只顯示名字會讓人以為是他自己刪了體重）、`delete_user_account` →「因帳號刪除而連帶異動」（該帳號已不存在，名字多半解析成「未知成員」，原因只靠這個註記）。其他 source（例如 `set_notification_subscription`）不給註記，也不把函式名直接顯示給使用者。**新增另一種「使用者的寫入順便觸發的規則」且刻意不 bypass 時，同步在 `recordChangeHistory.ts` 的註記表補一列。**
 
 ### 8.3 與 #655（分享摘要）的關係
 
@@ -458,7 +459,7 @@ ADR-008 核准（owner，#910）
     │        │      seed-staging.ts 重播不受影響（它會 UPDATE 嗎？實作時確認）
     │        │
     │        └──► AUDIT-3 [Sonnet]：src/lib/recordChangeHistory.ts（before ⊕ diff 合成、推導欄位過濾、
-    │               actor 解析含「已刪除的帳號」）＋ 單元測試；不做 UI
+    │               actor 解析含「未知成員」）＋ 單元測試；不做 UI
     │                 │
     │                 └──► AUDIT-4 [Sonnet]（2027-Q1，需 owner 另核；本季 defer）：
     │                        紀錄詳情「異動歷史」抽屜 ＋ 設定頁「最近 30 天異動」，三語
@@ -497,7 +498,7 @@ ADR-008 核准（owner，#910）
 
 ## 13. 參考
 
-- Issue [#910](https://github.com/portfolio-author/jia-jian-log/issues/910)（本設計的追蹤票）、[#848](https://github.com/portfolio-author/jia-jian-log/issues/848) § A7／A3、[#847](https://github.com/portfolio-author/jia-jian-log/issues/847)（已核准）、[#655](https://github.com/portfolio-author/jia-jian-log/issues/655)。
+- Issue [#910](https://github.com/demo-xq7/jia-jian-log/issues/910)（本設計的追蹤票）、[#848](https://github.com/demo-xq7/jia-jian-log/issues/848) § A7／A3、[#847](https://github.com/demo-xq7/jia-jian-log/issues/847)（已核准）、[#655](https://github.com/demo-xq7/jia-jian-log/issues/655)。
 - [`docs/adr/008-audit-coverage-boundary.md`](../adr/008-audit-coverage-boundary.md)：本檔的決策記錄與被拒絕方案摘要。
 - [`docs/architecture/maintainability-review-2026-09.md`](./maintainability-review-2026-09.md) § A7（三個處置選項）、§ A3（22 個 TEXT 記錄者欄位）、§ A2（授權雙軌）、§ A5（legacy 退役）。
 - [`docs/product/care-loop-domain-model.md`](../product/care-loop-domain-model.md) §4 delta #1／#2／#5／#6、§7 依賴圖；[`docs/adr/005-care-loop-closure.md`](../adr/005-care-loop-closure.md)。

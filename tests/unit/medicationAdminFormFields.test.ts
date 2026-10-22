@@ -8,7 +8,7 @@ import { doseOptionLabel } from '../../src/features/medication/components/Medica
 
 describe('doseOptionLabel', () => {
   test('shows quarter and three-quarter tablets as fractions for tapering doses', () => {
-    // 媽媽正在降低藥量，選單要能顯示 1/4、3/4 顆的分數標示，不能只到半顆。
+    // 照護對象減藥時，選單要能顯示 1/4、3/4 顆的分數標示，不能只到半顆。
     expect(doseOptionLabel(0.25)).toBe('¼')
     expect(doseOptionLabel(0.75)).toBe('¾')
     expect(doseOptionLabel(1.25)).toBe('1¼')

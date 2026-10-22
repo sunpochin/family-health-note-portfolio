@@ -38,6 +38,10 @@ export const ALLOWLIST_FILES = [
   'playwright.config.ts',
   'index.html',
   '.env.example',
+  // 公開版 README 說 Bun 版本釘在 .bun-version、授權是 MIT；這兩個檔案不進 allowlist 的話，
+  // 公開 repo 就是在宣稱一個自己沒有的檔案（Codex review 在 PR #1013 抓到）。
+  '.bun-version',
+  'LICENSE',
   // PORTFOLIO-01 產線自己的原始碼——逐一列出，見上方 ALLOWLIST_DIRS 的警告：
   // 絕不能把 scripts/portfolio 整個目錄加進 ALLOWLIST_DIRS。
   'scripts/portfolio/allowlist.ts',
@@ -46,8 +50,17 @@ export const ALLOWLIST_FILES = [
   'scripts/portfolio/release.ts',
   'scripts/portfolio/verify.ts',
   'scripts/portfolio/checkLogic.ts',
+  'scripts/portfolio/releaseLogic.ts', // tests/unit/portfolioReleaseLogic.test.ts 依賴
+  'scripts/portfolio/testPruneLogic.ts', // build.ts 與 tests/unit/portfolioTestPruneLogic.test.ts 依賴
+  'scripts/portfolio/checkStamp.ts', // check.ts、release.ts 與 tests/unit/portfolioCheckStamp.test.ts 依賴
+  'scripts/portfolio/publish.ts',
   'scripts/portfolio/replacements.local.json.example',
   'scripts/portfolio/forbidden.local.json.example',
+  // 管理頁會直接匯入這份純政策常數；只收錄此檔才能讓公開版建置成功，同時維持 supabase/ 預設不公開。
+  'supabase/functions/_shared/paidFeatureEntitlementPolicy.ts',
+  // 管理頁需要共用的資料契約才能載入；只公開這兩份純函式，避免把 CLI、worker 與配對流程一起輸出。
+  'packages/agent-mission-control/src/cloud-model.ts',
+  'packages/agent-mission-control/src/model.ts',
   'tests/bp-contract-tests.json', // tests/unit/contract.test.ts 依賴，不屬於 tests/unit/ 目錄本身
   'CHANGELOG.md', // src/features/system-admin/pages/ReleasesPage.tsx 用 `?raw` 靜態 import，vite build 需要這個檔案存在；
                   // 內容只有 release-please 產生的功能/修正條目與 commit 連結，無個資（連結指向私有 repo，公開版點了會 404，可接受）。
@@ -72,6 +85,10 @@ export const ALLOWLIST_GLOB_SPEC_FILES = [
 // 或 root 設定檔（vercel.json）而在載入階段就整份 crash——grep import 語句抓不到
 // `readFileSync(new URL('../../supabase/migrations/...'))` 這種動態路徑讀檔。
 // 教訓：改動這份清單後必須實際在輸出目錄跑一次 bun test 驗證，不能只用 grep 推論。
+//
+// 2026-09 起，「依賴未公開檔案」這一類改由 build.ts 自動偵測移除（見 testPruneLogic.ts），
+// 下面這類既有條目保留作為明確紀錄；新增這類測試不需要再手動補進來。
+// 仍然必須手動列的，是自動偵測抓不到的原因：依賴真實個資值、測試 harness 順序敏感等。
 export const EXCLUDE_WITHIN_ALLOWLIST = [
   // 依賴 scripts/（備份、匯入等維運腳本，未進 allowlist）：
   'tests/unit/importMoaAnimalDrugs.test.ts',
@@ -79,11 +96,6 @@ export const EXCLUDE_WITHIN_ALLOWLIST = [
   'tests/unit/medicationCatalogBackfill.test.ts',
   'tests/unit/importNhiTcmProducts.test.ts',
   'tests/unit/tfdaDrugImport.test.ts',
-  'tests/unit/cliBootstrap.test.ts',
-  'tests/unit/functionRequiredSecrets.test.ts',
-  'tests/unit/missingSecretIssue.test.ts',
-  'tests/unit/stagingProjectRefScope.test.ts',
-  'tests/unit/publicRouteSmoke.test.ts',
   // 依賴 supabase/migrations/*.sql 內容（migration 逐條驗證測試；P0 決策：整個
   // supabase/ 不進 allowlist，見文件 1.2 第 4 點）：
   'tests/unit/calendarNotificationMigration.test.ts',
@@ -109,120 +121,43 @@ export const EXCLUDE_WITHIN_ALLOWLIST = [
   'tests/unit/weightRetentionMigration.test.ts',
   'tests/unit/securityReviewFollowupsMigration.test.ts',
   'tests/unit/analytics.test.ts', // 同樣以 readFileSync 讀取一個 migration 檔案驗證版本號
-  'tests/unit/adminConfigAuditAndSelfHealMigration.test.ts',
-  'tests/unit/adminIdentityConfigMigration.test.ts',
-  'tests/unit/blockBloodPressureDeleteWhileDeliveryPendingMigration.test.ts',
-  'tests/unit/bloodPressureDeliveryLedgerRpcMigration.test.ts',
-  'tests/unit/bloodPressureDeliveryReserveV2Migration.test.ts',
-  'tests/unit/careAccessEmailFallbackRemovalMigration.test.ts',
-  'tests/unit/careAccessIdentityBindingMigration.test.ts',
-  'tests/unit/careAccessProfileEmailSyncMigration.test.ts',
-  'tests/unit/careAccessRpcIdentityBindingMigration.test.ts',
-  'tests/unit/caregiverDensityModeDefaultMigration.test.ts',
-  'tests/unit/caregiverShareReadonlyMigration.test.ts',
-  'tests/unit/cascadeDeleteBloodPressureNotificationDeliveriesMigration.test.ts',
-  'tests/unit/ciAuthUsersFixture.test.ts',
-  'tests/unit/deliveryDeadlineMigration.test.ts',
-  'tests/unit/downstreamPolicyUidOnlyMigration.test.ts',
-  'tests/unit/enqueuePersonalNotificationsQueuedCountMigration.test.ts',
-  'tests/unit/grantPersonalNotificationTierMigration.test.ts',
-  'tests/unit/healthConsentVersionBumpForAiDraftMigration.test.ts',
-  'tests/unit/healthConsentVersionRegressionFix.test.ts',
-  'tests/unit/healthVisitStructureMigration.test.ts',
-  'tests/unit/incidentAcknowledgementGenerationMigration.test.ts',
-  'tests/unit/invitationAccountDeletionMigration.test.ts',
-  'tests/unit/medicationAiDraftEntitlementMigration.test.ts',
-  'tests/unit/medicationAiDraftFreeTierMigration.test.ts',
-  'tests/unit/medicationAiDraftPaidLimitMigration.test.ts',
-  'tests/unit/medicationCatalogCuratorEntitlementMigration.test.ts',
-  'tests/unit/medicationCatalogCuratorRpcsMigration.test.ts',
-  'tests/unit/mergePreservesPatientMedicationSideTablesMigration.test.ts',
-  'tests/unit/notificationDeliveryLedgerAlignmentMigration.test.ts',
-  'tests/unit/notificationDeliverySweeperMigration.test.ts',
-  'tests/unit/notificationProviderDisclosures.test.ts',
-  'tests/unit/notificationSubscriptionWritePathMigration.test.ts',
-  'tests/unit/notificationSubscriptionsMigration.test.ts',
-  'tests/unit/patientLabResultsMigration.test.ts',
-  'tests/unit/patientMedicationAppearanceOverridesMigration.test.ts',
-  'tests/unit/patientMedicationInstructionsMigration.test.ts',
-  'tests/unit/patientShareSummaryV2Migration.test.ts',
-  'tests/unit/personalNotificationChannelsMigration.test.ts',
-  'tests/unit/personalNotificationOutboxClaimMigration.test.ts',
-  'tests/unit/premiumTierEntitlementMigration.test.ts',
-  'tests/unit/providerFailureCodeBackfillMigration.test.ts',
-  'tests/unit/recordChangeLogsMigration.test.ts',
-  'tests/unit/shareConsentNotice.test.ts',
-  'tests/unit/shareLinkAccessAuditMigration.test.ts',
-  'tests/unit/shareLinkLegalVersionBumpMigration.test.ts',
-  'tests/unit/shareSummaryV2CreatorCheckMigration.test.ts',
-  'tests/unit/stopSharedMedicationCatalogSilentOverwriteMigration.test.ts',
-  'tests/unit/structuredShareProxyConsentMigration.test.ts',
-  'tests/unit/visitQuestionsMigration.test.ts',
-  // 依賴 supabase/functions/* 或 config.toml（Edge Function 原始碼，未進 allowlist）：
+  // 依賴 supabase/functions/*（Edge Function 原始碼，未進 allowlist）：
   'tests/unit/adminListUsers.test.ts',
   'tests/unit/adminListUsersFunction.test.ts',
-  'tests/unit/adminSetAccountEntitlement.test.ts',
-  'tests/unit/adminSyncIdentityFunction.test.ts',
   'tests/unit/bloodPressureNotifier.test.ts',
-  'tests/unit/bpRuleParity.test.ts',
   'tests/unit/calendarAgendaFunction.test.ts',
   'tests/unit/calendarAgendaRules.test.ts',
   'tests/unit/calendarNotifier.test.ts',
-  'tests/unit/calendarNotifierFunction.test.ts',
   'tests/unit/careDueRemindersFunction.test.ts',
   'tests/unit/careEventPhotoRetention.test.ts',
-  'tests/unit/cronShared.test.ts',
-  'tests/unit/deliveryPolicy.test.ts',
   'tests/unit/googleCalendarClient.test.ts',
   'tests/unit/invitationEmail.test.ts',
-  'tests/unit/lineShared.test.ts',
-  'tests/unit/lineWebhookFunction.test.ts',
-  'tests/unit/medicationAiDraft.test.ts',
-  'tests/unit/medicationAiDraftContentTypeRegression.test.ts',
-  'tests/unit/medicationAiDraftFunction.test.ts',
   'tests/unit/medicationAppearancePhotoRetention.test.ts',
   'tests/unit/medicationOcr.test.ts',
   'tests/unit/medicationOcrFunction.test.ts',
-  'tests/unit/ownerlessPending.test.ts',
-  'tests/unit/personalNotificationDrainFunction.test.ts',
   'tests/unit/sendInvitationEmailFunction.test.ts',
   'tests/unit/shareCors.test.ts',
   'tests/unit/shareLinkExchange.test.ts',
   'tests/unit/shareLinkFunctionsCors.test.ts',
   'tests/unit/shareSession.test.ts',
   'tests/unit/shareSummary.test.ts',
-  'tests/unit/shareSummaryV2.test.ts',
-  'tests/unit/shareSummaryV2Function.test.ts',
-  'tests/unit/supabaseConfig.test.ts',
-  'tests/unit/supabaseFunctionsConfig.test.ts',
-  'tests/unit/telegramNotification.test.ts',
-  'tests/unit/telegramShared.test.ts',
-  'tests/unit/telegramWebhookFunction.test.ts',
-  // 依賴 api/（Vercel Serverless Function 原始碼，未進 allowlist）：
-  'tests/unit/tfdaAppearanceImage.test.ts',
-  'tests/unit/vercelFunctionImports.test.ts',
-  // 依賴 scripts/（私有測試腳本，未進 allowlist）：
-  'tests/unit/tfdaProxySmokeTest.test.ts',
-  // 依賴 ios/／android/（Capacitor 原生殼，未進 allowlist），且 mock.module platform 會全域污染 platform.test.ts：
+  // 依賴 ios/（Capacitor 原生殼，未進 allowlist）：
   'tests/unit/nativeAuth.test.ts',
-  'tests/unit/nativeAuthFlow.test.ts',
-  'tests/unit/nativeUpdatePromptRender.test.ts',
   // 依賴 root 設定檔（未進 allowlist）：
   'tests/unit/vercelHeaders.test.ts', // 讀取 vercel.json
   'tests/unit/temperature.test.ts', // 同時讀取一個 migration 檔案驗證欄位定義
-  // 依賴真實 email 值（替換後測試失敗）：
+  // 斷言帳號字面值（產線套用替換規則後斷言會失敗）：
   'tests/unit/auth.test.ts',
   'tests/unit/medicationToday.test.ts',
   // 依賴自訂 React hook 測試 harness 對 bun:test `mock.module('react', ...)` 的
   // 全域、跨檔案共用行為（見這兩個檔案自己的註解：「bun 的 mock.module 是整個測試程序共用的」）。
   // 這個環境依賴對「哪些檔案、用什麼順序跑」很敏感——完整跑 227 個測試檔時順序沒踩到問題，
-  // 但公開版只有較少檔案，執行順序不同，讓 harness 沒能正確接管 useContext，
+  // 但公開版只有 88 個檔案，執行順序不同，讓 harness 沒能正確接管 useContext，
   // 產生 LocaleProvider／useI18n 相關的假失敗。跟個資／安全無關，純粹是測試環境的檔案子集
   // 順序敏感性；公開 repo 自己的 portfolio-ci.yml 跑第一次（341 → 341 個檔案，commit
   // aad50de）就踩到了這個問題，才發現需要排除。
   'tests/unit/reactStateHooks.test.ts',
   'tests/unit/latestVitalsRender.test.ts',
-  'tests/unit/bpStandardSettingsPanel.test.ts',
 ]
 
 // package.json 的 scripts 欄位裡，只保留跟「跑得起來這個 repo」直接相關的指令；

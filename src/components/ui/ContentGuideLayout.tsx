@@ -8,6 +8,7 @@ import { useI18n, type LocalizedText } from '../../lib/i18n'
 import { APP_NAME_ZH, APP_NAME_EN } from '../../lib/appInfo'
 import { LanguageSwitcher } from './LanguageSwitcher'
 
+// 為什麼補足 44px：手機上的獨立操作要留出足夠點擊面，降低漏點與誤觸。
 export function ContentGuideLayout({ title, sourceNote, metaDescription, children }: {
   title: LocalizedText
   sourceNote: LocalizedText
@@ -43,17 +44,17 @@ export function ContentGuideLayout({ title, sourceNote, metaDescription, childre
   }, [text, title, metaDescription, locale])
 
   return (
-    <div className="min-h-dvh bg-gray-50 text-gray-900">
-      <header className="sticky top-0 z-10 border-b border-gray-200 bg-white px-4 py-3">
+    <div className="min-h-dvh bg-slate-50 text-slate-900">
+      <header className="sticky top-0 z-10 border-b border-slate-200 bg-white px-4 py-3">
         <div className="mx-auto flex max-w-2xl items-center justify-between">
-          <a href="/" className="text-sm font-bold text-gray-700">← {text({ id: 'Kembali ke Beranda', zh: '返回首頁' ,en: "Back to Home" })}</a>
+          <a href="/" className="text-sm font-bold text-slate-700 inline-flex min-h-11 items-center">← {text({ id: 'Kembali ke Beranda', zh: '返回首頁' ,en: "Back to Home" })}</a>
           <LanguageSwitcher />
         </div>
       </header>
       <main className="mx-auto max-w-2xl px-5 py-8">
         <article className="space-y-6 rounded-3xl bg-white p-6 shadow-sm md:p-8">
           <div>
-            <p className="text-xs font-bold text-indigo-700">{text(sourceNote)}</p>
+            <p className="text-xs font-bold text-brand-700">{text(sourceNote)}</p>
             <h1 className="mt-2 text-2xl font-black">{text(title)}</h1>
           </div>
           {children}
@@ -74,13 +75,13 @@ export function ContentGuideLayout({ title, sourceNote, metaDescription, childre
 function GuideCta() {
   const { text } = useI18n()
   return (
-    <div className="rounded-2xl border border-indigo-100 bg-indigo-50 p-5 text-center">
-      <p className="text-sm font-semibold text-indigo-900">
+    <div className="rounded-2xl border border-brand-200 bg-brand-50 p-5 text-center">
+      <p className="text-sm font-semibold text-slate-900">
         {text({ id: 'Ingin mulai mencatatnya untuk keluarga Anda?', zh: '想開始幫家人記錄嗎？' ,en: 'Ready to start recording for your family?' })}
       </p>
       <a
         href="/demo"
-        className="mt-3 inline-flex min-h-11 items-center justify-center rounded-xl bg-indigo-700 px-6 text-sm font-bold text-white shadow-sm transition hover:bg-indigo-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2"
+        className="mt-3 inline-flex min-h-11 items-center justify-center rounded-xl bg-brand-700 px-6 text-sm font-bold text-white shadow-sm transition hover:bg-emerald-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-700 focus-visible:ring-offset-2"
       >
         {text({ id: 'Coba Mode Demo Gratis di Family Health Note', zh: '用家健錄記錄（免費展示模式）' ,en: 'Try the free Family Health Note demo' })}
       </a>
@@ -93,7 +94,7 @@ export function GuideSection({ title, children }: { title: LocalizedText; childr
   return (
     <section>
       <h2 className="font-bold">{text(title)}</h2>
-      <div className="mt-2 space-y-2 text-sm leading-6 text-gray-700">{children}</div>
+      <div className="mt-2 space-y-2 text-sm leading-6 text-slate-700">{children}</div>
     </section>
   )
 }

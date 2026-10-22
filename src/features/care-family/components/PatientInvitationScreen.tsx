@@ -15,6 +15,7 @@ interface PatientInvitationScreenProps {
   onResolved: (invitationId: string, accepted: boolean) => Promise<void>
 }
 
+// 為什麼補足 44px：手機上的獨立操作要留出足夠點擊面，降低漏點與誤觸。
 export function PatientInvitationScreen({ invitations, loadFailed = false, onRetry, onResolved }: PatientInvitationScreenProps) {
   const { text } = useI18n()
   const [busyId, setBusyId] = useState<string | null>(null)
@@ -37,28 +38,28 @@ export function PatientInvitationScreen({ invitations, loadFailed = false, onRet
     }
   }
 
-  return <main className="mx-auto flex min-h-dvh max-w-md flex-col bg-gray-50 px-5 py-10 text-gray-900">
+  return <main className="mx-auto flex min-h-dvh max-w-md flex-col bg-slate-50 px-5 py-10 text-slate-900">
     <header className="flex items-start justify-between">
       <div>
-        <p className="text-sm font-bold text-indigo-700">{text({ id: 'Undangan perawatan', zh: '照護邀請', en: 'Invitation to care' })}</p>
+        <p className="text-sm font-bold text-brand-700">{text({ id: 'Undangan perawatan', zh: '照護邀請', en: 'Invitation to care' })}</p>
         {/* 英文要明確表達受邀者正在授權他人存取自己的資料，避免把授權方向寫反。 */}
         <h1 className="mt-2 text-2xl font-black">{text({ id: 'Konfirmasi akses data Anda', zh: '確認你的資料照護授權', en: 'Confirm access to your data' })}</h1>
       </div>
-      <button type="button" onClick={() => void signOut()} className="rounded-lg px-2 py-1 text-xs text-gray-500">{text({ id: 'Keluar', zh: '登出', en: 'Sign out' })}</button>
+      <button type="button" onClick={() => void signOut()} className="rounded-lg px-2 py-1 text-xs text-slate-500 min-h-11">{text({ id: 'Keluar', zh: '登出', en: 'Sign out' })}</button>
     </header>
-    <p className="mt-3 text-sm leading-6 text-gray-700">{text({ id: 'Periksa siapa yang meminta akses dan dasar kewenangannya. Tidak ada catatan kesehatan yang dibagikan sebelum Anda menerima.', zh: '請確認邀請內容與授權依據；你接受前，不會分享任何健康紀錄。', en: 'Review who requested access and the authorization basis. No health records are shared before you accept.' })}</p>
+    <p className="mt-3 text-sm leading-6 text-slate-700">{text({ id: 'Periksa siapa yang meminta akses dan dasar kewenangannya. Tidak ada catatan kesehatan yang dibagikan sebelum Anda menerima.', zh: '請確認邀請內容與授權依據；你接受前，不會分享任何健康紀錄。', en: 'Review who requested access and the authorization basis. No health records are shared before you accept.' })}</p>
     {loadFailed && <section className="mt-6 rounded-3xl bg-white p-5 shadow-sm">
       <p role="alert" className="text-sm leading-6 text-red-700">{text({ id: 'Undangan belum dapat dimuat. Kami tidak akan membuat profil pasien baru sampai pemeriksaan berhasil.', zh: '暫時無法讀取邀請；確認完成前，系統不會建立新的病人資料。', en: 'The invitation could not be read at this time; no new patient data will be created until the confirmation is complete.' })}</p>
-      <button type="button" onClick={onRetry} className="mt-4 w-full rounded-xl bg-indigo-700 px-3 py-3 text-sm font-bold text-white">{text({ id: 'Coba lagi', zh: '再試一次', en: 'Try again' })}</button>
+      <button type="button" onClick={onRetry} className="mt-4 w-full rounded-xl bg-brand-700 active:bg-emerald-800 px-3 py-3 text-sm font-bold text-white">{text({ id: 'Coba lagi', zh: '再試一次', en: 'Try again' })}</button>
     </section>}
     <section className="mt-6 space-y-4">
       {invitations.map(invitation => <article key={invitation.invitation_id} className="rounded-3xl bg-white p-5 shadow-sm">
-        <h2 className="text-lg font-black text-indigo-950">{invitation.display_name}</h2>
-        <p className="mt-2 break-all text-sm font-bold text-gray-800">{text({ id: 'Diminta oleh:', zh: '邀請人：', en: 'Requested by:' })} {invitation.inviter_display_name ? `${invitation.inviter_display_name} · ` : ''}{invitation.inviter_email}</p>
-        <p className="mt-2 text-sm text-gray-700">{text({ id: 'Dasar kewenangan:', zh: '授權依據：', en: 'Authorized by:' })} {invitation.authorization_basis}</p>
+        <h2 className="text-lg font-black text-slate-900">{invitation.display_name}</h2>
+        <p className="mt-2 break-all text-sm font-bold text-slate-800">{text({ id: 'Diminta oleh:', zh: '邀請人：', en: 'Requested by:' })} {invitation.inviter_display_name ? `${invitation.inviter_display_name} · ` : ''}{invitation.inviter_email}</p>
+        <p className="mt-2 text-sm text-slate-700">{text({ id: 'Dasar kewenangan:', zh: '授權依據：', en: 'Authorized by:' })} {invitation.authorization_basis}</p>
         <div className="mt-5 grid grid-cols-2 gap-2">
-          <button type="button" disabled={busyId !== null} onClick={() => void resolve(invitation, false)} className="rounded-xl border border-gray-300 px-3 py-3 text-sm font-bold text-gray-700 disabled:opacity-60">{text({ id: 'Tolak', zh: '拒絕', en: 'Reject' })}</button>
-          <button type="button" disabled={busyId !== null} onClick={() => void resolve(invitation, true)} className="rounded-xl bg-indigo-700 px-3 py-3 text-sm font-bold text-white disabled:opacity-60">{busyId === invitation.invitation_id ? text({ id: 'Memproses…', zh: '處理中…', en: 'Processing…' }) : text({ id: 'Terima', zh: '接受', en: 'Accept' })}</button>
+          <button type="button" disabled={busyId !== null} onClick={() => void resolve(invitation, false)} className="rounded-xl border border-slate-300 px-3 py-3 text-sm font-bold text-slate-700 disabled:opacity-60">{text({ id: 'Tolak', zh: '拒絕', en: 'Reject' })}</button>
+          <button type="button" disabled={busyId !== null} onClick={() => void resolve(invitation, true)} className="rounded-xl bg-brand-700 active:bg-emerald-800 px-3 py-3 text-sm font-bold text-white disabled:opacity-60">{busyId === invitation.invitation_id ? text({ id: 'Memproses…', zh: '處理中…', en: 'Processing…' }) : text({ id: 'Terima', zh: '接受', en: 'Accept' })}</button>
         </div>
       </article>)}
     </section>

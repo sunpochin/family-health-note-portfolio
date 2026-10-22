@@ -107,10 +107,10 @@ export function MedicationCatalogCurationPanel() {
         })}
       </p>
 
-      {loading && <p className="text-sm text-gray-500">{text({ id: 'Memuat…', zh: '載入中…', en: 'Loading…' })}</p>}
+      {loading && <p className="text-sm text-slate-500">{text({ id: 'Memuat…', zh: '載入中…', en: 'Loading…' })}</p>}
       {loadError && (
         <div className="rounded bg-red-50 p-3">
-          <p className="text-sm text-red-500">{text(loadError)}</p>
+          <p className="text-sm text-red-700">{text(loadError)}</p>
           <button onClick={fetchRows} className="mt-2 px-3 py-1.5 bg-red-600 text-white hover:bg-red-700 rounded-lg text-sm font-semibold transition cursor-pointer">
             {text({ id: 'Coba lagi', zh: '重試', en: 'Try again' })}
           </button>
@@ -118,7 +118,7 @@ export function MedicationCatalogCurationPanel() {
       )}
 
       {!loading && !loadError && rows.length === 0 && (
-        <p className="text-sm text-gray-500">{text({ id: 'Belum ada data.', zh: '目前沒有任何資料。', en: 'No data yet.' })}</p>
+        <p className="text-sm text-slate-500">{text({ id: 'Belum ada data.', zh: '目前沒有任何資料。', en: 'No data yet.' })}</p>
       )}
 
       <div className="space-y-2">
@@ -128,18 +128,18 @@ export function MedicationCatalogCurationPanel() {
           const isEditing = editingId === row.id && editForm
           const isMerging = mergingId === row.id
           return (
-            <div key={row.id} className="rounded-lg border border-gray-250 bg-white p-3 shadow-sm">
+            <div key={row.id} className="rounded-lg border border-slate-200 bg-white p-3 shadow-sm">
               <div className="flex flex-wrap items-baseline gap-x-2">
-                <span className="text-sm font-semibold text-gray-900">{row.brandName}</span>
-                {row.brandNameZh && <span className="text-sm text-gray-600">{row.brandNameZh}</span>}
-                <span className="text-xs text-gray-500">{row.genericName}</span>
+                <span className="text-sm font-semibold text-slate-900">{row.brandName}</span>
+                {row.brandNameZh && <span className="text-sm text-slate-600">{row.brandNameZh}</span>}
+                <span className="text-xs text-slate-500">{row.genericName}</span>
               </div>
-              <div className="mt-1 text-xs text-gray-600">
+              <div className="mt-1 text-xs text-slate-600">
                 {row.strengthLabel ?? (row.strengthMg != null ? `${row.strengthMg} mg` : '—')} · {row.dosageForm}
               </div>
               <div className="mt-1.5 flex flex-wrap gap-1.5">
                 <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-800">{text(PRODUCT_KIND_LABEL[row.productKind])}</span>
-                <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-700">{text(VERIFICATION_LABELS[row.verificationStatus])}</span>
+                <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-700">{text(VERIFICATION_LABELS[row.verificationStatus])}</span>
                 {row.sharedWithOthers === true && (
                   <span className="rounded-full bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-800">
                     {text({ id: 'Dipakai keluarga lain', zh: '其他家庭也在用', en: 'Used by other families' })}
@@ -148,15 +148,15 @@ export function MedicationCatalogCurationPanel() {
               </div>
 
               {!isEditing && !isMerging && (
-                <div className="mt-2 border-t border-gray-100 pt-2">
-                  <label className="flex items-center gap-1.5 text-xs text-gray-700 mb-1.5">
+                <div className="mt-2 border-t border-slate-100 pt-2">
+                  <label className="flex items-center gap-1.5 text-xs text-slate-700 mb-1.5">
                     <span>{text({ id: 'Alasan', zh: '原因', en: 'Reason' })}：</span>
                     <input
                       type="text"
                       value={reasonByRow[row.id] ?? ''}
                       onChange={e => setReason(row.id, e.target.value)}
                       placeholder={text({ id: 'Wajib diisi untuk setiap tindakan', zh: '每個動作都必填', en: 'Required for every action' })}
-                      className="flex-1 rounded border border-gray-250 px-1.5 py-0.5 text-xs"
+                      className="flex-1 rounded border-2 border-control-border px-1.5 py-0.5 text-xs"
                     />
                   </label>
                   <div className="flex flex-wrap gap-2">
@@ -164,7 +164,7 @@ export function MedicationCatalogCurationPanel() {
                       <button
                         disabled={saving || !reasonFor(row.id)}
                         onClick={() => verify(row.id, reasonFor(row.id))}
-                        className="px-2.5 py-1 bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-50 rounded text-xs font-semibold transition cursor-pointer"
+                        className="px-2.5 py-1 bg-brand-700 text-white hover:bg-emerald-800 disabled:opacity-50 rounded text-xs font-semibold transition cursor-pointer"
                       >
                         {text({ id: 'Tandai sudah diperiksa', zh: '核對通過', en: 'Mark as verified' })}
                       </button>
@@ -172,7 +172,7 @@ export function MedicationCatalogCurationPanel() {
                       <button
                         disabled={saving || !reasonFor(row.id)}
                         onClick={() => unverify(row.id, reasonFor(row.id))}
-                        className="px-2.5 py-1 bg-gray-200 text-gray-800 hover:bg-gray-300 disabled:opacity-50 rounded text-xs font-semibold transition cursor-pointer"
+                        className="px-2.5 py-1 bg-slate-200 text-slate-800 hover:bg-slate-300 disabled:opacity-50 rounded text-xs font-semibold transition cursor-pointer"
                       >
                         {text({ id: 'Batalkan status diperiksa', zh: '取消核對', en: 'Unmark as verified' })}
                       </button>
@@ -184,45 +184,47 @@ export function MedicationCatalogCurationPanel() {
                     >
                       {text({ id: 'Ubah identitas', zh: '改身分', en: 'Edit identity' })}
                     </button>
+                    {/* 合併是這排最不可逆的動作，用中性深色與其他按鈕（綠＝核對、藍＝改身分、灰＝取消）區隔；
+                        改成品牌綠會和「核對通過」的 emerald 鈕撞色，只剩文字能分辨（#1148，原為退役色 purple）。 */}
                     <button
                       disabled={saving}
                       onClick={() => { setMergingId(row.id); setEditingId(null) }}
-                      className="px-2.5 py-1 bg-purple-600 text-white hover:bg-purple-700 disabled:opacity-50 rounded text-xs font-semibold transition cursor-pointer"
+                      className="px-2.5 py-1 bg-slate-800 text-white hover:bg-slate-900 disabled:opacity-50 rounded text-xs font-semibold transition cursor-pointer"
                     >
                       {text({ id: 'Gabungkan ke…', zh: '合併到…', en: 'Merge into…' })}
                     </button>
-                    {saving && <span className="self-center text-xs text-gray-400">{text({ id: 'Menyimpan…', zh: '儲存中…', en: 'Saving…' })}</span>}
+                    {saving && <span className="self-center text-xs text-slate-500">{text({ id: 'Menyimpan…', zh: '儲存中…', en: 'Saving…' })}</span>}
                   </div>
                 </div>
               )}
 
               {isEditing && editForm && (
-                <div className="mt-2 border-t border-gray-100 pt-2 space-y-1.5">
-                  <input value={editForm.brandName} onChange={e => setEditForm({ ...editForm, brandName: e.target.value })} placeholder={text({ id: 'Nama merek', zh: '品名', en: 'Brand name' })} className="w-full rounded border border-gray-250 px-1.5 py-1 text-xs" />
-                  <input value={editForm.brandNameZh} onChange={e => setEditForm({ ...editForm, brandNameZh: e.target.value })} placeholder={text({ id: 'Nama merek (Mandarin)', zh: '中文品名', en: 'Brand name (Chinese)' })} className="w-full rounded border border-gray-250 px-1.5 py-1 text-xs" />
-                  <input value={editForm.genericName} onChange={e => setEditForm({ ...editForm, genericName: e.target.value })} placeholder={text({ id: 'Nama generik', zh: '學名', en: 'Generic name' })} className="w-full rounded border border-gray-250 px-1.5 py-1 text-xs" />
-                  <input value={editForm.dosageForm} onChange={e => setEditForm({ ...editForm, dosageForm: e.target.value })} placeholder={text({ id: 'Bentuk sediaan', zh: '劑型', en: 'Dosage form' })} className="w-full rounded border border-gray-250 px-1.5 py-1 text-xs" />
-                  <label className="flex items-center gap-1.5 text-xs text-gray-700">
+                <div className="mt-2 border-t border-slate-100 pt-2 space-y-1.5">
+                  <input value={editForm.brandName} onChange={e => setEditForm({ ...editForm, brandName: e.target.value })} placeholder={text({ id: 'Nama merek', zh: '品名', en: 'Brand name' })} className="w-full rounded border-2 border-control-border px-1.5 py-1 text-xs" />
+                  <input value={editForm.brandNameZh} onChange={e => setEditForm({ ...editForm, brandNameZh: e.target.value })} placeholder={text({ id: 'Nama merek (Mandarin)', zh: '中文品名', en: 'Brand name (Chinese)' })} className="w-full rounded border-2 border-control-border px-1.5 py-1 text-xs" />
+                  <input value={editForm.genericName} onChange={e => setEditForm({ ...editForm, genericName: e.target.value })} placeholder={text({ id: 'Nama generik', zh: '學名', en: 'Generic name' })} className="w-full rounded border-2 border-control-border px-1.5 py-1 text-xs" />
+                  <input value={editForm.dosageForm} onChange={e => setEditForm({ ...editForm, dosageForm: e.target.value })} placeholder={text({ id: 'Bentuk sediaan', zh: '劑型', en: 'Dosage form' })} className="w-full rounded border-2 border-control-border px-1.5 py-1 text-xs" />
+                  <label className="flex items-center gap-1.5 text-xs text-slate-700">
                     <span>{text({ id: 'Jenis', zh: '種類', en: 'Type' })}：</span>
-                    <select value={editForm.productKind} onChange={e => setEditForm({ ...editForm, productKind: e.target.value as 'drug' | 'supplement' })} className="rounded border border-gray-250 px-1.5 py-0.5 text-xs">
+                    <select value={editForm.productKind} onChange={e => setEditForm({ ...editForm, productKind: e.target.value as 'drug' | 'supplement' })} className="rounded border-2 border-control-border px-1.5 py-0.5 text-xs">
                       <option value="drug">{text(PRODUCT_KIND_LABEL.drug)}</option>
                       <option value="supplement">{text(PRODUCT_KIND_LABEL.supplement)}</option>
                     </select>
                   </label>
                   {editForm.productKind === 'supplement' ? (
-                    <input value={editForm.strengthLabel} onChange={e => setEditForm({ ...editForm, strengthLabel: e.target.value })} placeholder={text({ id: 'Dosis pada kemasan', zh: '包裝上的劑量', en: 'Strength as printed on the package' })} className="w-full rounded border border-gray-250 px-1.5 py-1 text-xs" />
+                    <input value={editForm.strengthLabel} onChange={e => setEditForm({ ...editForm, strengthLabel: e.target.value })} placeholder={text({ id: 'Dosis pada kemasan', zh: '包裝上的劑量', en: 'Strength as printed on the package' })} className="w-full rounded border-2 border-control-border px-1.5 py-1 text-xs" />
                   ) : (
-                    <input value={editForm.strengthMg} onChange={e => setEditForm({ ...editForm, strengthMg: e.target.value })} placeholder="mg" inputMode="decimal" className="w-full rounded border border-gray-250 px-1.5 py-1 text-xs" />
+                    <input value={editForm.strengthMg} onChange={e => setEditForm({ ...editForm, strengthMg: e.target.value })} placeholder="mg" inputMode="decimal" className="w-full rounded border-2 border-control-border px-1.5 py-1 text-xs" />
                   )}
-                  <label className="flex items-center gap-1.5 text-xs text-gray-700">
+                  <label className="flex items-center gap-1.5 text-xs text-slate-700">
                     <span>{text({ id: 'Alasan', zh: '原因', en: 'Reason' })}：</span>
-                    <input type="text" value={reasonByRow[row.id] ?? ''} onChange={e => setReason(row.id, e.target.value)} className="flex-1 rounded border border-gray-250 px-1.5 py-0.5 text-xs" />
+                    <input type="text" value={reasonByRow[row.id] ?? ''} onChange={e => setReason(row.id, e.target.value)} className="flex-1 rounded border-2 border-control-border px-1.5 py-0.5 text-xs" />
                   </label>
                   <div className="flex gap-2">
                     <button disabled={saving || !reasonFor(row.id)} onClick={() => submitEdit(row)} className="px-2.5 py-1 bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 rounded text-xs font-semibold transition cursor-pointer">
                       {text({ id: 'Simpan', zh: '儲存', en: 'Save' })}
                     </button>
-                    <button disabled={saving} onClick={() => { setEditingId(null); setEditForm(null) }} className="px-2.5 py-1 bg-gray-200 text-gray-800 hover:bg-gray-300 rounded text-xs font-semibold transition cursor-pointer">
+                    <button disabled={saving} onClick={() => { setEditingId(null); setEditForm(null) }} className="px-2.5 py-1 bg-slate-200 text-slate-800 hover:bg-slate-300 rounded text-xs font-semibold transition cursor-pointer">
                       {text({ id: 'Batal', zh: '取消', en: 'Cancel' })}
                     </button>
                   </div>
@@ -230,22 +232,22 @@ export function MedicationCatalogCurationPanel() {
               )}
 
               {isMerging && (
-                <div className="mt-2 border-t border-gray-100 pt-2 space-y-1.5">
+                <div className="mt-2 border-t border-slate-100 pt-2 space-y-1.5">
                   <input
                     value={mergeTargetByRow[row.id] ?? ''}
                     onChange={e => setMergeTargetByRow(current => ({ ...current, [row.id]: e.target.value }))}
                     placeholder={text({ id: 'ID obat tujuan (canonical)', zh: '目標藥品 ID（保留下來的那一筆）', en: 'Target medication ID (the one to keep)' })}
-                    className="w-full rounded border border-gray-250 px-1.5 py-1 text-xs"
+                    className="w-full rounded border-2 border-control-border px-1.5 py-1 text-xs"
                   />
-                  <label className="flex items-center gap-1.5 text-xs text-gray-700">
+                  <label className="flex items-center gap-1.5 text-xs text-slate-700">
                     <span>{text({ id: 'Alasan', zh: '原因', en: 'Reason' })}：</span>
-                    <input type="text" value={reasonByRow[row.id] ?? ''} onChange={e => setReason(row.id, e.target.value)} className="flex-1 rounded border border-gray-250 px-1.5 py-0.5 text-xs" />
+                    <input type="text" value={reasonByRow[row.id] ?? ''} onChange={e => setReason(row.id, e.target.value)} className="flex-1 rounded border-2 border-control-border px-1.5 py-0.5 text-xs" />
                   </label>
                   <div className="flex gap-2">
-                    <button disabled={saving || !reasonFor(row.id) || !(mergeTargetByRow[row.id] ?? '').trim()} onClick={() => submitMerge(row)} className="px-2.5 py-1 bg-purple-600 text-white hover:bg-purple-700 disabled:opacity-50 rounded text-xs font-semibold transition cursor-pointer">
+                    <button disabled={saving || !reasonFor(row.id) || !(mergeTargetByRow[row.id] ?? '').trim()} onClick={() => submitMerge(row)} className="px-2.5 py-1 bg-slate-800 text-white hover:bg-slate-900 disabled:opacity-50 rounded text-xs font-semibold transition cursor-pointer">
                       {text({ id: 'Gabungkan', zh: '合併', en: 'Merge' })}
                     </button>
-                    <button disabled={saving} onClick={() => setMergingId(null)} className="px-2.5 py-1 bg-gray-200 text-gray-800 hover:bg-gray-300 rounded text-xs font-semibold transition cursor-pointer">
+                    <button disabled={saving} onClick={() => setMergingId(null)} className="px-2.5 py-1 bg-slate-200 text-slate-800 hover:bg-slate-300 rounded text-xs font-semibold transition cursor-pointer">
                       {text({ id: 'Batal', zh: '取消', en: 'Cancel' })}
                     </button>
                   </div>
@@ -263,7 +265,7 @@ export function MedicationCatalogCurationPanel() {
           <button
             disabled={loadingMore}
             onClick={loadMore}
-            className="px-3 py-1.5 bg-gray-200 text-gray-800 hover:bg-gray-300 disabled:opacity-50 rounded-lg text-sm font-semibold transition cursor-pointer"
+            className="px-3 py-1.5 bg-slate-200 text-slate-800 hover:bg-slate-300 disabled:opacity-50 rounded-lg text-sm font-semibold transition cursor-pointer"
           >
             {text(loadingMore ? { id: 'Memuat…', zh: '載入中…', en: 'Loading…' } : { id: 'Muat lebih banyak', zh: '載入更多', en: 'Load more' })}
           </button>

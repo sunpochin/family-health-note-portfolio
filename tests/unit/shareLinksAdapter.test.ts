@@ -44,10 +44,10 @@ beforeEach(() => {
 describe('shareLinks RPC adapter', () => {
   test('maps shareable patients and active links into camelCase view models', async () => {
     nextResponse = {
-      data: [{ patient_id: 'p1', display_name: '王阿姨', is_own_patient: true }],
+      data: [{ patient_id: 'p1', display_name: '李阿姨', is_own_patient: true }],
       error: null,
     }
-    await expect(fetchShareablePatients()).resolves.toEqual([{ patientId: 'p1', displayName: '王阿姨', isOwnPatient: true }])
+    await expect(fetchShareablePatients()).resolves.toEqual([{ patientId: 'p1', displayName: '李阿姨', isOwnPatient: true }])
 
     nextResponse = {
       data: [{ link_id: 'link-1', patient_id: 'p1', scope_version: 'daily-summary-v1', expires_at: '2026-09-10T00:00:00Z', revoked_at: null, created_at: '2026-09-09T00:00:00Z' }],

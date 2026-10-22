@@ -104,16 +104,16 @@ export async function fetchDirectDeliveryStatus(request: TelegramNotificationReq
 }
 
 // 回看可能長達 M：等待期間 drain 可能已把個人那一則從 pending／sending 改成 failed_terminal 或 delivery_unknown（PR #988 Codex P2）。
-// 最終共用結果不是 delivered 時，用這支重新讀個人狀態，不拿回看前的快照承諾「會自動送出」。同一支 enqueue RPC 是冪等的
-// （ON CONFLICT DO NOTHING），回傳的是現在的 (queued_count, unknown_count, delivered_count)；只有記錄者本人能呼叫。
+// 最終共用結果不是 delivered 時，只讀取目前計數，不重新排送：等待期間新綁定的收件人不應因查詢而收到舊通知。
+// RPC 仍只允許記錄者本人，並涵蓋免費危險級列；查詢失敗由呼叫端保守顯示「無法確認」，不承諾會送出。
 export type PersonalDeliveryState = { personalQueued: boolean; personalUnknown: boolean; personalDelivered: boolean }
-type PersonalStateRpc = (name: 'enqueue_blood_pressure_personal_notifications', args: { p_record_id: string; p_patient_id: string }) => PromiseLike<{ data: unknown; error: unknown }>
+type PersonalStateRpc = (name: 'personal_notification_counts', args: { p_record_id: string; p_patient_id: string }) => PromiseLike<{ data: unknown; error: unknown }>
 
 export async function readPersonalDeliveryState(
   request: TelegramNotificationRequest,
   rpc: PersonalStateRpc = (name, args) => supabase.rpc(name, args),
 ): Promise<PersonalDeliveryState> {
-  const { data, error } = await rpc('enqueue_blood_pressure_personal_notifications', { p_record_id: request.recordId, p_patient_id: request.patientId })
+  const { data, error } = await rpc('personal_notification_counts', { p_record_id: request.recordId, p_patient_id: request.patientId })
   if (error) throw new Error('Unable to read the personal notification state')
   const row = (Array.isArray(data) ? data[0] : data) as Record<string, unknown> | null | undefined
   const count = (value: unknown) => (typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : 0)

@@ -7,9 +7,10 @@ install／lint／typecheck／test／build。任一項失敗都直接 exit 1，�
 主要關聯：docs/operations/portfolio-pipeline.md 第 3.3、4 節；
 scripts/portfolio/forbidden.local.json（私有、版控外，見 forbidden.local.json.example）。
 */
-import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs'
+import { existsSync, readFileSync, readdirSync, rmSync, statSync } from 'node:fs'
 import { join, relative, sep } from 'node:path'
 
+import { computeCheckDigest, checkStampPath, writeCheckStamp } from './checkStamp'
 import { findForbiddenHit, isExcludedScanDir, isHardRejectedPath, isTextFile, validateForbiddenConfig, type ForbiddenCategory, type ForbiddenEntry } from './checkLogic'
 
 const REPO_ROOT = process.cwd()
@@ -123,6 +124,9 @@ async function runGitleaksBestEffort(): Promise<void> {
 }
 
 async function main() {
+  // 一開始就刪掉舊指紋：這次 check 中途失敗時，不能讓 release 沿用上一次（可能是別的內容）的通過結果。
+  rmSync(checkStampPath(REPO_ROOT), { force: true })
+
   if (!existsSync(OUTPUT_DIR)) {
     console.error(`❌ PORTFOLIO SANITIZATION FAILED: 找不到輸出目錄 ${toPosixRelative(REPO_ROOT, OUTPUT_DIR)}。`)
     console.error('   請先執行 bun run portfolio:build。')
@@ -157,10 +161,15 @@ async function main() {
   await runStep('bun install --frozen-lockfile', 'bun', ['install', '--frozen-lockfile'])
   await runStep('bun run lint', 'bun', ['run', 'lint'])
   await runStep('npx tsc --noEmit', 'npx', ['tsc', '--noEmit'])
-  await runStep('bun test tests/unit', 'bun', ['test', 'tests/unit'])
+  // 為什麼要帶 --isolate：私有 repo 的 app-ci 與 commit hook 都用 `bun test --isolate`，測試檔之間的
+  // mock.module 不會互相污染；不帶的話公開版子集的執行順序會讓 React hook harness 的 mock 外洩到
+  // 別的檔案，實測在 nativeAuthFlow.test.ts 觸發無限重繪、整個 bun test 卡住不結束。
+  await runStep('bun test --isolate tests/unit', 'bun', ['test', '--isolate', 'tests/unit'])
   await runStep('bun run build', 'bun', ['run', 'build'])
   await runGitleaksBestEffort()
 
+  // 指紋在所有步驟（含 install／build）跑完之後才算：這樣 release 重新計算時，看到的就是同一個狀態。
+  writeCheckStamp(REPO_ROOT, computeCheckDigest(REPO_ROOT, OUTPUT_DIR))
   console.log('✅ portfolio:check 全部通過。下一步：owner 逐檔 review 輸出目錄，之後才能執行 bun run portfolio:release。')
 }
 

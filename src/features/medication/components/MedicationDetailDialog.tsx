@@ -3,6 +3,7 @@
 所在層：src/features/medication/components；由 MedicationPage 的每週藥單分頁呼叫。
 主要關聯：讀取 MedicationPlanView（lib/medication/medications），外觀呈現沿用 MedicationAppearance，避免另外重寫色塊／照片邏輯。
 */
+import { MedicationHoldSummary } from './MedicationHoldSummary'
 import { useEffect, useRef } from 'react'
 import type { MedicationPlanView } from '../../../lib/medication/medications'
 import { formatDoseAmountLocalized, formatMedicationLabel } from '../../../lib/medication/medications'
@@ -14,6 +15,7 @@ import { MedicationNameHeading } from './MedicationNameHeading'
 import { MedicationIntakeGuidance } from './MedicationIntakeGuidance'
 import { resolveSwallowGuidance } from '../../../lib/medication/medicationSwallowGuidance'
 import { detectInstructionConflict } from '../../../lib/medication/medicationInstructions'
+import { Icon } from '../../../components/ui/Icon'
 
 // 官方查詢系統只是一般搜尋入口，不支援用許可證字號直接帶出單一藥品頁，因此把字號印出來讓照護者自己貼上查詢，
 // 不假裝這是能直接連到那顆藥仿單的深連結。
@@ -52,7 +54,7 @@ export function MedicationDetailDialog({ plan, locale, nameEnglishFirst, onClose
     ? text({ id: 'Data resmi terverifikasi', zh: '官方已驗證資料' ,en: "Official verified data" })
     : medication?.verification_status === 'manually_verified'
       ? text({ id: 'Sudah diperiksa manual', zh: '已人工核對' ,en: "Manually verified" })
-      : text({ id: '⚠ Belum diverifikasi', zh: '⚠ 未驗證' ,en: "⚠ Unverified" })
+      : text({ id: 'Belum diverifikasi', zh: '未驗證' ,en: "Unverified" })
 
   // 服用方式：A 層只吃得到官方劑型原文與收斂後四值劑型，B 層是這顆藥在這位病人身上的實際交代紀錄。
   const swallowGuidance = medication ? resolveSwallowGuidance({ officialDosageFormText: medication.official_dosage_form_text, dosageForm: medication.dosage_form }) : null
@@ -77,12 +79,13 @@ export function MedicationDetailDialog({ plan, locale, nameEnglishFirst, onClose
         <div className="flex items-start justify-between gap-3">
           <h2 id="medication-detail-title" className="sr-only">{text({ id: 'Detail obat', zh: '藥品詳情' ,en: "Medication details" })}</h2>
           <MedicationNameHeading medication={medication} locale={locale} englishFirst={nameEnglishFirst} size="lg" />
+          {/* 關閉鈕在對話框角落，原 40×40 單手容易按錯，改 44×44（#1198）。 */}
           <button
             ref={closeButtonRef}
             type="button"
             onClick={onClose}
             aria-label={text({ id: 'Tutup', zh: '關閉' ,en: "Close" })}
-            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-slate-100 text-xl font-black text-slate-600 active:bg-slate-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-600 focus-visible:ring-offset-2"
+            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-slate-100 text-xl font-black text-slate-600 active:bg-slate-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-700 focus-visible:ring-offset-2"
           >
             ×
           </button>
@@ -110,7 +113,7 @@ export function MedicationDetailDialog({ plan, locale, nameEnglishFirst, onClose
           </div>
           <div className="flex items-start justify-between gap-3">
             <dt className="font-bold text-slate-500">{text({ id: 'Status data', zh: '資料狀態' ,en: "Data status" })}</dt>
-            <dd className={`text-right font-semibold ${medication.verification_status === 'unverified' ? 'text-amber-700' : 'text-emerald-700'}`}>{verification}</dd>
+            <dd className={`text-right font-semibold ${medication.verification_status === 'unverified' ? 'text-amber-700' : 'text-emerald-700'}`}>{medication.verification_status === 'unverified' && <Icon name="alert-triangle" className="mr-1 inline-block h-4 w-4 align-text-bottom" />}{verification}</dd>
           </div>
           {medication.tfda_license_number && <div className="flex items-start justify-between gap-3">
             <dt className="font-bold text-slate-500">{text({ id: 'No. izin edar TFDA', zh: 'TFDA 許可證字號' ,en: "TFDA license number" })}</dt>
@@ -120,6 +123,8 @@ export function MedicationDetailDialog({ plan, locale, nameEnglishFirst, onClose
 
         {/* 服用方式放在「用途／副作用尚未提供」面板之前：這是照護者換手時最先要核對的安全資訊，
             比「藥效是什麼」更急迫（issue #622／#627）。 */}
+        {/* 醫囑條件獨立於吞服提示，不能因官方服用方式資料缺漏而隱藏。 */}
+        <MedicationHoldSummary rule={plan.holdRule} />
         {swallowGuidance && <div className="mt-4 rounded-2xl border border-slate-200 p-4">
           <MedicationIntakeGuidance guidance={swallowGuidance} instruction={plan.instruction} hasConflict={hasInstructionConflict} />
         </div>}
@@ -141,12 +146,13 @@ export function MedicationDetailDialog({ plan, locale, nameEnglishFirst, onClose
               zh: '如需完整資訊，請直接查看藥袋附的仿單、詢問藥師，或用上方許可證字號到下方官方系統查詢。', en: "For complete information, please check the package insert provided by the pharmacy, ask a pharmacist, or look up the license number in the official TFDA database below.",
             })}
           </p>
+          {/* 兩個外部查詢連結原本只有一行字高；inline-flex + min-h-11 讓點擊區到 44px，items-start 讓它不被拉滿整列（#1198）。 */}
           <div className="mt-3 flex flex-col items-start gap-2">
             {medication.tfda_license_number && <a
               href={TFDA_LICENSE_QUERY_URL}
               target="_blank"
               rel="noreferrer"
-              className="text-sm font-black text-amber-900 underline underline-offset-2"
+              className="inline-flex min-h-11 items-center text-sm font-black text-amber-900 underline underline-offset-2"
             >
               {text({ id: 'Buka sistem pencarian izin edar TFDA ↗', zh: '前往 TFDA 許可證查詢系統 ↗' ,en: "Open TFDA license lookup system ↗" })}
             </a>}
@@ -155,7 +161,7 @@ export function MedicationDetailDialog({ plan, locale, nameEnglishFirst, onClose
               href={buildDrugSearchUrl(medication.brand_name)}
               target="_blank"
               rel="noreferrer"
-              className="text-sm font-black text-amber-900 underline underline-offset-2"
+              className="inline-flex min-h-11 items-center text-sm font-black text-amber-900 underline underline-offset-2"
             >
               {text({ id: `Cari "${medication.brand_name} 仿單" di Google ↗`, zh: `用 Google 搜尋「${medication.brand_name} 仿單」↗` ,en: `Search for "${medication.brand_name} package insert" on Google ↗` })}
             </a>
@@ -165,7 +171,7 @@ export function MedicationDetailDialog({ plan, locale, nameEnglishFirst, onClose
         <button
           type="button"
           onClick={onClose}
-          className="mt-5 min-h-12 w-full rounded-2xl bg-slate-800 px-4 text-base font-black text-white shadow-sm active:bg-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-600 focus-visible:ring-offset-2"
+          className="mt-5 min-h-12 w-full rounded-2xl bg-slate-800 px-4 text-base font-black text-white shadow-sm active:bg-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-700 focus-visible:ring-offset-2"
         >
           {text({ id: 'Tutup', zh: '關閉' ,en: "Close" })}
         </button>

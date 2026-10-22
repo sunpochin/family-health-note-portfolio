@@ -167,7 +167,7 @@ describe('demo medication storage', () => {
     deactivateDemoMedicationPlan(removable.id, DEMO_MEILING_PATIENT_ID, 'demo test')
     expect(readDemoMedicationAdminData(DEMO_MEILING_PATIENT_ID).plans.find(candidate => candidate.id === removable.id)?.active).toBe(false)
 
-    const medication = admin.medications.find(candidate => candidate.id === 'demo-med-isormol-5')
+    const medication = admin.medications.find(candidate => candidate.id === 'demo-med-imdur-30')
     if (!medication) throw new Error('Expected seeded demo medication catalog')
     addExistingDemoMedicationPlan(medication.id, DEMO_MEILING_PATIENT_ID, 'after_dinner', 0.5, false, 'demo test')
     expect(readDemoMedicationDay(DEMO_MEILING_PATIENT_ID, '2026-08-05').plans.some(candidate => candidate.medication_id === medication.id && candidate.active)).toBe(true)
@@ -485,15 +485,26 @@ describe('demo storage resilience', () => {
   })
 
   test('an unreadable snapshot is replaced instead of breaking the demo', () => {
-    values.set('jia-jian-log.demo-state.v1', '{ not json')
+    values.set('jia-jian-log.demo-state.v3', '{ not json')
     expect(() => getDemoBpRecords(7, DEMO_MEILING_PATIENT_ID)).not.toThrow()
   })
 
   test('a valid but incompatible snapshot shape is discarded, not half-adopted', () => {
     // 有效 JSON、但缺少必要陣列欄位（例如舊版更早、根本不是 Demo 快照的殘留資料）：
     // 不能只挑出看似對的欄位就沿用，必須整份視為不相容並回到乾淨故事。
-    values.set('jia-jian-log.demo-state.v1', JSON.stringify({ version: 1, bpRecords: 'not-an-array' }))
+    values.set('jia-jian-log.demo-state.v3', JSON.stringify({ version: 1, bpRecords: 'not-an-array' }))
     expect(getDemoBpRecords(7, DEMO_MEILING_PATIENT_ID).every(record => record.id.startsWith('demo-bp-meiling') || record.id.startsWith('demo-bp-chen'))).toBe(true)
+  })
+
+  test.each(['jia-jian-log.demo-state.v1', 'jia-jian-log.demo-state.v2'])('a legacy snapshot under %s is neither read nor kept: the demo restarts clean and the old key is removed', (legacyKey) => {
+    // 舊版 key 的快照帶著已被判定不該公開的舊示範資料（v1：李阿姨舊藥單；v2：美玲阿姨換掉前的舊處方）；
+    // 就算它形狀完全合法，也不能被沿用，而且要從裝置上刪掉，不能只是換個 key 讓它留在 localStorage（PR #1013 review）。
+    const legacy = JSON.stringify({
+      version: 1, bpRecords: [], medications: [{ id: 'demo-med-legacy-1' }], medicationPlans: [], medicationLogs: [], medicationChanges: [],
+    })
+    values.set(legacyKey, legacy)
+    expect(getDemoBpRecords(7, DEMO_MEILING_PATIENT_ID).every(record => record.id.startsWith('demo-bp-meiling') || record.id.startsWith('demo-bp-chen'))).toBe(true)
+    expect(values.has(legacyKey)).toBe(false)
   })
 })
 

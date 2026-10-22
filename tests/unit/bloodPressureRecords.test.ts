@@ -12,7 +12,8 @@ const calls: Array<{ method: string; args: unknown[] }> = []
 
 function query(response: { data?: unknown; error?: unknown }) {
   const chain: Record<string, (...args: unknown[]) => unknown> = {}
-  for (const method of ['select', 'eq', 'insert']) {
+  // abortSignal：寫入有 15 秒逾時（issue #1117），adapter 會把 signal 掛到 INSERT 與回讀上；替身只要能串接即可。
+  for (const method of ['select', 'eq', 'insert', 'abortSignal']) {
     chain[method] = (...args) => {
       calls.push({ method, args })
       return chain
@@ -56,6 +57,13 @@ describe('blood pressure insert adapter', () => {
     const duplicate = { code: '23505', message: 'duplicate key' }
     responses.push({ error: duplicate }, { data: null, error: null })
     await expect(insertBloodPressureRecord(payload)).rejects.toEqual(duplicate)
+  })
+
+  test('a daily-limit rejection reads the id back, because the aborted insert may already have landed (PR #1219 review)', async () => {
+    calls.length = 0
+    responses.push({ error: { code: 'P0001', message: 'new row violates daily_blood_pressure_limit' } }, { data: { id: payload.id }, error: null })
+    await expect(insertBloodPressureRecord(payload)).resolves.toBe('already-existed')
+    expect(calls.filter(call => call.method === 'eq')).toContainEqual({ method: 'eq', args: ['id', payload.id] })
   })
 
   test('carries the top-level HTTP status so transient failures are queued instead of shown as errors', async () => {

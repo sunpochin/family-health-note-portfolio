@@ -92,20 +92,21 @@ function renderBriefItems(items: PreVisitBriefItem[], text: (copy: LocalizedText
       {items.map(item => {
         const adoptionStatus = adoption && item.question ? adoption.statusOf(item) : null
         return (
-          <li key={`${item.ruleId}-${item.dedupeId}`} className="border-l-4 border-indigo-300 pl-2">
+          <li key={`${item.ruleId}-${item.dedupeId}`} className="border-l-4 border-brand-200 pl-2">
             <p className="text-xs print:text-[11px] text-slate-800">{text(item.observation)}</p>
             {item.question && (
-              <p className="mt-0.5 text-xs print:text-[11px] font-bold text-indigo-800">{text(item.question)}</p>
+              <p className="mt-0.5 text-xs print:text-[11px] font-bold text-brand-700">{text(item.question)}</p>
             )}
             {/* 只有可寫路徑（BloodPressureReportPanel 掛了 adoption）且有提問的項目才有按鈕；R6 沒有提問，
-                規劃文件 Q1 明講不會被加入。print-hidden：列印給醫師的紙本不該出現操作按鈕。 */}
+                規劃文件 Q1 明講不會被加入。print-hidden：列印給醫師的紙本不該出現操作按鈕。
+                按鈕高度 min-h-11（44px，#1198）：在清單角落，原 36px 單手容易按錯。 */}
             {adoption && adoptionStatus && (
               <button
                 type="button"
                 disabled={adoptionStatus === 'loading' || adoptionStatus === 'saving' || adoptionStatus === 'added' || adoptionStatus === 'stale'}
                 aria-disabled={adoptionStatus === 'loading' || adoptionStatus === 'saving' || adoptionStatus === 'added' || adoptionStatus === 'stale' ? true : undefined}
                 onClick={() => adoption.add(item)}
-                className={`print-hidden mt-1 min-h-9 rounded-lg border px-2.5 text-xs font-bold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-1 disabled:cursor-default ${adoptionStatus === 'added' ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : adoptionStatus === 'error' ? 'border-red-300 bg-red-50 text-red-800' : adoptionStatus === 'stale' ? 'border-amber-300 bg-amber-50 text-amber-900' : 'border-indigo-300 bg-white text-indigo-800 active:bg-indigo-50'}`}
+                className={`print-hidden mt-1 min-h-11 rounded-lg border px-2.5 text-xs font-bold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-700 focus-visible:ring-offset-2 disabled:cursor-default ${adoptionStatus === 'added' ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : adoptionStatus === 'error' ? 'border-red-300 bg-red-50 text-red-800' : adoptionStatus === 'stale' ? 'border-amber-300 bg-amber-50 text-amber-900' : 'border-brand-200 bg-white text-brand-700 active:bg-brand-50'}`}
               >
                 {text(ADOPTION_BUTTON_TEXT[adoptionStatus])}
               </button>
@@ -129,7 +130,7 @@ export function PreVisitBriefSection({ items, sourceStatus, adoption }: {
 
   return (
     <div className="mt-4 rounded-xl border border-slate-200 bg-white p-3" aria-labelledby="pre-visit-brief-title">
-      <p id="pre-visit-brief-title" className="text-xs print:text-[10px] font-bold uppercase tracking-[0.16em] text-indigo-600">{text(SECTION_TITLE)}</p>
+      <p id="pre-visit-brief-title" className="text-xs print:text-[10px] font-bold uppercase tracking-[0.16em] text-brand-700">{text(SECTION_TITLE)}</p>
       <p className="mt-1 text-xs print:text-[10px] text-slate-500">{text(DISCLAIMER_TEXT)}</p>
 
       {unavailableSources.length > 0 && (

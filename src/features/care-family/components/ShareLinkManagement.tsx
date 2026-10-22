@@ -226,7 +226,7 @@ export function ShareLinkManagement({ isDemoMode }: ShareLinkManagementProps) {
   if (loadingPatients || patients.length === 0) return null
 
   return (
-    <section className="mt-6 rounded-2xl border border-gray-200 bg-white p-4">
+    <section className="mt-6 rounded-2xl border border-slate-200 bg-white p-4">
       {confirmDialog}
 
       {consentGateOpen && (
@@ -234,7 +234,7 @@ export function ShareLinkManagement({ isDemoMode }: ShareLinkManagementProps) {
           <button
             type="button"
             onClick={() => setConsentGateOpen(false)}
-            className="absolute right-4 top-4 z-10 rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm font-bold text-gray-700"
+            className="absolute right-4 top-4 z-10 min-h-11 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm font-bold text-slate-700"
           >
             {text({ id: 'Batal', zh: '取消', en: 'Cancel' })}
           </button>
@@ -242,31 +242,32 @@ export function ShareLinkManagement({ isDemoMode }: ShareLinkManagementProps) {
         </div>
       )}
 
-      <h2 className="font-bold text-gray-900">{text({ id: 'Tautan Berbagi Baca-Saja', zh: '唯讀分享連結', en: 'Read-only share links' })}</h2>
+      <h2 className="font-bold text-slate-900">{text({ id: 'Tautan Berbagi Baca-Saja', zh: '唯讀分享連結', en: 'Read-only share links' })}</h2>
       {/* 完整同意文字放在每位病人的範圍選單下方（依所選 scope 切換）與建立前的確認框；這裡只說明「每條連結固定一種範圍」。 */}
-      <p className="mt-1 text-sm text-gray-500">{text({ id: 'Setiap tautan memiliki satu cakupan isi yang ditetapkan saat dibuat dan tidak berubah setelahnya; teks persetujuan di bawah pilihan cakupan menjelaskan apa yang akan dilihat penerima.', zh: '每條連結在建立時固定一種內容範圍，之後不會改變；範圍選單下方的同意文字說明對方會看到什麼。', en: 'Each link has one content scope fixed when it is created and it does not change afterwards; the consent text under the scope selector explains what the recipient will see.' })}</p>
+      <p className="mt-1 text-sm text-slate-500">{text({ id: 'Setiap tautan memiliki satu cakupan isi yang ditetapkan saat dibuat dan tidak berubah setelahnya; teks persetujuan di bawah pilihan cakupan menjelaskan apa yang akan dilihat penerima.', zh: '每條連結在建立時固定一種內容範圍，之後不會改變；範圍選單下方的同意文字說明對方會看到什麼。', en: 'Each link has one content scope fixed when it is created and it does not change afterwards; the consent text under the scope selector explains what the recipient will see.' })}</p>
 
+      {/* 代理同意、資料範圍與期限會改變病人資料的分享對象和內容，選擇與分享入口都保留 44px。 */}
       <div className="mt-4 space-y-4">
         {patients.map(patient => {
           const linksState = linksByPatient[patient.patientId]
           const activeLinks = (linksState?.links ?? []).filter(link => !link.revokedAt && new Date(link.expiresAt).getTime() > Date.now())
           const createdUrl = createdLinkByPatient[patient.patientId]
           return (
-            <article key={patient.patientId} className="rounded-xl bg-gray-50 p-3 text-sm">
-              <p className="font-semibold text-gray-800">{patient.displayName}</p>
+            <article key={patient.patientId} className="rounded-xl bg-slate-50 p-3 text-sm">
+              <p className="font-semibold text-slate-800">{patient.displayName}</p>
 
               {!patient.isOwnPatient && (
                 <fieldset className="mt-2 space-y-2">
-                  <legend className="text-xs font-bold text-gray-700">{text({ id: 'Persetujuan perwakilan', zh: '代理同意', en: 'Proxy consent' })}</legend>
+                  <legend className="text-xs font-bold text-slate-700">{text({ id: 'Persetujuan perwakilan', zh: '代理同意', en: 'Proxy consent' })}</legend>
                   {/* 自評 §4 第 4 項：本人能理解時優先讓本人同意；代理同意只是本人無法同意時的退路。 */}
-                  <p className="text-xs text-gray-500">{text({ id: 'Jika penerima perawatan dapat memahami hal ini, utamakan persetujuan dari dirinya sendiri.', zh: '照護對象如果能理解這件事，請優先讓本人自己同意。', en: 'If the care recipient can understand this, ask for their own consent first.' })}</p>
-                  <label className="block text-xs font-bold text-gray-700">
+                  <p className="text-xs text-slate-500">{text({ id: 'Jika penerima perawatan dapat memahami hal ini, utamakan persetujuan dari dirinya sendiri.', zh: '照護對象如果能理解這件事，請優先讓本人自己同意。', en: 'If the care recipient can understand this, ask for their own consent first.' })}</p>
+                  <label className="block text-xs font-bold text-slate-700">
                     {text({ id: 'Hubungan Anda dengan penerima perawatan', zh: '你與照護對象的關係', en: 'Your relationship to the care recipient' })}
                     <select
                       required
                       value={proxyDraftByPatient[patient.patientId]?.relationship ?? ''}
                       onChange={event => updateProxyDraft(patient.patientId, { relationship: event.target.value as ProxyRelationship | '' })}
-                      className="mt-1 w-full rounded-xl border border-gray-300 px-3 py-2 text-sm"
+                      className="mt-1 min-h-11 w-full rounded-xl border-2 border-control-border px-3 py-2 text-sm"
                     >
                       <option value="" disabled>{text({ id: 'Pilih…', zh: '請選擇…', en: 'Choose…' })}</option>
                       {PROXY_RELATIONSHIPS.map(relationship => (
@@ -274,7 +275,7 @@ export function ShareLinkManagement({ isDemoMode }: ShareLinkManagementProps) {
                       ))}
                     </select>
                   </label>
-                  <label className="flex items-start gap-2 text-xs text-gray-700">
+                  <label className="flex min-h-11 items-start gap-2 text-xs text-slate-700">
                     <input
                       type="checkbox"
                       required
@@ -287,12 +288,12 @@ export function ShareLinkManagement({ isDemoMode }: ShareLinkManagementProps) {
                 </fieldset>
               )}
 
-              <label className="mt-2 block text-xs font-bold text-gray-700">
+              <label className="mt-2 block text-xs font-bold text-slate-700">
                 {text({ id: 'Isi tautan', zh: '連結內容範圍', en: 'Link contents' })}
                 <select
                   value={scopeByPatient[patient.patientId] ?? SHARE_LINK_SCOPE_VERSION}
                   onChange={event => setScopeByPatient(prev => ({ ...prev, [patient.patientId]: event.target.value as ShareScopeVersion }))}
-                  className="mt-1 w-full rounded-xl border border-gray-300 px-3 py-2 text-sm"
+                  className="mt-1 min-h-11 w-full rounded-xl border-2 border-control-border px-3 py-2 text-sm"
                 >
                   {SHARE_SCOPE_VERSIONS.map(scope => (
                     <option key={scope} value={scope}>{text(SHARE_SCOPE_LABELS[scope])}</option>
@@ -300,14 +301,14 @@ export function ShareLinkManagement({ isDemoMode }: ShareLinkManagementProps) {
                 </select>
               </label>
               {/* §6 A：建立前的告知。跟著上面的選單即時切換，按「產生新連結」時還會再以確認框顯示同一段。 */}
-              <p className="mt-1 text-xs leading-relaxed text-gray-500">{text(scopeNotice(scopeByPatient[patient.patientId] ?? SHARE_LINK_SCOPE_VERSION))}</p>
+              <p className="mt-1 text-xs leading-relaxed text-slate-500">{text(scopeNotice(scopeByPatient[patient.patientId] ?? SHARE_LINK_SCOPE_VERSION))}</p>
 
-              <label className="mt-2 block text-xs font-bold text-gray-700">
+              <label className="mt-2 block text-xs font-bold text-slate-700">
                 {text({ id: 'Masa berlaku', zh: '有效期限', en: 'Valid for' })}
                 <select
                   value={expiryByPatient[patient.patientId] ?? 24}
                   onChange={event => setExpiryByPatient(prev => ({ ...prev, [patient.patientId]: Number(event.target.value) as ShareLinkExpiryHours }))}
-                  className="mt-1 w-full rounded-xl border border-gray-300 px-3 py-2 text-sm"
+                  className="mt-1 min-h-11 w-full rounded-xl border-2 border-control-border px-3 py-2 text-sm"
                 >
                   {SHARE_LINK_EXPIRY_OPTIONS.map(hours => (
                     <option key={hours} value={hours}>{text(expiryLabel(hours))}</option>
@@ -319,7 +320,7 @@ export function ShareLinkManagement({ isDemoMode }: ShareLinkManagementProps) {
                 type="button"
                 disabled={creatingPatientId === patient.patientId}
                 onClick={() => void handleCreate(patient)}
-                className="mt-3 w-full rounded-xl bg-blue-600 px-3 py-2 text-sm font-bold text-white disabled:opacity-60"
+                className="mt-3 min-h-11 w-full rounded-xl bg-blue-600 px-3 py-2 text-sm font-bold text-white disabled:opacity-60"
               >
                 {creatingPatientId === patient.patientId
                   ? text({ id: 'Membuat…', zh: '建立中…', en: 'Creating…' })
@@ -329,29 +330,30 @@ export function ShareLinkManagement({ isDemoMode }: ShareLinkManagementProps) {
               {createdUrl && (
                 <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-2.5">
                   <p className="text-xs font-bold text-amber-900">{text({ id: 'Salin sekarang — tautan ini tidak akan ditampilkan lagi.', zh: '請立刻複製——這個連結不會再顯示第二次。', en: 'Copy now — this link will not be shown again.' })}</p>
-                  <p className="mt-1 break-all text-xs text-gray-700">{createdUrl.url}</p>
-                  <button type="button" onClick={() => void copyLink(createdUrl.url)} className="mt-2 rounded-lg bg-white px-2.5 py-1 text-xs font-bold text-blue-700 shadow-sm">
+                  <p className="mt-1 break-all text-xs text-slate-700">{createdUrl.url}</p>
+                  <button type="button" onClick={() => void copyLink(createdUrl.url)} className="mt-2 min-h-11 rounded-lg bg-white px-2.5 py-1 text-xs font-bold text-blue-700 shadow-sm">
                     {text({ id: 'Salin tautan', zh: '複製連結', en: 'Copy link' })}
                   </button>
                 </div>
               )}
 
-              <div className="mt-3 border-t border-gray-200 pt-2">
-                <p className="text-xs font-bold text-gray-600">{text({ id: 'Tautan aktif', zh: '目前有效的連結', en: 'Active links' })}</p>
-                {linksState?.loading && <p className="text-xs text-gray-400">{text({ id: 'Memuat…', zh: '載入中…', en: 'Loading…' })}</p>}
+              <div className="mt-3 border-t border-slate-200 pt-2">
+                <p className="text-xs font-bold text-slate-600">{text({ id: 'Tautan aktif', zh: '目前有效的連結', en: 'Active links' })}</p>
+                {linksState?.loading && <p className="text-xs text-slate-500">{text({ id: 'Memuat…', zh: '載入中…', en: 'Loading…' })}</p>}
                 {linksState?.error && <p className="text-xs text-red-500">{linksState.error}</p>}
                 {!linksState?.loading && !linksState?.error && activeLinks.length === 0 && (
-                  <p className="text-xs text-gray-400">{text({ id: 'Belum ada tautan aktif.', zh: '目前沒有有效的連結。', en: 'No active links.' })}</p>
+                  <p className="text-xs text-slate-500">{text({ id: 'Belum ada tautan aktif.', zh: '目前沒有有效的連結。', en: 'No active links.' })}</p>
                 )}
                 <ul className="mt-1 space-y-1">
                   {activeLinks.map(link => (
-                    <li key={link.linkId} className="flex items-center justify-between gap-2 text-xs text-gray-600">
+                    <li key={link.linkId} className="flex items-center justify-between gap-2 text-xs text-slate-600">
                       <span>
                         {/* 標示範圍：含藥單的連結被轉傳時損失量級不同，撤銷前要能一眼分辨（設計 §5）。 */}
-                        <span className="mr-1 rounded-md bg-gray-200 px-1.5 py-0.5 font-bold text-gray-700">{text(scopeLabel(link.scopeVersion))}</span>
+                        <span className="mr-1 rounded-md bg-slate-200 px-1.5 py-0.5 font-bold text-slate-700">{text(scopeLabel(link.scopeVersion))}</span>
                         {text({ id: 'Berlaku hingga', zh: '有效至', en: 'Valid until' })} {formatExpiry(link.expiresAt, dateLocaleTag(locale))}
                       </span>
-                      <button type="button" onClick={() => void handleRevoke(patient.patientId, link.linkId)} className="shrink-0 rounded-lg border border-red-200 px-2 py-0.5 font-bold text-red-600">
+                      {/* 撤銷分享會立即終止外部讀取；按鈕需保持 44px 以免誤按。 */}
+                      <button type="button" onClick={() => void handleRevoke(patient.patientId, link.linkId)} className="min-h-11 shrink-0 rounded-lg border border-red-200 px-2 py-0.5 font-bold text-red-600">
                         {text({ id: 'Cabut', zh: '撤銷', en: 'Revoke' })}
                       </button>
                     </li>
@@ -363,7 +365,7 @@ export function ShareLinkManagement({ isDemoMode }: ShareLinkManagementProps) {
         })}
       </div>
 
-      {message && <p role="status" className="mt-3 text-xs font-semibold text-gray-600">{message}</p>}
+      {message && <p role="status" className="mt-3 text-xs font-semibold text-slate-600">{message}</p>}
     </section>
   )
 }

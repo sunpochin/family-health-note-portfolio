@@ -6,6 +6,7 @@
 */
 import { useI18n } from '../../lib/i18n'
 import { DAILY_CARE_MODULES, type DailyCareModuleId } from '../../lib/dailyCareModules'
+import { Icon } from '../ui/Icon'
 
 interface DemoHandoffNoticeProps {
   moduleIds: DailyCareModuleId[]
@@ -16,8 +17,9 @@ interface DemoHandoffNoticeProps {
 export function DemoHandoffNotice({ moduleIds, onReconfigure, onDismiss }: DemoHandoffNoticeProps) {
   const { text } = useI18n()
   return (
-    <div role="status" className="print-hidden flex shrink-0 items-start gap-2 border-b border-indigo-200 bg-indigo-50 px-4 py-2.5 text-xs font-semibold text-indigo-900">
-      <span aria-hidden="true" className="text-base leading-5">✨</span>
+    <div role="status" className="print-hidden flex shrink-0 items-start gap-2 border-b border-info-700/20 bg-info-50 px-4 py-2.5 text-xs font-semibold text-slate-900">
+      {/* 圖示 16px、文字行高 20px：mt-0.5 讓圖示與第一行文字垂直置中。 */}
+      <Icon name="sparkles" className="mt-0.5 h-4 w-4 shrink-0 text-info-700" />
       <p className="min-w-0 flex-1 leading-5">
         {text({
           id: `Anda baru saja mencoba item ini: ${moduleIds.map(id => DAILY_CARE_MODULES.find(module => module.id === id)?.compactLabel.id ?? id).join('、')}. Sudah diterapkan; Anda bisa mengubahnya di Pengaturan.`,
@@ -28,14 +30,14 @@ export function DemoHandoffNotice({ moduleIds, onReconfigure, onDismiss }: DemoH
         <button
           type="button"
           onClick={onReconfigure}
-          className="min-h-11 rounded-lg px-2 font-bold text-indigo-900 underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-700"
+          className="min-h-11 rounded-lg px-2 font-bold text-info-700 underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-700"
         >
           {text({ id: 'Atur ulang', zh: '重新設定' ,en: 'Reconfigure' })}
         </button>
         <button
           type="button"
           onClick={onDismiss}
-          className="min-h-11 rounded-lg px-2 font-bold text-indigo-900 underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-700"
+          className="min-h-11 rounded-lg px-2 font-bold text-info-700 underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-700"
         >
           {text({ id: 'Tutup', zh: '關閉' ,en: 'Close' })}
         </button>

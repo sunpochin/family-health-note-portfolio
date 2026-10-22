@@ -107,7 +107,7 @@ export function PetAppetitePage({ patientId, userEmail }: {
     <section className="space-y-5 px-5 py-6">
       <form onSubmit={handleSubmit} className="space-y-4 rounded-2xl bg-white p-5 shadow-sm">
         <div>
-          <label className="block text-sm font-semibold text-gray-800">
+          <label className="block text-sm font-semibold text-slate-800">
             {/* 餐次與進食比例英文標籤修正 */}
             {text({ id: 'Waktu makan', zh: '餐次' ,en: "Meal" })}
           </label>
@@ -118,7 +118,7 @@ export function PetAppetitePage({ patientId, userEmail }: {
                 type="button"
                 aria-pressed={mealType === type}
                 onClick={() => setMealType(type)}
-                className={`min-h-11 rounded-xl border px-2 py-2 text-xs font-bold ${mealType === type ? 'border-indigo-700 bg-indigo-700 text-white' : 'border-gray-200 bg-gray-50 text-gray-700'}`}
+                className={`min-h-11 rounded-xl border px-2 py-2 text-xs font-bold ${mealType === type ? 'border-brand-700 bg-brand-700 text-white' : 'border-slate-200 bg-slate-50 text-slate-700'}`}
               >
                 {text(MEAL_TYPE_LABELS[type])}
               </button>
@@ -127,10 +127,10 @@ export function PetAppetitePage({ patientId, userEmail }: {
         </div>
 
         <div>
-          <label className="block text-sm font-semibold text-gray-800">
+          <label className="block text-sm font-semibold text-slate-800">
             {text({ id: 'Persentase nafsu makan (%)', zh: '進食比例 (%)' ,en: "Food intake percentage (%)" })}
           </label>
-          <p className="mt-1 text-xs text-gray-500">
+          <p className="mt-1 text-xs text-slate-500">
             {text({ id: '0% = tidak makan, 100% = habis semua', zh: '0% = 未進食, 100% = 全部進食' ,en: "0% = no food eaten, 100% = all eaten" })}
           </p>
           <div className="mt-2 flex items-center gap-3">
@@ -142,16 +142,16 @@ export function PetAppetitePage({ patientId, userEmail }: {
               value={eatingPercentage}
               onChange={e => handleInputChange(e.target.value)}
               placeholder="50"
-              className="flex-1 rounded-xl border border-gray-300 px-3 py-2.5"
+              className="flex-1 rounded-xl border-2 border-control-border px-3 py-2.5"
             />
-            <span className="text-sm font-semibold text-gray-600 min-w-12">
+            <span className="text-sm font-semibold text-slate-600 min-w-12">
               {eatingPercentage !== '' ? `${eatingPercentage}%` : '—'}
             </span>
           </div>
           {eatingPercentage !== '' && (
-            <div className="mt-2 h-2 w-full rounded-full bg-gray-200 overflow-hidden">
+            <div className="mt-2 h-2 w-full rounded-full bg-slate-200 overflow-hidden">
               <div
-                className="h-full bg-indigo-600 transition-all"
+                className="h-full bg-brand-700 transition-all"
                 style={{ width: `${eatingPercentage}%` }}
               />
             </div>
@@ -159,7 +159,7 @@ export function PetAppetitePage({ patientId, userEmail }: {
         </div>
 
         {message && (
-          <p className={`text-sm ${status === 'err' ? 'text-red-600' : 'text-green-600'}`}>
+          <p className={`text-sm ${status === 'err' ? 'text-red-600' : 'text-emerald-700'}`}>
             {message}
           </p>
         )}
@@ -167,7 +167,7 @@ export function PetAppetitePage({ patientId, userEmail }: {
         <button
           type="submit"
           disabled={status === 'saving'}
-          className="w-full rounded-xl bg-indigo-700 px-4 py-3 text-sm font-bold text-white disabled:opacity-60"
+          className="w-full rounded-xl bg-brand-700 px-4 py-3 text-sm font-bold text-white disabled:opacity-60"
         >
           {text({ id: 'Simpan', zh: '儲存' ,en: "Save" })}
         </button>
@@ -175,17 +175,17 @@ export function PetAppetitePage({ patientId, userEmail }: {
 
       <div className="rounded-2xl bg-white p-5 shadow-sm">
         {/* 今日紀錄標題與空狀態英文翻譯修正 */}
-        <h3 className="text-sm font-bold text-gray-800">{text({ id: 'Catatan hari ini', zh: '今天的紀錄' ,en: "Today's records" })}</h3>
+        <h3 className="text-sm font-bold text-slate-800">{text({ id: 'Catatan hari ini', zh: '今天的紀錄' ,en: "Today's records" })}</h3>
         {loading ? (
-          <p className="mt-2 text-sm text-gray-500">{text({ id: 'Memuat…', zh: '讀取中…' ,en: "Loading…" })}</p>
+          <p className="mt-2 text-sm text-slate-500">{text({ id: 'Memuat…', zh: '讀取中…' ,en: "Loading…" })}</p>
         ) : todayRecords.length === 0 ? (
-          <p className="mt-2 text-sm text-gray-500">{text({ id: 'Belum ada catatan hari ini.', zh: '今天還沒有紀錄。' ,en: "No records for today yet." })}</p>
+          <p className="mt-2 text-sm text-slate-500">{text({ id: 'Belum ada catatan hari ini.', zh: '今天還沒有紀錄。' ,en: "No records for today yet." })}</p>
         ) : (
           <ul className="mt-2 space-y-2">
             {todayRecords.map(record => (
-              <li key={record.id} className="flex items-center justify-between rounded-xl bg-gray-50 px-3 py-2 text-sm">
-                <span className="font-semibold text-gray-700">{text(MEAL_TYPE_LABELS[record.meal_type])}</span>
-                <span className="font-bold text-indigo-700">{record.appetite_percent}%</span>
+              <li key={record.id} className="flex items-center justify-between rounded-xl bg-slate-50 px-3 py-2 text-sm">
+                <span className="font-semibold text-slate-700">{text(MEAL_TYPE_LABELS[record.meal_type])}</span>
+                <span className="font-bold text-brand-700">{record.appetite_percent}%</span>
               </li>
             ))}
           </ul>

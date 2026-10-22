@@ -5,6 +5,7 @@
 */
 import { useEffect, useState } from 'react'
 import { useI18n, type LocalizedText } from '../../lib/i18n'
+import { ExperimentalBadge } from '../daily-care/ExperimentalModuleNotice'
 import { DAILY_CARE_MODULES, isModuleApplicableToSpecies, parseDailyCareDisplaySettingsHash, type DailyCareModuleId, type DailyCareVisibilityPreference } from '../../lib/dailyCareModules'
 
 const MODULE_HELP: Record<DailyCareModuleId, LocalizedText> = {
@@ -79,9 +80,9 @@ export function DailyCareDisplaySettings({ preference, onChange, saving, error, 
   const highlightModuleNeedsCustomTemplate = Boolean(highlightModule) && !visibleModules.some(module => module.id === highlightModuleId)
 
   return (
-    <section className="mt-6 rounded-2xl border border-gray-200 bg-white p-4" aria-labelledby="daily-care-display-settings-title">
-      <h2 id="daily-care-display-settings-title" className="font-bold text-gray-900">{text({ id: 'Tampilan perawatan harian', zh: '每日照護顯示' ,en: 'Daily Care Display' })}</h2>
-      <p id="daily-care-display-settings-help" className="mt-1 text-sm text-gray-500">{text({ id: 'Pilih fitur yang ingin Anda lihat untuk orang yang sedang dipilih.', zh: '選擇目前這位被照護者要顯示的功能。' ,en: 'Choose which features to show for the selected care recipient.' })}</p>
+    <section className="mt-6 rounded-2xl border border-slate-200 bg-white p-4" aria-labelledby="daily-care-display-settings-title">
+      <h2 id="daily-care-display-settings-title" className="font-bold text-slate-900">{text({ id: 'Tampilan perawatan harian', zh: '每日照護顯示' ,en: 'Daily Care Display' })}</h2>
+      <p id="daily-care-display-settings-help" className="mt-1 text-sm text-slate-500">{text({ id: 'Pilih fitur yang ingin Anda lihat untuk orang yang sedang dipilih.', zh: '選擇目前這位被照護者要顯示的功能。' ,en: 'Choose which features to show for the selected care recipient.' })}</p>
 
       {highlightModule && (
         <p role="status" className="mt-3 rounded-xl bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-800">
@@ -99,11 +100,12 @@ export function DailyCareDisplaySettings({ preference, onChange, saving, error, 
         </p>
       )}
 
-      <label htmlFor="daily-care-custom-template" className={`mt-4 flex min-h-12 items-center justify-between gap-3 rounded-xl border ${highlightModuleNeedsCustomTemplate ? 'ring-2 ring-amber-500 ring-offset-1' : ''} border-indigo-100 bg-indigo-50 px-3 py-2 text-sm ${saving ? 'cursor-wait' : 'cursor-pointer'}`}>
+      {/* 自訂範本列是這張卡的重點區塊，用 brand-50／200 當底與框；說明字用 slate-600，因為 slate-500 在 brand-50 上只有約 4.5:1，沒有餘裕。 */}
+      <label htmlFor="daily-care-custom-template" className={`mt-4 flex min-h-12 items-center justify-between gap-3 rounded-xl border ${highlightModuleNeedsCustomTemplate ? 'ring-2 ring-amber-500 ring-offset-1' : ''} border-brand-200 bg-brand-50 px-3 py-2 text-sm ${saving ? 'cursor-wait' : 'cursor-pointer'}`}>
         <span className="min-w-0">
-          <span className="block font-semibold text-indigo-900">{text({ id: 'Template khusus (abaikan jenis hewan)', zh: '自訂範本（不受物種限制）' ,en: 'Custom template (ignore species)' })}</span>
+          <span className="block font-semibold text-slate-900">{text({ id: 'Template khusus (abaikan jenis hewan)', zh: '自訂範本（不受物種限制）' ,en: 'Custom template (ignore species)' })}</span>
           {/* bird 是獨立物種；在自動模式提示中列出它，避免照護者以為只能選「其他」。 */}
-          <span className="mt-0.5 block text-xs text-indigo-700">{text({ id: 'Nonaktif: item otomatis mengikuti jenis (manusia/kucing/anjing/burung/kelinci/hewan lain). Aktif: pilih sendiri semua item.', zh: '關閉時依照物種（人類／貓／狗／鳥／兔子／其他寵物）自動判斷；開啟後可自行勾選全部項目，不受物種限制。' ,en: 'Off: items follow the species (human, cat, dog, bird, rabbit, or other pet). On: choose every item yourself.' })}</span>
+          <span className="mt-0.5 block text-xs text-slate-600">{text({ id: 'Nonaktif: item otomatis mengikuti jenis (manusia/kucing/anjing/burung/kelinci/hewan lain). Aktif: pilih sendiri semua item.', zh: '關閉時依照物種（人類／貓／狗／鳥／兔子／其他寵物）自動判斷；開啟後可自行勾選全部項目，不受物種限制。' ,en: 'Off: items follow the species (human, cat, dog, bird, rabbit, or other pet). On: choose every item yourself.' })}</span>
         </span>
         <input
           id="daily-care-custom-template"
@@ -111,7 +113,7 @@ export function DailyCareDisplaySettings({ preference, onChange, saving, error, 
           checked={useCustomTemplate}
           disabled={saving}
           onChange={event => void onToggleCustomTemplate(event.target.checked)}
-          className="h-5 w-5 shrink-0 accent-indigo-600"
+          className="h-5 w-5 shrink-0 accent-brand-700"
         />
       </label>
 
@@ -120,10 +122,10 @@ export function DailyCareDisplaySettings({ preference, onChange, saving, error, 
           const permissionLocked = module.id === 'medication' && !canUseMedication
           const lockedText = { id: 'Dibatasi oleh akses obat', zh: '由服藥權限控制' ,en: 'Controlled by medication access' }
           return (
-            <label key={module.id} htmlFor={`daily-care-setting-${module.id}`} className={`flex min-h-12 items-center justify-between gap-3 rounded-xl px-3 py-2 text-sm ${permissionLocked ? 'bg-gray-100 opacity-70' : 'bg-gray-50'} ${saving ? 'cursor-wait' : permissionLocked ? 'cursor-not-allowed' : 'cursor-pointer'} ${highlightModuleId === module.id ? 'ring-2 ring-amber-500 ring-offset-1' : ''}`}>
+            <label key={module.id} htmlFor={`daily-care-setting-${module.id}`} className={`flex min-h-12 items-center justify-between gap-3 rounded-xl px-3 py-2 text-sm ${permissionLocked ? 'bg-slate-100 opacity-70' : 'bg-slate-50'} ${saving ? 'cursor-wait' : permissionLocked ? 'cursor-not-allowed' : 'cursor-pointer'} ${highlightModuleId === module.id ? 'ring-2 ring-amber-500 ring-offset-1' : ''}`}>
               <span className="min-w-0">
-                <span className="block font-semibold text-gray-900">{text(module.label)}</span>
-                <span className="mt-0.5 block text-xs text-gray-500">{text(permissionLocked ? lockedText : MODULE_HELP[module.id])}</span>
+                <span className="block font-semibold text-slate-900">{text(module.label)}{module.experimental && <>{' '}<ExperimentalBadge /></>}</span>
+                <span className="mt-0.5 block text-xs text-slate-500">{text(permissionLocked ? lockedText : MODULE_HELP[module.id])}</span>
               </span>
               <input
                 id={`daily-care-setting-${module.id}`}
@@ -132,16 +134,16 @@ export function DailyCareDisplaySettings({ preference, onChange, saving, error, 
                 disabled={saving || permissionLocked}
                 onChange={event => void onChange(module.id, event.target.checked)}
                 aria-describedby="daily-care-display-settings-help"
-                className="h-5 w-5 shrink-0 accent-indigo-600"
+                className="h-5 w-5 shrink-0 accent-brand-700"
               />
             </label>
           )
         })}
       </div>
-      <p className="mt-3 text-xs text-gray-500">{text(isDemoMode
+      <p className="mt-3 text-xs text-slate-500">{text(isDemoMode
         ? { id: 'Mode demo menyimpan pengaturan untuk setiap orang di browser ini saja.', zh: '展示模式會把每位被照護者的設定保存在這個瀏覽器。' ,en: 'Demo mode saves each care recipient’s settings in this browser.' }
         : { id: 'Pengaturan ini dibagikan kepada pengasuh lain yang berwenang untuk orang ini; catatan tidak dihapus dan izin akses tidak berubah.', zh: '這會同步給這位被照顧者的其他授權照護者；不會刪除紀錄或改變權限。' ,en: 'These settings are shared with authorized caregivers for this person; records and access are unchanged.' })}</p>
-      {saving && <p className="mt-2 text-xs font-semibold text-indigo-700">{text({ id: 'Menyimpan pengaturan…', zh: '正在儲存設定…' ,en: 'Saving settings...' })}</p>}
+      {saving && <p className="mt-2 text-xs font-semibold text-brand-700">{text({ id: 'Menyimpan pengaturan…', zh: '正在儲存設定…' ,en: 'Saving settings...' })}</p>}
       {error && <p role="alert" className="mt-2 rounded-xl bg-red-50 px-3 py-2 text-xs font-semibold text-red-700">{text(error)}</p>}
     </section>
   )

@@ -2,6 +2,7 @@
   "name": "jia-jian-log",
   "private": true,
   "version": "1.20.0",
+  "license": "MIT",
   "type": "module",
   "scripts": {
     "dev": "vite --host",
@@ -9,8 +10,8 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "test:e2e": "playwright test",
-    "test:unit": "bun test tests/unit",
-    "test:coverage": "bun test tests/unit --coverage --coverage-reporter=text"
+    "test:unit": "bun test --isolate tests/unit",
+    "test:coverage": "bun test --isolate tests/unit --coverage --coverage-reporter=text"
   },
   "dependencies": {
     "@capacitor/android": "^8.5.1",
@@ -46,7 +47,7 @@
   },
   "overrides": {
     "browserslist": "^4.28.7",
-    "fast-uri": "3.1.6",
+    "fast-uri": "3.1.8",
     "uuid": "11.1.1"
   }
 }

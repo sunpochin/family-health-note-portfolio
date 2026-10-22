@@ -7,6 +7,7 @@ import { useEffect, useRef, useState } from 'react'
 import { supabase } from '../../lib/supabase'
 import { signOut } from '../../lib/auth'
 import { useI18n } from '../../lib/i18n'
+import { Icon } from '../ui/Icon'
 
 interface DeleteAccountModalProps {
   isOpen: boolean
@@ -113,15 +114,15 @@ export function DeleteAccountModal({ isOpen, onClose }: DeleteAccountModalProps)
   return (
     <div
       ref={dialogRef}
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-xs"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/55 p-4"
       role="dialog"
       aria-modal="true"
       aria-labelledby="delete-account-title"
       aria-describedby="delete-account-description"
     >
-      <div className="w-full max-w-sm rounded-3xl bg-white p-6 shadow-xl text-gray-900 border border-gray-100">
+      <div className="w-full max-w-sm rounded-3xl bg-white p-6 shadow-xl text-slate-900 border border-slate-100">
         <div className="flex items-center gap-3 text-red-600">
-          <span className="text-2xl" aria-hidden="true">⚠️</span>
+          <Icon name="alert-triangle" className="h-6 w-6 shrink-0" />
           <h2 id="delete-account-title" className="text-lg font-black tracking-tight">
             {text({ id: 'Hapus Akun', zh: '刪除帳號', en: 'Delete account' })}
           </h2>
@@ -140,7 +141,7 @@ export function DeleteAccountModal({ isOpen, onClose }: DeleteAccountModalProps)
         </div>
 
         <form onSubmit={handleDelete} className="mt-4 space-y-4">
-          <label className="block text-xs font-bold text-gray-700">
+          <label className="block text-xs font-bold text-slate-700">
             {text({
               id: 'Ketik "DELETE" di bawah untuk mengonfirmasi:',
               zh: '請在下方輸入 "DELETE" 以確認刪除：',
@@ -152,7 +153,7 @@ export function DeleteAccountModal({ isOpen, onClose }: DeleteAccountModalProps)
               value={confirmInput}
               onChange={e => setConfirmInput(e.target.value)}
               placeholder="DELETE"
-              className="mt-1.5 w-full rounded-xl border border-gray-300 px-3 py-2.5 text-sm font-semibold tracking-wider placeholder:font-normal placeholder:tracking-normal focus:border-red-500 focus:outline-none focus:ring-2 focus:ring-red-200"
+              className="mt-1.5 w-full rounded-xl border-2 border-control-border px-3 py-2.5 text-sm font-semibold tracking-wider placeholder:font-normal placeholder:tracking-normal focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-700"
             />
           </label>
 
@@ -163,12 +164,13 @@ export function DeleteAccountModal({ isOpen, onClose }: DeleteAccountModalProps)
           )}
 
           <div className="flex gap-2 pt-1">
+            {/* 刪除帳號不可逆；確認與取消都保留 44px，讓人能可靠地選對下一步。 */}
             <button
               ref={cancelButtonRef}
               type="button"
               disabled={status === 'deleting'}
               onClick={onClose}
-              className="flex-1 rounded-xl border border-gray-300 bg-white px-3 py-2.5 text-xs font-bold text-gray-700 transition active:bg-gray-100 disabled:opacity-50"
+              className="flex-1 min-h-11 rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-xs font-bold text-slate-700 transition active:bg-slate-100 disabled:opacity-50"
             >
               {text({ id: 'Batal', zh: '取消', en: 'Cancel' })}
             </button>
@@ -176,7 +178,7 @@ export function DeleteAccountModal({ isOpen, onClose }: DeleteAccountModalProps)
             <button
               type="submit"
               disabled={!isConfirmed || status === 'deleting'}
-              className="flex-1 rounded-xl bg-red-600 px-3 py-2.5 text-xs font-bold text-white shadow-sm transition active:bg-red-700 disabled:opacity-40"
+              className="flex-1 min-h-11 rounded-xl bg-red-600 px-3 py-2.5 text-xs font-bold text-white shadow-sm transition active:bg-red-700 disabled:opacity-40"
             >
               {status === 'deleting'
                 ? text({ id: 'Menghapus…', zh: '刪除中…', en: 'Deleting...' })

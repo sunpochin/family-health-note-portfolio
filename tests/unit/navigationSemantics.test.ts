@@ -1,8 +1,8 @@
 /*
 檔案用途：驗證主要底部導覽的可及性契約，避免入口重新整理時退回只靠圖示辨識。
-所在層：tests/unit；以來源契約檢查底部導覽元件的共用導覽標記與雙語導覽名稱。
+所在層：tests/unit；以來源契約檢查底部導覽元件的共用導覽標記與三語（zh／id／en）導覽名稱。
 主要關聯：src/components/system/BottomNav.tsx（issue #764 從 App.tsx 拆出）、
-docs/platform/i18n-and-accessibility.md 與 AGENTS.md 的雙語／可及性規範。
+docs/platform/i18n-and-accessibility.md 與 AGENTS.md 的三語／可及性規範。
 */
 import { readFileSync } from 'node:fs'
 import { describe, expect, test } from 'bun:test'
@@ -11,9 +11,19 @@ const bottomNavSource = readFileSync(new URL('../../src/components/system/Bottom
 const iconSource = readFileSync(new URL('../../src/components/ui/Icon.tsx', import.meta.url), 'utf8')
 
 describe('bottom navigation accessibility contract', () => {
-  test('announces the bilingual navigation landmark and active page', () => {
-    expect(bottomNavSource).toContain("aria-label={text({ id: 'Navigasi utama', zh: '主要導覽', en: '(BuddyPress) Primary navigation' })}")
+  test('announces the trilingual navigation landmark and active page', () => {
+    expect(bottomNavSource).toContain("aria-label={text({ id: 'Navigasi utama', zh: '主要導覽', en: 'Primary navigation' })}")
     expect(bottomNavSource).toContain("aria-current={active ? 'page' : undefined}")
+  })
+
+  test('keeps bracketed prefixes and the BuddyPress name out of the English landmark name', () => {
+    // 英文名稱曾誤帶 BuddyPress 這個括號前綴，讀屏器會照唸；從 <nav> 的 aria-label 抓出 en 值，
+    // 擋住括號前綴與 BuddyPress 字樣再出現，避免整串字串改寫時又把雜訊帶回來。
+    // 這不是通用的產品名過濾：沒有括號的其他產品名擋不住，仍要靠 review。
+    const englishLabel = bottomNavSource.match(/<nav aria-label=\{text\(\{[^}]*\ben: '([^']*)'/)?.[1]
+    expect(englishLabel).toBe('Primary navigation')
+    expect(englishLabel).not.toMatch(/[()[\]]/)
+    expect(englishLabel).not.toMatch(/BuddyPress/i)
   })
 
   test('keeps icon-only semantics out of the screen reader tree and preserves touch size', () => {

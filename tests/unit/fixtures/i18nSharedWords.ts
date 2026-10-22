@@ -11,7 +11,7 @@
 // 只收小寫、長度 ≥ 3 的字；排序只為了好讀與好 diff。
 export const I18N_SHARED_ID_EN_WORDS: ReadonlySet<string> = new Set([
   'access', 'ace', 'admin', 'administrator', 'analytics', 'and', 'android', 'angina', 'anti', 'antiplatelet',
-  'api', 'app', 'apple', 'arb', 'atc', 'audit', 'author', 'banner', 'basis', 'beta', 'blocker',
+  'api', 'app', 'apple', 'arb', 'atc', 'audit', 'banner', 'basis', 'beta', 'blocker',
   'blood', 'bot', 'brilinta', 'browser', 'bug', 'build', 'calcium', 'calendar', 'caregiver', 'changed',
   'changelog', 'channel', 'checklist', 'chrome', 'ckd', 'clipboard', 'cloud', 'coep', 'commit', 'complete',
   'condition', 'coop', 'csv', 'data', 'database', 'default', 'delete', 'demo', 'desktop', 'detail',
@@ -21,19 +21,18 @@ export const I18N_SHARED_ID_EN_WORDS: ReadonlySet<string> = new Set([
   'info', 'input', 'insulin', 'internal', 'internet', 'ios', 'item', 'jpeg', 'kcal', 'key',
   'keyboard', 'lab', 'label', 'landing', 'level', 'line', 'listener', 'llc', 'local', 'localstorage',
   'log', 'login', 'logo', 'magenta', 'manual', 'menu', 'mineral', 'minimum', 'mode', 'model',
-  'mog', 'mvp', 'native', 'nee', 'normal', 'not', 'note', 'nsaid', 'ocr', 'offline',
+  'mog', 'mvp', 'native', 'nee', 'newebpay', 'normal', 'not', 'note', 'nsaid', 'ocr', 'offline',
   'onboarding', 'online', 'osteoporosis', 'oval', 'pageshow', 'panel', 'patient', 'pdf', 'per', 'personal',
-  'platform', 'play', 'please', 'pop', 'portfolio', 'premium', 'preset', 'pressure', 'preview', 'prn', 'production',
+  'platform', 'play', 'please', 'pop', 'premium', 'preset', 'pressure', 'preview', 'prn', 'production',
   'prompt', 'proxy', 'pulse', 'push', 'pwa', 'race', 'readme', 'record', 'ref', 'release', 'resend',
   'return', 'rls', 'row', 'sachet', 'safari', 'saved', 'security', 'seed', 'seo', 'september',
   'server', 'slot', 'sql', 'ssl', 'staging', 'start', 'status', 'stop', 'store', 'string',
   'sub', 'success', 'supabase', 'tab', 'tablet', 'taipei', 'taiwan', 'target', 'telegram', 'template',
-  'terracotta', 'testflight', 'tfda', 'tls', 'total', 'tracking', 'transfer', 'tutorial', 'unit', 'upgrade',
+  'terracotta', 'testflight', 'tfda', 'tls', 'total', 'tracking', 'transfer', 'tutorial', 'twd', 'unit', 'upgrade',
   'urine', 'url', 'user', 'utf', 'valid', 'vercel', 'vertigo', 'via', 'view', 'vision',
   'vitamin', 'volume', 'web', 'webp', 'week', 'whiskers', 'who', 'wizard', 'zoom',
   // staging 合併進來的隱私告知（#922）：hosting 是印尼文也沿用的英文外來語；
-  // portfolio-author 是隱私告知裡依法列出的資料控制者代號（repo 擁有者，已見於多個既有測試），不是翻譯殘留。
-  'hosting', 'portfolio-author',
+  // demo-xq7 是 repo 擁有者代號，出現在隱私告知文案中（已見於多個既有測試），不是翻譯殘留。
+  'hosting', 'demo-xq7',
   // 原生殼 App 鎖（#821）：Face ID 與 iPhone 是 Apple 產品名稱，印尼文介面也照原文寫。
-  'face', 'iphone',
-])
+  'face', 'iphone',])

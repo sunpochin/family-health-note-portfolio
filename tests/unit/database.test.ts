@@ -68,9 +68,8 @@ describe('getAlertLevel', () => {
   })
 })
 
-// Low-side thresholds (ROADMAP.md P0.1): mother has a hypotension history,
-// so a low reading must not silently show "normal". Mirrors the low-end
-// bands in appscript/blood_pressure_bot_docs.md.
+// Low-side thresholds (ROADMAP.md P0.1): elderly patients with a hypotension
+// history must not see a low reading silently shown as "normal".
 describe('getAlertLevel — low blood pressure', () => {
   test('danger-low when systolic is under 90', () => {
     expect(getAlertLevel(85, 48, null, GENERAL_ADULT_STANDARD)).toBe('danger-low')

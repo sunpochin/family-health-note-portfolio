@@ -15,15 +15,20 @@ import {
   ALERT_CHIP_CLASS,
   ALERT_ICON,
   ALERT_SOFT_CHIP_CLASS,
+  alertLabelText,
   alertTone,
   alertToneFromLevel,
   type AlertTone,
 } from '../../src/lib/alertPresentation'
 import {
+  CKD_DIABETES_STANDARD,
+  ELDERLY_RELAXED_STANDARD,
   GENERAL_ADULT_STANDARD,
   POST_OP_STRICT_STANDARD,
+  createCustomStandard,
   evaluateReading,
 } from '../../src/types/database'
+import BP_LEVELS from '../../src/config/bp-levels.json'
 
 const ALL_TONES: AlertTone[] = [
   'on-target', 'normal', 'below-target', 'warning-low', 'danger-low',
@@ -88,9 +93,107 @@ describe('§4.3 配色落點收斂', () => {
   test('高側是紅、低側是琥珀；上下三角讓灰階也讀得出「往哪邊調」', () => {
     expect(ALERT_CHIP_CLASS['off-target']).toContain('danger')
     expect(ALERT_CHIP_CLASS['below-target']).toContain('warn')
-    expect(ALERT_ICON['off-target']).toBe('🔺')
-    expect(ALERT_ICON['below-target']).toBe('🔻')
-    expect(ALERT_ICON['on-target']).toBe('🎯')
+    // issue #1153 換成 SVG 後仍要保留方向：超出目標朝上、低於目標朝下，兩者不得是同一個圖示。
+    expect(ALERT_ICON['off-target']).toBe('arrow-up-circle')
+    expect(ALERT_ICON['below-target']).toBe('arrow-down-circle')
+    expect(ALERT_ICON['on-target']).toBe('target')
+  })
+
+  test('危險級與警示級的圖示在灰階下靠外形分開（八角形 vs 三角形）', () => {
+    // 原本 🔴 與 ⚠️ 還能靠顏色分；SVG 是 currentColor，只剩外形，所以兩組不得共用同一個圖示。
+    expect(ALERT_ICON.critical).toBe('alert-octagon')
+    expect(ALERT_ICON['danger-low']).toBe('alert-octagon')
+    expect(ALERT_ICON.warning).toBe('alert-triangle')
+    expect(ALERT_ICON['warning-low']).toBe('alert-triangle')
+  })
+})
+
+describe('issue #1153：送出鈕白字對比', () => {
+  // 瀏覽器實際渲染出來的色值（Tailwind v4 內建色票是 oklch，換成 sRGB 後與 v3 的 hex 不同，
+  // 例如 green-700 是 #008236 不是 #15803d；brand／warn／danger 取自 src/index.css @theme）。
+  // 只列 ALERT_BUTTON_CLASS 用得到的底色；新增一階卻用了這裡沒有的底色時，測試會因為查不到色值而失敗，
+  // 逼人在瀏覽器量過一次再補進來。
+  const HEX: Record<string, string> = {
+    'brand-700': '#047857',
+    'green-700': '#008236',
+    'warn-700': '#b45309',
+    'orange-700': '#ca3500',
+    'red-600': '#e7000b',
+    'danger-700': '#b91c1c',
+    'red-800': '#9f0712',
+  }
+  const luminance = (hex: string) => {
+    const [r, g, b] = [1, 3, 5].map(i => parseInt(hex.slice(i, i + 2), 16) / 255)
+      .map(v => (v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4))
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b
+  }
+  const contrastOnWhite = (hex: string) => 1.05 / (luminance(hex) + 0.05)
+
+  test('每一階的按鈕底色對白字都 ≥4.5:1', () => {
+    // 按鈕字是 text-lg（18px）粗體，差一點才算 WCAG 大字（18.66px 粗體），所以要過一般字的 4.5:1。
+    const failures: string[] = []
+    for (const [tone, cls] of Object.entries(ALERT_BUTTON_CLASS)) {
+      const bg = cls.match(/(?:^|\s)bg-([a-z]+-\d+)/)?.[1]
+      const hex = bg ? HEX[bg] : undefined
+      if (!hex) { failures.push(`${tone}: 色值未登錄（${cls}）`); continue }
+      const ratio = contrastOnWhite(hex)
+      if (ratio < 4.5) failures.push(`${tone}: ${bg} ${ratio.toFixed(2)}:1`)
+    }
+    expect(failures).toEqual([])
+  })
+
+  test('normal 與 on-target 的按鈕都是深綠，但不會出現在同一個標準裡', () => {
+    // green-700 與 brand-700 明度相近；這是可以接受的，前提是同一位病人永遠只會看到其中一種。
+    // normal 只來自一般成人九級表，on-target 只來自目標制模板。哪天有模板同時產生兩者，這裡要失敗，
+    // 按鈕就得重新選色。
+    const standards = [
+      GENERAL_ADULT_STANDARD, POST_OP_STRICT_STANDARD, ELDERLY_RELAXED_STANDARD, CKD_DIABETES_STANDARD, createCustomStandard(),
+    ]
+    const mixed: string[] = []
+    for (const standard of standards) {
+      const tones = new Set<AlertTone>()
+      for (let sys = 70; sys <= 210; sys += 1) {
+        for (let dia = 40; dia <= 130; dia += 5) tones.add(alertTone(evaluateReading(sys, dia, null, standard)))
+      }
+      if (tones.has('normal') && tones.has('on-target')) mixed.push(standard.key)
+    }
+    expect(mixed).toEqual([])
+  })
+})
+
+describe('issue #1153：畫面標籤剝除推播用 emoji', () => {
+  test('bp-levels.json 每一級的三語標籤剝完都沒有 emoji、也沒有殘留空白', () => {
+    const leftovers: string[] = []
+    for (const [key, level] of Object.entries(BP_LEVELS)) {
+      const plain = alertLabelText(level.labels)
+      for (const [locale, value] of Object.entries(plain)) {
+        if (/\p{Extended_Pictographic}|️/u.test(value) || value !== value.trim() || value === '') {
+          leftovers.push(`${key}.${locale}: "${value}"`)
+        }
+      }
+    }
+    expect(leftovers).toEqual([])
+  })
+
+  test('只剝 emoji，文字（含行動指示）一個字都不少', () => {
+    expect(alertLabelText(BP_LEVELS.danger_high.labels)).toEqual({
+      zh: '極高危險，需立即複測',
+      id: 'Bahaya Sangat Tinggi, ukur ulang segera',
+      en: 'Extremely high — measure again immediately',
+    })
+    expect(alertLabelText(BP_LEVELS.tinggi.labels).zh).toBe('偏高')
+  })
+
+  test('血壓＋心跳的串接標籤中間那顆 ⚠️ 也會被剝掉', () => {
+    // evaluateReading 會把兩段標籤接起來，emoji 不只出現在開頭。
+    const joined = alertLabelText(evaluateReading(150, 95, 130, GENERAL_ADULT_STANDARD).labels)
+    expect(joined.zh).not.toMatch(/\p{Extended_Pictographic}/u)
+    expect(joined.zh).toContain('心跳 >120')
+  })
+
+  test('推播與匯出用的原始標籤沒有被改動', () => {
+    // 剝除只發生在畫面；bp-levels.json 本身（會同步成推播文字）必須保留 emoji。
+    expect(BP_LEVELS.danger_high.labels.zh.startsWith('🔴')).toBe(true)
   })
 })
 

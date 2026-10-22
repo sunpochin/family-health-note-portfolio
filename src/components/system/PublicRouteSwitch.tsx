@@ -35,7 +35,7 @@ const ShareSummaryPage = lazyWithRetry(() => import('../../features/care-family/
 export function usePublicRoute(currentPath: string): ReactNode | null {
   const { text } = useI18n()
   const publicPageFallback = (
-    <div className="h-dvh flex items-center justify-center bg-white text-gray-400 text-sm">
+    <div className="h-dvh flex items-center justify-center bg-white text-slate-500 text-sm">
       {text(common.loading)}
     </div>
   )

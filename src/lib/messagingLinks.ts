@@ -43,7 +43,7 @@ export async function createMessagingLinkUrl(channel: MessagingChannel, rpc: Rpc
   if (typeof token !== 'string' || token.length === 0) throw new Error('Messaging link token could not be created.')
 
   if (channel === 'telegram') {
-    const botUsername = import.meta.env.VITE_TELEGRAM_BOT_USERNAME
+    const botUsername = normalizeTelegramBotUsername(import.meta.env.VITE_TELEGRAM_BOT_USERNAME)
     if (!botUsername) throw new Error('VITE_TELEGRAM_BOT_USERNAME is not configured.')
     return `https://t.me/${botUsername}?start=${token}`
   }
@@ -56,6 +56,14 @@ export async function createMessagingLinkUrl(channel: MessagingChannel, rpc: Rpc
   // 為什麼 @ 要編碼成 %40：LINE 官方文件規定 LINE ID 要 percent-encode，未編碼的寫法「仍可用但已棄用」，
   // 不該讓綁定入口押在一個隨時可能被拿掉的相容行為上。
   return `https://line.me/R/oaMessage/${encodeURIComponent(`@${basicId}`)}/?${encodeURIComponent(`/link ${token}`)}`
+}
+
+// 為什麼要正規化：BotFather 與 Telegram 介面都把 bot 顯示成 @example_bot，維護者照抄貼進 Vercel 是最自然的做法；
+// 但 t.me 網址的路徑段不能帶 @，`https://t.me/@example_bot` 打開會顯示「此用戶不存在」，綁定入口就壞了。
+// 跟 LINE 一樣統一去掉前後空白與開頭的 @，有沒有帶 @ 都組出同一條正確連結；只填 @ 或空白時回空字串，
+// 讓設定頁與上面的檢查都把它當成「尚未設定」。
+export function normalizeTelegramBotUsername(raw: string | undefined): string {
+  return (raw ?? '').trim().replace(/^@+/, '')
 }
 
 // 為什麼要正規化：LINE Developers Console 顯示的 Bot basic ID 本身就帶 @（例如 @abc1234x），維護者照抄貼進

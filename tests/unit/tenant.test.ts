@@ -50,34 +50,17 @@ const mockSupabase = {
       }
     }
     if (table === 'blood_pressure_records') {
-      const chain: any = {
+      return {
         insert() {
           return Promise.resolve(insertRecordResponse)
         },
-        select() { return chain },
-        gte() { return chain },
-        order() { return chain },
-        eq() { return chain },
-        then(resolve: any, reject: any) {
-          return Promise.resolve({ data: [], error: null }).then(resolve, reject)
-        },
       }
-      return chain
     }
-    const defaultChain: any = {
-      select() { return defaultChain },
-      insert() { return Promise.resolve({ data: null, error: null }) },
-      update() { return defaultChain },
-      delete() { return defaultChain },
-      eq() { return defaultChain },
-      gte() { return defaultChain },
-      order() { return defaultChain },
-      limit() { return defaultChain },
-      then(resolve: any, reject: any) {
-        return Promise.resolve({ data: [], error: null }).then(resolve, reject)
+    return {
+      select() {
+        return Promise.resolve({ data: null, error: null })
       },
     }
-    return defaultChain
   },
   auth: {
     getUser() {
@@ -96,7 +79,6 @@ mock.module('../../src/lib/supabase', () => ({ supabase: mockSupabase }))
 
 const {
   acceptPatientCareInvitation,
-  addHouseholdMember,
   addHouseholdPatient,
   createHouseholdPatientInvitation,
   createHouseholdPatientInvitationWithEmail,
@@ -108,18 +90,19 @@ const {
   fetchPendingPatientCareInvitations,
   fetchHouseholdArchivedPets,
   fetchHouseholdPatientInvitations,
-  fetchHouseholdMembers,
-  fetchHouseholdPatientAccess,
   fetchHouseholdPets,
   fetchHouseholdManagementPatients,
   fetchTenantContext,
   isCareRecipientType,
-  removeHouseholdMember,
   revokeHouseholdPatientInvitation,
   saveTenantBpRecord,
-  setHouseholdPatientAccess,
   validateHouseholdOnboarding,
 } = await import('../../src/lib/tenant')
+
+test('patient invitation preserves the fixed household cap code across the email Function boundary', async () => {
+  functionsInvokeResponse = { data: null, error: { context: new Response(JSON.stringify({ error: 'household_care_recipient_limit' }), { status: 409 }) } }
+  await expect(createHouseholdPatientInvitationWithEmail('Patient', 'patient@example.test', 'Synthetic consent')).rejects.toThrow('household_care_recipient_limit')
+})
 
 describe('tenant and household validation & care ops', () => {
   beforeEach(() => {
@@ -194,7 +177,7 @@ describe('tenant and household validation & care ops', () => {
     await expect(saveTenantBpRecord('pat-1', { systolic: 120, diastolic: 80, pulse: 70, measuredAt: '2026-07-31T08:00:00Z' })).rejects.toThrow('Silakan masuk lagi')
 
     // 已登入情境正常寫入血壓與心跳
-    authUserResponse = { data: { user: { id: 'usr-portfolio-author' } }, error: null }
+    authUserResponse = { data: { user: { id: 'usr-owner' } }, error: null }
     insertRecordResponse = { data: null, error: null }
 
     await saveTenantBpRecord('pat-1', { systolic: 120, diastolic: 80, pulse: 70, measuredAt: '2026-07-31T08:00:00Z' })
@@ -236,14 +219,14 @@ describe('tenant and household validation & care ops', () => {
     functionsInvokeResponse = {
       data: {
         emailStatus: 'sent',
-        invitation: { invitationId: 'invite-2', patientId: 'patient-2', token: 'e'.repeat(64), expiresAt: '2026-09-12T00:00:00Z', invitedEmail: 'demo.oauth-tester@example.test' },
+        invitation: { invitationId: 'invite-2', patientId: 'patient-2', token: 'e'.repeat(64), expiresAt: '2026-09-12T00:00:00Z', invitedEmail: 'invitee@example.com' },
       },
       error: null,
     }
-    await expect(createHouseholdPatientInvitationWithEmail('Mother', 'demo.oauth-tester@example.test', 'daughter with consent')).resolves.toMatchObject({ invitationId: 'invite-2', emailStatus: 'sent' })
+    await expect(createHouseholdPatientInvitationWithEmail('Mother', 'Invitee@Example.com', 'daughter with consent')).resolves.toMatchObject({ invitationId: 'invite-2', emailStatus: 'sent' })
     expect(lastFunctionInvoke).toEqual({
       name: 'send-invitation-email',
-      body: { kind: 'patient', displayName: 'Mother', invitedEmail: 'demo.oauth-tester@example.test', authorizationBasis: 'daughter with consent' },
+      body: { kind: 'patient', displayName: 'Mother', invitedEmail: 'Invitee@Example.com', authorizationBasis: 'daughter with consent' },
     })
   })
 
@@ -293,20 +276,13 @@ describe('tenant and household validation & care ops', () => {
     await expect(declinePatientCareInvitation('invite-1')).rejects.toThrow('rpc failed')
   })
 
-  test('fetchHouseholdMembers and fetchCurrentHouseholdRole validate responses', async () => {
+  test('fetchCurrentHouseholdRole validates the response', async () => {
     rpcMockHandler = (name) => {
-      if (name === 'fetch_household_members') {
-        return { data: [{ user_id: 'u1', email: 'a@b.com', display_name: 'A', role: 'owner', created_at: '2026-07-01' }], error: null }
-      }
       if (name === 'fetch_current_household_role') {
         return { data: 'owner', error: null }
       }
       return { data: null, error: null }
     }
-
-    const members = await fetchHouseholdMembers()
-    expect(members.length).toBe(1)
-    expect(members[0].role).toBe('owner')
 
     const role = await fetchCurrentHouseholdRole()
     expect(role).toBe('owner')
@@ -317,22 +293,11 @@ describe('tenant and household validation & care ops', () => {
     await expect(fetchCurrentHouseholdRole()).rejects.toThrow()
   })
 
-  test('household member addition and removal calls RPC correctly', async () => {
-    await expect(addHouseholdMember('')).rejects.toThrow()
-    await expect(addHouseholdMember('   ')).rejects.toThrow()
-
-    rpcMockHandler = () => ({ data: null, error: null })
-    await addHouseholdMember('caregiver@example.com', 'caregiver')
-    await removeHouseholdMember('usr-123')
-    expect(true).toBe(true)
-  })
-
   test('pet and patient management RPCs process data correctly', async () => {
     rpcMockHandler = (name) => {
       if (name === 'fetch_household_management_patients') return { data: [{ patient_id: 'p1', display_name: 'P1' }], error: null }
       if (name === 'fetch_household_pets') return { data: [{ patient_id: 'pet1', display_name: 'Kiki', care_recipient_type: 'cat' }], error: null }
       if (name === 'fetch_household_archived_pets') return { data: [{ patient_id: 'pet2', display_name: 'Mimi', care_recipient_type: 'cat' }], error: null }
-      if (name === 'fetch_household_patient_access') return { data: [{ profile_email: 'a@b.com', patient_id: 'p1', can_record: true, can_manage_medication: true }], error: null }
       return { data: null, error: null }
     }
 
@@ -345,11 +310,7 @@ describe('tenant and household validation & care ops', () => {
     const archivedPets = await fetchHouseholdArchivedPets()
     expect(archivedPets.length).toBe(1)
 
-    const access = await fetchHouseholdPatientAccess()
-    expect(access[0].can_record).toBe(true)
-
     await archiveHouseholdPet('pet1')
-    await setHouseholdPatientAccess('caregiver@example.com', 'p1', true, true)
     expect(true).toBe(true)
   })
 

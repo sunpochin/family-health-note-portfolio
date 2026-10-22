@@ -36,7 +36,8 @@ function isCachedBpRecord(item: unknown): item is BpRecord {
 }
 
 // 血壓查詢只接受 patient UUID；不能再讓 UI 以可猜測的角色字串當資料邊界。
-export function useBpRecords(days = 7, patientId?: string) {
+// refreshVersion：同頁其他元件寫入血壓後遞增，讓這份查詢重抓；每個 hook 實例各自持有 records，不會自動互相同步。
+export function useBpRecords(days = 7, patientId?: string, refreshVersion = 0) {
   const { text } = useI18n()
   const [records, setRecords] = useState<BpRecord[]>([])
   const [loading, setLoading] = useState(true)
@@ -146,7 +147,7 @@ export function useBpRecords(days = 7, patientId?: string) {
     }
   }, [days, patientId, request, text])
 
-  useEffect(() => { fetch() }, [fetch])
+  useEffect(() => { fetch() }, [fetch, refreshVersion])
 
   return { records, loading, error, isOfflineData, cacheUpdatedAt, refetch: fetch }
 }

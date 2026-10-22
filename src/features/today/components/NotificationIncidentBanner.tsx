@@ -13,6 +13,7 @@ import type { NotificationDeliveryIncident } from '../../../lib/notificationDeli
 const TEXT = {
   title: { id: 'Ada notifikasi ke keluarga yang mungkin tidak sampai.', zh: '有一則家人通知可能沒有送到。', en: 'A family notification may not have been delivered.' },
   titleMany: { id: 'Ada beberapa notifikasi ke keluarga yang mungkin tidak sampai.', zh: '有多則家人通知可能沒有送到。', en: 'Several family notifications may not have been delivered.' },
+  enqueueFailed: { id: 'Ada pengingat kalender atau perawatan yang belum masuk antrean pengiriman ke keluarga.', zh: '有日曆或照護提醒未能排入家人通知。', en: 'A calendar or care reminder could not be queued for the family.' },
   hint: { id: 'Hubungi keluarga langsung untuk memastikan.', zh: '請直接聯絡家人確認。', en: 'Contact the family directly to confirm.' },
   acknowledge: { id: 'Sudah ditangani', zh: '已處理', en: 'Handled' },
   acknowledging: { id: 'Menyimpan…', zh: '處理中…', en: 'Saving…' },
@@ -41,12 +42,16 @@ export function NotificationIncidentBanner({ incidents, checkFailed, canAcknowle
   }
   if (incidents.length === 0) return null
 
-  // 大字、高對比、左對齊、不靠顏色傳達（右眼失明的版面考量：內容靠左、按鈕在文字下方而不是右側）。
+  // 大字、高對比、左對齊、不靠顏色傳達（單側視野受限的使用者也要讀得到：內容靠左、按鈕在文字下方而不是右側）。
   // 一顆按鈕結掉全部 open incident：看護不需要分辨是哪一筆，也不該在半夜逐筆點（15 秒原則）。
   const pending = acknowledgingId !== null
+  // 混合告警不能只顯示漏排，否則會把既有血壓／送達失敗藏起來；同一顆「已處理」仍沿用原流程。
+  const hasEnqueueFailure = incidents.some(incident => incident.alertKind === 'enqueue_failed')
+  const deliveryIncidentCount = incidents.filter(incident => incident.alertKind !== 'enqueue_failed').length
   return (
     <section role="alert" aria-live="assertive" className="mb-4 rounded-2xl border-2 border-danger-700/40 bg-danger-50 p-4 text-slate-900">
-      <p className="text-lg font-black leading-snug">{text(incidents.length > 1 ? TEXT.titleMany : TEXT.title)}</p>
+      {deliveryIncidentCount > 0 && <p className="text-lg font-black leading-snug">{text(deliveryIncidentCount > 1 ? TEXT.titleMany : TEXT.title)}</p>}
+      {hasEnqueueFailure && <p className="text-lg font-black leading-snug">{text(TEXT.enqueueFailed)}</p>}
       <p className="mt-1 text-base font-semibold leading-snug">{text(TEXT.hint)}</p>
       {acknowledgeFailed && (
         <p role="status" className="mt-2 text-sm font-semibold text-danger-700">{text(TEXT.acknowledgeFailed)}</p>

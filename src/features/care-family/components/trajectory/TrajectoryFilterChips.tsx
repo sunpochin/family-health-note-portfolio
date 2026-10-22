@@ -32,7 +32,7 @@ export function TrajectoryFilterChips({ active, onSelect }: { active: Trajectory
             role="tab"
             aria-selected={selected}
             onClick={() => onSelect(filter)}
-            className={`min-h-11 shrink-0 rounded-full border px-3 text-sm font-bold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2 ${selected ? 'border-brand-700 bg-brand-700 text-white' : 'border-slate-300 bg-white text-slate-700'}`}
+            className={`min-h-11 shrink-0 rounded-full border px-3 text-sm font-bold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-700 focus-visible:ring-offset-2 ${selected ? 'border-brand-700 bg-brand-700 text-white' : 'border-slate-300 bg-white text-slate-700'}`}
           >
             {text(FILTER_LABELS[filter])}
           </button>

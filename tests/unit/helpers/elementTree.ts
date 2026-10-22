@@ -51,3 +51,19 @@ export function fire(element: ReactElementLike, handler: string, event?: unknown
   if (typeof callback !== 'function') throw new Error(`Element has no ${handler} handler.`)
   return (callback as (event?: unknown) => unknown)(event)
 }
+
+/**
+ * 在 renderHook 的 body 裡呼叫：遞迴展開「函式元件」元素（例如 <ReceiptList />），讓 textContent／findAll 看得到子元件輸出的文字。
+ * 為什麼要在 body 內執行：子元件裡的 useI18n 等 hook 只有在 harness 的 host 仍 active 時才拿得到 context；
+ * 出了 renderHook 才展開會丟出「must be used inside LocaleProvider」。只展開純函式元件，host 元素（'div' 等）原樣保留。
+ */
+export function expandFunctionComponents(node: unknown): unknown {
+  if (Array.isArray(node)) return node.map(expandFunctionComponents)
+  if (!isElement(node)) return node
+  if (typeof node.type === 'function') {
+    return expandFunctionComponents((node.type as (props: Record<string, unknown>) => unknown)(node.props))
+  }
+  const children = node.props.children
+  if (children === undefined) return node
+  return { ...node, props: { ...node.props, children: expandFunctionComponents(children) } }
+}

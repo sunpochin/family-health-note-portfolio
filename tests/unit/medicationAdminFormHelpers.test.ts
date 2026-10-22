@@ -8,7 +8,7 @@ import { validDoseAmount } from '../../src/lib/medication/medicationAdminFormHel
 
 describe('validDoseAmount', () => {
   test('accepts quarter-tablet steps so a taper plan can go down to 1/4', () => {
-    // 媽媽正在降低藥量，最小單次劑量要能選到 1/4 顆，不能卡在原本的半顆下限。
+    // 照護對象減藥時，最小單次劑量要能選到 1/4 顆，不能卡在原本的半顆下限。
     expect(validDoseAmount('0.25')).toBe(true)
     expect(validDoseAmount('0.75')).toBe(true)
     expect(validDoseAmount('1.25')).toBe(true)

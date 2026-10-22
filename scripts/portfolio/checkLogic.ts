@@ -99,8 +99,9 @@ export function isTextFile(path: string): boolean {
 // 複製過去的東西——node_modules／dist 是 check.ts 自己執行 bun install／bun run build 這兩步
 // 的副作用（且已經在 build.ts 產生的 .gitignore 裡排除，永遠不會被 push），.git 是 release.ts
 // 建立新歷史後才會出現。真實踩過的坑：release.ts 重新呼叫 check.ts 時，上一輪 check.ts 留下的
-// node_modules 還在，裡面第三方套件原始碼的變數名稱（例如 `icaregiverngDeclaration` 剛好包含
-// `caregiver` 這幾個字母）跟禁字清單的 emailLocalParts 巧合命中，擋下了完全無關的內容。
+// node_modules 還在，裡面第三方套件原始碼的變數名稱剛好以子字串包含禁字清單裡某個很短的
+// emailLocalParts 條目（大小寫不敏感比對下，一個普通的英文識別字就足以命中），擋下了完全無關的內容。
+// 這裡刻意不寫出是哪個變數名稱：這支腳本會公開，寫出來等於間接告訴讀者禁字清單裡有哪幾個字母。
 const SCAN_EXCLUDED_DIRS = new Set(['node_modules', 'dist', '.git'])
 
 export function isExcludedScanDir(dirName: string): boolean {
@@ -111,7 +112,8 @@ export function isExcludedScanDir(dirName: string): boolean {
 // 命中就回傳類別，否則回傳 null；呼叫端只需要知道「有沒有中、中在哪一類」。
 //
 // 為什麼一定要用小寫比對：真實案例是同一個 email 在不同測試檔案裡被打成不同大小寫
-// （'admin@careapp.local' vs 'admin@careapp.local'），原本的大小寫敏感 .includes()
+// （形如 'real.person@example.com' vs 'Real.Person@example.com'；這支腳本本身會公開，
+// 註解裡不寫真實 email），原本的大小寫敏感 .includes()
 // 完全放過了後者——build.ts 的替換規則也只設了小寫版本，於是這個真實 email 的
 // 混合大小寫寫法就這樣通過禁字掃描，差點被公開發布。這個掃描的目的是「這個識別字串
 // 不能以任何大小寫形式出現」，不是「必須逐字精確比對」，所以統一轉小寫才是正確語意。

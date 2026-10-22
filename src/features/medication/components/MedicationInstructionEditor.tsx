@@ -18,6 +18,7 @@ import {
   savePatientMedicationInstruction,
 } from '../../../lib/medication/medicationInstructions'
 import type { PatientMedicationInstructionSource } from '../../../types/database'
+import { Icon } from '../../../components/ui/Icon'
 
 const TODAY = () => dayjs().format('YYYY-MM-DD')
 
@@ -111,12 +112,12 @@ export function MedicationInstructionEditor({ patientId, medicationId, onChanged
   const saving = status === 'saving'
 
   return (
-    <fieldset className="rounded-xl border border-sky-200 bg-sky-50/60 p-2.5">
-      <legend className="px-1 text-xs font-bold text-sky-900">
+    <fieldset className="rounded-xl border border-brand-200 bg-brand-50 p-2.5">
+      <legend className="px-1 text-xs font-bold text-emerald-900">
         {text({ id: 'Cara minum (dicatat khusus untuk orang ini)', zh: '服用方式（僅屬於這位病人的紀錄）', en: 'Intake instructions (specific to this patient)' })}
       </legend>
       {loading
-        ? <p role="status" className="mt-1.5 text-xs font-semibold text-sky-800">{text({ id: 'Memuat…', zh: '讀取中…', en: 'Loading…' })}</p>
+        ? <p role="status" className="mt-1.5 text-xs font-semibold text-emerald-800">{text({ id: 'Memuat…', zh: '讀取中…', en: 'Loading…' })}</p>
         : loadError
         // 讀取失敗完全不顯示表單欄位：沒有既有值可比對時，任何存檔都可能把上一顆藥的資料誤存到這顆藥上。
         ? <p role="alert" className="mt-1.5 text-xs font-semibold text-red-700">{text({ id: 'Gagal memuat cara minum. Muat ulang halaman lalu coba lagi.', zh: '服用方式讀取失敗，請重新整理頁面後再試。', en: 'Failed to load intake instructions. Reload the page and try again.' })}</p>
@@ -130,38 +131,38 @@ export function MedicationInstructionEditor({ patientId, medicationId, onChanged
                     type="button"
                     aria-pressed={isSelected}
                     onClick={() => toggleCode(code)}
-                    className={`min-h-11 rounded-xl border px-2 py-1.5 text-left text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-600 focus-visible:ring-offset-1 ${
-                      isSelected ? 'border-sky-700 bg-sky-700 font-bold text-white shadow-sm' : 'border-slate-200 bg-white text-slate-800 hover:border-sky-300'
+                    className={`min-h-11 rounded-xl border px-2 py-1.5 text-left text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-700 focus-visible:ring-offset-1 ${
+                      isSelected ? 'border-brand-700 bg-brand-700 font-bold text-white shadow-sm' : 'border-slate-200 bg-white text-slate-800 hover:border-brand-200'
                     }`}
                   >
-                    {isSelected ? '✓ ' : ''}{text(label)}
+                    {isSelected && <Icon name="check" className="mr-1 inline-block h-3.5 w-3.5 align-text-bottom" />}{text(label)}
                   </button>
                 )
               })}
             </div>
 
-            <label className="block text-xs font-bold text-sky-900">
+            <label className="block text-xs font-bold text-emerald-900">
               {text({ id: 'Siapa yang menyampaikan', zh: '誰交代的', en: 'Who told you this' })}
               <select
                 value={source}
                 onChange={event => setSource(event.target.value as PatientMedicationInstructionSource)}
-                className="mt-1 min-h-11 w-full rounded-xl border border-sky-200 bg-white p-2 text-sm font-normal focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-200"
+                className="mt-1 min-h-11 w-full rounded-xl border-2 border-control-border bg-white p-2 text-sm font-normal focus:border-brand-700 focus:outline-none focus:ring-2 focus:ring-brand-700"
               >
                 {SOURCE_LABELS.map(([value, label]) => <option key={value} value={value}>{text(label)}</option>)}
               </select>
             </label>
 
-            <label className="block text-xs font-bold text-sky-900">
+            <label className="block text-xs font-bold text-emerald-900">
               {text({ id: 'Tanggal disampaikan', zh: '交代日期', en: 'Date confirmed' })}
               <input
                 type="date"
                 value={confirmedOn}
                 onChange={event => setConfirmedOn(event.target.value)}
-                className="mt-1 min-h-11 w-full rounded-xl border border-sky-200 bg-white p-2 text-sm font-normal focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-200"
+                className="mt-1 min-h-11 w-full rounded-xl border-2 border-control-border bg-white p-2 text-sm font-normal focus:border-brand-700 focus:outline-none focus:ring-2 focus:ring-brand-700"
               />
             </label>
 
-            <label className="block text-xs font-bold text-sky-900">
+            <label className="block text-xs font-bold text-emerald-900">
               {text({ id: 'Catatan tambahan (opsional)', zh: '備註（可不填）', en: 'Additional note (optional)' })}
               <textarea
                 value={note}
@@ -169,16 +170,17 @@ export function MedicationInstructionEditor({ patientId, medicationId, onChanged
                 maxLength={MEDICATION_INSTRUCTION_NOTE_MAX_LENGTH}
                 rows={2}
                 placeholder={text({ id: 'Contoh: gerus hanya saat sulit menelan', zh: '例如：只有吞不下時才磨粉' ,en: 'Example: only crush when hard to swallow' })}
-                className="mt-1 w-full rounded-xl border border-sky-200 p-2 text-sm font-normal focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-200"
+                className="mt-1 w-full rounded-xl border-2 border-control-border p-2 text-sm font-normal focus:border-brand-700 focus:outline-none focus:ring-2 focus:ring-brand-700"
               />
             </label>
 
+            {/* 儲存／刪除相鄰且一個是破壞性操作，40px 容易按錯，改 44px（#1198）；flex-wrap 讓 375px 不撐破。 */}
             <div className="flex flex-wrap gap-2">
               <button
                 type="button"
                 disabled={saving}
                 onClick={() => void handleSave()}
-                className="min-h-10 rounded-xl bg-sky-700 px-3 py-2 text-xs font-bold text-white transition-colors hover:bg-sky-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-600 focus-visible:ring-offset-2 disabled:opacity-50"
+                className="min-h-11 rounded-xl bg-brand-700 px-3 py-2 text-xs font-bold text-white transition-colors hover:bg-emerald-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-700 focus-visible:ring-offset-2 disabled:opacity-50"
               >
                 {text({ id: 'Simpan cara minum', zh: '儲存服用方式', en: 'Save intake instructions' })}
               </button>
@@ -186,12 +188,12 @@ export function MedicationInstructionEditor({ patientId, medicationId, onChanged
                 type="button"
                 disabled={saving}
                 onClick={() => void handleClear()}
-                className="min-h-10 rounded-xl border border-red-200 bg-white px-3 py-2 text-xs font-bold text-red-700 transition-colors hover:bg-red-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-600 focus-visible:ring-offset-2 disabled:opacity-50"
+                className="min-h-11 rounded-xl border border-red-200 bg-white px-3 py-2 text-xs font-bold text-red-700 transition-colors hover:bg-red-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-700 focus-visible:ring-offset-2 disabled:opacity-50"
               >
                 {text({ id: 'Hapus catatan', zh: '清除紀錄', en: 'Clear record' })}
               </button>}
             </div>
-            {message && <p role="status" className={`text-xs font-semibold ${status === 'err' ? 'text-red-700' : 'text-sky-900'}`}>{message}</p>}
+            {message && <p role="status" className={`text-xs font-semibold ${status === 'err' ? 'text-red-700' : 'text-emerald-900'}`}>{message}</p>}
           </div>}
     </fieldset>
   )

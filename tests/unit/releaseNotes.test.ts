@@ -84,10 +84,15 @@ describe('release notes parser', () => {
     expect(curatedReleaseNoteItems('1.2.0', 'Features')).toHaveLength(3)
     expect(curatedReleaseNoteItems('1.2.1', 'Bug Fixes')).toHaveLength(2)
     // 1.20.0 會觸發全帳號重新同意隱私告知；摘要沒接上的話，看護在 /releases 只看到未翻譯的工程條目。
-    expect(curatedReleaseNoteItems('1.20.0', 'Features')).toHaveLength(3)
-    expect(curatedReleaseNoteItems('1.20.0', 'Bug Fixes')).toHaveLength(6)
-    // 1.20.1 是正式環境實際收到的版本（1.20.0 的 promotion 被 #981 審查攔下後才修正發布）。
-    expect(curatedReleaseNoteItems('1.20.1', 'Bug Fixes')).toHaveLength(1)
+    // 2026-10-08：這次發布定為 1.20.0（owner 決定），所以 1.20.0 承接了 promotion 被關閉之後才進 staging 的項目：
+    // features 3 → 6（再次更新的隱私與條款、可點控制加大、AI 草稿家庭級額度），
+    // bug fixes 6 → 9（血壓通知送出流程、離線補送、門診頁修正——最後一條原本掛在 1.20.1）。
+    // 2026-10-09：features 6 → 7（共用 Telegram 群組退場，#1061 階段 D——群組不再收到任何通知，是部署本身就保證成立的行為）。
+    expect(curatedReleaseNoteItems('1.20.0', 'Features')).toHaveLength(7)
+    expect(curatedReleaseNoteItems('1.20.0', 'Bug Fixes')).toHaveLength(9)
+    // 1.20.1 的條目已刪除（Codex 對 #1240 的 P2）：它的修正併入 1.20.0；曾經存在過的版本鍵若留著，
+    // 日後真的出 1.20.1 時會整段取代它的 CHANGELOG，把真正的修正藏起來。這條斷言防止它被加回來。
+    expect(curatedReleaseNoteItems('1.20.1', 'Bug Fixes')).toBeNull()
     expect(curatedReleaseNoteItems('9.9.9', 'Features')).toBeNull()
   })
 

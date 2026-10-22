@@ -3,11 +3,12 @@
 所在層：src/lib；為藥單設定資料維護層。
 主要關聯：由 MedicationAdminSection 載入調用。
 */
+import { readMedicationHoldRules, readMedicationHoldContext, type MedicationHoldRule } from './medicationHold'
 import { supabase } from '../supabase'
 import { compareMedicationSlots } from './medicationSchedule'
 import type { Locale } from '../i18n'
 import { isDemoPatientId } from '../demoData'
-import { addExistingDemoMedicationPlan, createDemoMedicationPlan, deactivateDemoMedicationPlan, isDemoMode, readDemoMedicationAdminData } from '../demoStorage'
+import { addExistingDemoMedicationPlan, applyDemoMedicationPlanBatchChange, createDemoMedicationPlan, deactivateDemoMedicationPlan, isDemoMode, readDemoMedicationAdminData } from '../demoStorage'
 import { indexOverridesByMedicationId, mergeMedicationAppearanceOverride, readPatientMedicationAppearanceOverrides } from './medicationAppearanceOverrides'
 
 export interface NewMedicationPlanInput {
@@ -48,6 +49,7 @@ export interface MedicationCorrectionInput {
 }
 
 export interface AdminMedicationPlan {
+  holdRule?: MedicationHoldRule | null
   id: string
   account_email: string
   patient_id: string
@@ -231,11 +233,12 @@ export async function readMedicationAdminData(patientId: string) {
     return readDemoMedicationAdminData(patientId)
   }
   // 覆蓋查詢跟其他三個查詢一起平行送出：它不依賴任何一個的結果，依序等待只會多一趟網路來回。
-  const [plansResult, medicationsResult, changesResult, overrides] = await Promise.all([
+  const [plansResult, medicationsResult, changesResult, overrides, holdRules] = await Promise.all([
     supabase.from('medication_plans').select('id, account_email, patient_id, medication_id, schedule_slot, dose_amount, dose_count, as_needed, display_order, active').eq('patient_id', patientId).order('display_order'),
     supabase.from('medications').select('id, drug_product_id, brand_name, brand_name_zh, generic_name, strength_mg, strength_label, dosage_form, product_kind, specialties, verification_status, tfda_license_number, nhi_drug_code, appearance_note, appearance_color, appearance_shape, appearance_photo_url, atc_code, official_dosage_form_text, official_score_text, catalog_source, catalog_source_id').order('brand_name'),
     supabase.from('medication_plan_change_logs').select('id, patient_id, action, plan_id, medication_id, schedule_slot, dose_amount, dose_count, as_needed, reason, actor_email, actor_user_id, before_snapshot, after_snapshot, recorded_at, effective_at, created_at').eq('patient_id', patientId).order('recorded_at', { ascending: false }).limit(12),
     readPatientMedicationAppearanceOverrides(patientId),
+    readMedicationHoldRules(patientId),
   ])
   if (plansResult.error) throw plansResult.error
   if (medicationsResult.error) throw medicationsResult.error
@@ -245,8 +248,9 @@ export async function readMedicationAdminData(patientId: string) {
   const medications = ((medicationsResult.data ?? []) as MedicationOption[]).map(medication =>
     mergeMedicationAppearanceOverride(medication, overrideByMedicationId.get(medication.id)),
   )
+  const contexts = new Map(await Promise.all([...new Set(holdRules.map(rule => rule.medication_id))].map(async id => [id, await readMedicationHoldContext(patientId,id)] as const)))
   return {
-    plans: (plansResult.data ?? []) as AdminMedicationPlan[],
+    plans: ((plansResult.data ?? []) as AdminMedicationPlan[]).map(plan => ({...plan, holdRule: plan.as_needed ? null : contexts.get(plan.medication_id)?.rule ?? null})),
     medications,
     changes: (changesResult.data ?? []) as MedicationPlanChangeLog[],
   }
@@ -281,4 +285,61 @@ export async function setMedicationPlanActive(planId: string, active: boolean, p
     return
   }
   await applyMedicationPlanChange({ action: 'deactivate', patientId, planId, reason })
+}
+
+// 批次操作確認時的前端醫囑快照，供 RPC 進行樂觀並發比對（issue #1232 / PR #1288 Codex P1）。
+export interface MedicationPlanExpectedSnapshot {
+  id: string
+  schedule_slot: string
+  dose_amount: number
+  dose_count: number
+  active: boolean
+  as_needed: boolean
+}
+
+export interface MedicationPlanBatchChangeInput {
+  action: 'update' | 'deactivate'
+  patientId: string
+  medicationId: string
+  planIds: string[]
+  // 確認畫面當下看見的醫囑快照；帶入 RPC 後在鎖列時比對，防止過期寫入覆蓋其他照護者的新醫囑。
+  expectedPlans?: MedicationPlanExpectedSnapshot[]
+  // 全選還要核對完整固定群組，避免漏掉確認後新增的時段；舊呼叫與部分選取預設只改所選。
+  expectAllSchedules?: boolean
+  // 只有 update 需要；deactivate 帶劑量會被 RPC 拒絕，避免兩種操作被搞混。
+  doseAmount?: number
+  reason?: string
+}
+
+// 同一顆藥的多個時段一次停用或調劑量（issue #1232）。一定要走這支批次 RPC，不能在前端迴圈呼叫
+// setMedicationPlanActive／addExistingMedicationPlan：那樣每一筆是各自的 transaction，中途失敗會留下
+// 「早午停了、晚上還在」的藥單。回傳實際寫入的筆數（劑量本來就相同的時段不算），0 代表沒有東西需要改。
+export async function applyMedicationPlanBatchChange(input: MedicationPlanBatchChangeInput): Promise<number> {
+  const doseAmount = input.action === 'update' ? input.doseAmount ?? null : null
+  const reason = input.reason ?? ''
+  if (isDemoMode() && isDemoPatientId(input.patientId)) {
+    return applyDemoMedicationPlanBatchChange(
+      input.action,
+      input.patientId,
+      input.medicationId,
+      input.planIds,
+      doseAmount,
+      reason,
+      undefined,
+      input.expectedPlans,
+      input.expectAllSchedules,
+    )
+  }
+  const { data, error } = await supabase.rpc('apply_medication_plan_batch_change', {
+    p_action: input.action,
+    p_patient_id: input.patientId,
+    p_medication_id: input.medicationId,
+    p_plan_ids: input.planIds,
+    ...(doseAmount === null ? {} : { p_dose_amount: doseAmount }),
+    p_reason: reason.trim() || undefined,
+    ...(input.expectedPlans ? { p_expected_plans: input.expectedPlans } : {}),
+    ...(input.expectAllSchedules === undefined ? {} : { p_expect_all_schedules: input.expectAllSchedules }),
+  })
+  if (error) throw error
+  return data ?? 0
 }

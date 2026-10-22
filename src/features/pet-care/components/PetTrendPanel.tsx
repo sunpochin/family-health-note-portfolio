@@ -120,11 +120,14 @@ function timedSeries(id: string, label: LocalizedText, records: { at: string; va
   return dateSeries(id, label, points, unit, color, valueFormatter)
 }
 
+// 折線色只用來讓每張小圖各自好認：每個序列都是獨立一張卡，有標題與單位，不靠顏色辨識身分。
+// 設計系統退役 indigo／violet（clinical-care-ops-ui-design §4.1），所以食慾改 brand-700、尿塊與胰島素改 slate-600；
+// violet #7C3AED 同時是血壓「心跳」的識別色，不該借給寵物的圖線。
 function buildLiquidSeries(records: LiquidTrendRow[], days: number, now: dayjs.Dayjs): PetTrendSeries[] {
   return [
     dateSeries('water', { id: 'Asupan air harian', zh: '每日飲水量' ,en: "Daily water intake" }, dailyPetDateValues(records.map(record => ({ date: record.recorded_date, value: record.water_intake_ml })), days, now), UNIT_ML, '#2563EB'),
     dateSeries('urination', { id: 'Buang air kecil per hari', zh: '每日排尿次數' ,en: "Urinations per day" }, dailyPetDateValues(records.map(record => ({ date: record.recorded_date, value: record.urination_count })), days, now), UNIT_TIMES, '#0F766E'),
-    dateSeries('urine-clumps', { id: 'Gumpalan urin per hari', zh: '每日尿塊數' ,en: "Urine clumps per day" }, dailyPetDateValues(records.map(record => ({ date: record.recorded_date, value: record.litter_box_urine_clumps })), days, now), UNIT_CLUMPS, '#7C3AED'),
+    dateSeries('urine-clumps', { id: 'Gumpalan urin per hari', zh: '每日尿塊數' ,en: "Urine clumps per day" }, dailyPetDateValues(records.map(record => ({ date: record.recorded_date, value: record.litter_box_urine_clumps })), days, now), UNIT_CLUMPS, '#475569'),
   ]
 }
 
@@ -137,7 +140,7 @@ function buildDigestionSeries(records: DigestionTrendRow[], days: number, now: d
 }
 
 function buildAppetiteSeries(records: AppetiteTrendRow[], days: number, now: dayjs.Dayjs): PetTrendSeries[] {
-  return [timedSeries('appetite', { id: 'Rata-rata nafsu makan harian', zh: '每日平均進食比例' ,en: "Daily average appetite" }, records.map(record => ({ at: record.recorded_at, value: record.appetite_percent })), 'average', days, now, UNIT_PERCENT, '#4F46E5')]
+  return [timedSeries('appetite', { id: 'Rata-rata nafsu makan harian', zh: '每日平均進食比例' ,en: "Daily average appetite" }, records.map(record => ({ at: record.recorded_at, value: record.appetite_percent })), 'average', days, now, UNIT_PERCENT, '#047857')]
 }
 
 function buildFluidSeries(records: FluidTrendRow[], days: number, now: dayjs.Dayjs): PetTrendSeries[] {
@@ -146,7 +149,7 @@ function buildFluidSeries(records: FluidTrendRow[], days: number, now: dayjs.Day
 
 function buildEndocrineSeries(insulin: InsulinTrendRow[], glucose: GlucoseTrendRow[], days: number, now: dayjs.Dayjs): PetTrendSeries[] {
   return [
-    timedSeries('insulin', { id: 'Total insulin harian', zh: '每日胰島素總量' ,en: "Daily insulin total" }, insulin.map(record => ({ at: record.administered_at, value: record.insulin_units })), 'total', days, now, UNIT_INSULIN, '#7C3AED', oneDecimal),
+    timedSeries('insulin', { id: 'Total insulin harian', zh: '每日胰島素總量' ,en: "Daily insulin total" }, insulin.map(record => ({ at: record.administered_at, value: record.insulin_units })), 'total', days, now, UNIT_INSULIN, '#475569', oneDecimal),
     timedSeries('glucose', { id: 'Rata-rata gula darah harian', zh: '每日平均血糖' ,en: "Daily average blood glucose" }, glucose.map(record => ({ at: record.measured_at, value: record.glucose_mg_dl })), 'average', days, now, UNIT_MG_DL, '#DB2777'),
   ]
 }
@@ -265,7 +268,7 @@ export function PetTrendPanel({ kind, patientId, days, refreshKey = '' }: { kind
     <div>
       {/* 載入失敗英文翻譯修正 */}
       <p role="alert" className="text-sm font-semibold text-red-700">{text({ id: 'Tren hewan tidak dapat dimuat.', zh: '目前無法讀取寵物趨勢。' ,en: "Unable to load pet trends." })}</p>
-      <button type="button" onClick={() => setRetryKey(value => value + 1)} className="mt-3 min-h-11 rounded-xl border border-red-200 bg-white px-4 text-sm font-bold text-red-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500">
+      <button type="button" onClick={() => setRetryKey(value => value + 1)} className="mt-3 min-h-11 rounded-xl border border-red-200 bg-white px-4 text-sm font-bold text-red-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-700 focus-visible:ring-offset-2">
         {text({ id: 'Coba lagi', zh: '重新載入' ,en: "Try again" })}
       </button>
     </div>

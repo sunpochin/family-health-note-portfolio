@@ -15,6 +15,6 @@ jobs:
       - run: bun install --frozen-lockfile
       - run: bun run lint
       - run: npx tsc --noEmit
-      - run: bun test tests/unit
+      - run: bun test --isolate tests/unit
       - run: bun run build
       - run: docker run --rm -v "${{ github.workspace }}:/repo" ghcr.io/gitleaks/gitleaks:v8.30.0 detect --source /repo --no-git

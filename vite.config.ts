@@ -2,7 +2,7 @@
 // 所在層：repository root；控制開發伺服器埠號、PWA 快取策略與主畫面圖示。
 // 主要關聯：package.json、public/favicon.svg、src/main.tsx。
 
-import { defineConfig } from 'vite'
+import { defineConfig, loadEnv } from 'vite'
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import packageJson from './package.json'
@@ -12,6 +12,15 @@ import { VitePWA } from 'vite-plugin-pwa'
 import type { Plugin, ResolvedConfig } from 'vite'
 import { APP_CANONICAL_URL } from './src/lib/canonicalUrl'
 import { APP_HOME_SCREEN_TITLE } from './src/lib/homeScreenTitle'
+
+// vite.config.ts 本身不會自動載入 .env*（那只對 import.meta.env 生效），開發用的 allowedHosts 要自己讀。
+// 刻意不用 VITE_ 前綴：VITE_* 會被塞進 import.meta.env，而 src/lib/supabase.ts 等處是把整個 import.meta.env
+// 物件傳進函式，Vite 會把它整包具現化到 bundle 裡——個人 tunnel 網域就會跟著進正式版（Codex review，PR #1017）。
+// 無前綴的變數只有這裡用 loadEnv(..., '') 讀得到，client 端拿不到。
+const devAllowedHosts = (loadEnv(process.env.NODE_ENV ?? 'development', process.cwd(), '').DEV_ALLOWED_HOSTS ?? '')
+  .split(',')
+  .map(host => host.trim())
+  .filter(Boolean)
 import {
   SHARE_HREFLANG_ALTERNATES,
   SHARE_OG_LOCALE,
@@ -160,6 +169,11 @@ export function sitemapPlugin(buildTime: string): Plugin {
   }
 }
 
+// 瀏覽器網址列／PWA 標題列顏色與啟動畫面底色，統一用頁面底色（等同 src/index.css 的 --color-surface，
+// 與 AppStatusBar 同色）。先前 index.html 是紅色 #ef4444、manifest 是 #f9fafb，兩處不一致，
+// 而且紅色在這個 app 代表危險；index.html 的 theme-color 由 tests/unit/pwaManifest.test.ts 對齊這個常數。
+export const PWA_THEME_COLOR = '#f8fafc'
+
 // 兩邊都從同一個 APP_HOME_SCREEN_TITLE 常數算出來，是先前那次 bug 的教訓：印尼文版加好了，
 // 中文版 manifest 的 short_name 卻手動寫死英文字串、沒人記得同步改，實機測試才發現桌面圖示
 // 名稱還是英文。抽成獨立函式也讓這兩份文案可以直接被單元測試 import 驗證，不用真的跑一次
@@ -242,9 +256,7 @@ export function localizedManifestPlugin(): Plugin {
     configResolved(config) {
       resolvedConfig = config
     },
-    // VitePWA 用 workbox-build 產生 manifest.webmanifest，是在 writeBundle 階段才真正寫進 outDir，
-    // 不在一般 Rollup 的 bundle 物件裡；跟 publicRoutePrerenderPlugin 讀 index.html 一樣，
-    // 用 closeBundle 直接讀已寫入磁碟的檔案最穩定，不用猜 VitePWA 內部各子外掛的 hook 執行順序。
+    // VitePWA 的 closeBundle 已設定先執行，否則它產生 manifest 前讀檔會讓部署 build 失敗。
     closeBundle() {
       const outDir = resolvedConfig.build.outDir
       const manifestPath = join(outDir, 'manifest.webmanifest')
@@ -307,6 +319,8 @@ export default defineConfig({
           },
         ],
       },
+      // 自訂 closeBundle 外掛會讀取 VitePWA 輸出的檔案；先完成 SW／manifest 產生，避免部署時讀到尚未落盤的檔案。
+      integration: { closeBundleOrder: 'pre' },
       manifest: {
         // 同步 PWA 應用程式名稱與簡稱，確保安裝至手機主畫面時顯示全新的品牌識別。
         // short_name 才是「加入主畫面」實際顯示／預填的桌面圖示文字（iOS Safari 在有 manifest
@@ -325,8 +339,8 @@ export default defineConfig({
           { name: '今天吃藥', short_name: '今天吃藥', description: '開啟既有的今日服藥入口。', url: PWA_SHORTCUT_PATHS.medication, icons: [{ src: 'pwa-192x192.png', sizes: '192x192', type: 'image/png' }] },
         ],
         screenshots: buildPwaScreenshotManifestEntries('zh'),
-        theme_color: '#f9fafb',
-        background_color: '#f9fafb',
+        theme_color: PWA_THEME_COLOR,
+        background_color: PWA_THEME_COLOR,
         display: 'standalone',
         icons: [
           {
@@ -367,7 +381,9 @@ export default defineConfig({
   server: {
     port: Number(process.env.PORT) || 5100,
     strictPort: true,
-    // 允許開發與正式環境網域，避免 Cloudflare Tunnel 代理時因 Host Header 不符而被 Vite 阻擋
-    allowedHosts: ['bp.portfolio-author.xyz', 'bp-dev.portfolio-author.xyz', 'dev-bp.portfolio-author.xyz'],
+    // Cloudflare Tunnel 等反向代理會讓 Host header 不是 localhost，Vite 預設會擋；允許的主機名稱改從
+    // 環境變數讀取（逗號分隔，見 .env.example 的 DEV_ALLOWED_HOSTS），不寫進原始碼——
+    // 這個檔案會進公開作品集，個人網域不該跟著出去。沒設定時維持 Vite 預設（只允許 localhost）。
+    allowedHosts: devAllowedHosts.length > 0 ? devAllowedHosts : undefined,
   },
 })

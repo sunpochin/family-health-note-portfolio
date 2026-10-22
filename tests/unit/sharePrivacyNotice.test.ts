@@ -22,7 +22,7 @@ describe('share link privacy notice', () => {
 
   test('covers controller, purpose, fields, expiry, recipients abroad, providers and review status', () => {
     const zh = all('zh')
-    expect(zh).toContain('個人開發者 portfolio-author')
+    expect(zh).toContain('個人開發者 demo-xq7')
     expect(zh).toContain('讓家人與醫師了解照護對象的照護狀況')
     expect(zh).toContain('對方打開連結當天（台灣時間）最新一筆血壓')
     expect(zh).toContain('連結有效期間每天更新')
@@ -36,7 +36,7 @@ describe('share link privacy notice', () => {
     expect(zh).toContain('未經律師或個資專責人員審閱')
 
     const en = all('en')
-    expect(en).toContain('individual developer portfolio-author')
+    expect(en).toContain('individual developer demo-xq7')
     expect(en).toContain('family members and doctors understand')
     expect(en).toContain('24 hours by default, 7 days at most')
     expect(en).toContain('may be outside Taiwan')
@@ -46,7 +46,7 @@ describe('share link privacy notice', () => {
     expect(en).toContain('has not been reviewed by a lawyer or a data-protection specialist')
 
     const id = all('id')
-    expect(id).toContain('Pengembang perorangan portfolio-author')
+    expect(id).toContain('Pengembang perorangan demo-xq7')
     expect(id).toContain('di luar Taiwan')
     expect(id).toContain('Supabase')
     expect(id).toContain('Vercel')

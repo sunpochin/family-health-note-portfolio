@@ -9,6 +9,7 @@ import { APP_HEADER_TITLE, APP_SUBTITLE } from '../../lib/appInfo'
 import { isWebView } from '../../lib/auth'
 import { GoogleSignInButton } from './GoogleSignInButton'
 import { PublicBrandHeader } from '../ui/PublicBrandHeader'
+import { Icon } from '../ui/Icon'
 import { WebViewWarning } from '../system/WebViewWarning'
 import { ContactAndVersionFooter } from '../system/ContactAndVersionFooter'
 import { trackEvent } from '../../lib/analytics'
@@ -48,21 +49,28 @@ const TRUST_ITEMS: { text: LocalizedText; href: string }[] = [
     href: '/privacy'
   },
   {
+    // 為什麼不再寫「完全不收費」：app 內的 AI 藥袋辨識用完免費次數後已經提示付費升級（#683），
+    // 登入頁還說完全免費就是對外承諾與實際行為互相矛盾（#1047）。這句只說「基礎免費、進階付費」，
+    // 不寫價格、不提金流（付費方案仍在 #1037 規劃），詳細清單放 /terms 第 5 節，所以連結維持指向 /terms。
     text: {
-      id: 'Saat ini layanan ini tidak memungut biaya apa pun.',
-      zh: '目前完全不收費使用。' ,en: 'This service is currently free of charge.'
+      id: 'Fitur dasar gratis. Fitur lanjutan (misalnya pemindaian resep AI yang melebihi jatah gratis harian) berbayar.',
+      zh: '基礎功能免費；進階功能（例如 AI 藥單辨識超過每日免費次數）需付費。',
+      en: 'Core features are free. Advanced features (such as AI prescription scanning beyond the daily free quota) are paid.'
     },
     href: '/terms'
   }
 ]
 
+// 為什麼補足 44px：手機上的獨立操作要留出足夠點擊面，降低漏點與誤觸。
 export function LoginScreen({ onEnterDemo, showDemo = true }: LoginScreenProps) {
   const { text, locale } = useI18n()
   const [errorMessage, setErrorMessage] = useState<LocalizedText | null>(null)
   const [showTrustDetails, setShowTrustDetails] = useState(false)
 
   return (
-    <div className="min-h-dvh flex flex-col items-center justify-between px-6 py-6 bg-gradient-to-b from-slate-50 via-rose-50/20 to-indigo-50/30 text-slate-900 selection:bg-rose-100 overflow-y-auto">
+    // 為什麼改成 flat bg-surface：原本的漸層唯一的彩度就是 indigo／rose 淡色，退役 indigo 後只剩粉色殘影；
+    // 設計規範 §4.4 本來就是 flat（不用漸層），選取反白也改用品牌色，登入頁整體只剩 brand 一個主色。
+    <div className="min-h-dvh flex flex-col items-center justify-between px-6 py-6 bg-surface text-slate-900 selection:bg-brand-200 overflow-y-auto">
       {/* 登入頁與其他公開入口共用標頭，避免品牌副標與語言入口各自漂移。 */}
       <PublicBrandHeader className="mb-4 w-full max-w-sm rounded-full border border-slate-200/80 bg-white/80 px-4 py-2 shadow-xs backdrop-blur-md" />
 
@@ -73,7 +81,7 @@ export function LoginScreen({ onEnterDemo, showDemo = true }: LoginScreenProps) 
             {text(APP_HEADER_TITLE)}
           </h1>
           <div className="flex items-center justify-center gap-2 pt-0.5">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-rose-600 bg-rose-50 border border-rose-200/60 px-2.5 py-0.5 rounded-full">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-rose-700 bg-rose-50 border border-rose-200/60 px-2.5 py-0.5 rounded-full">
               {text(APP_SUBTITLE)}
             </span>
             <span className="text-[10px] font-medium text-slate-400">|</span>
@@ -92,28 +100,28 @@ export function LoginScreen({ onEnterDemo, showDemo = true }: LoginScreenProps) 
             {/* 連結至衛教中樞頁，讓訪客也能探索全部指南 */}
             <a
               href="/guides"
-              className="text-[11px] font-medium text-indigo-600 hover:text-indigo-700 hover:underline flex items-center gap-0.5"
+              className="text-[11px] font-medium text-brand-700 hover:text-emerald-800 hover:underline flex items-center gap-0.5 min-h-11"
             >
               <span>{text({ id: 'Semua', zh: '全部指南', en: 'All guides' })}</span>
               <span aria-hidden="true">→</span>
             </a>
           </div>
 
-          {/* 顯眼的家庭邀請教學入口：以柔和的靛藍卡片突顯，引導新舊家庭了解邀請機制 */}
+          {/* 顯眼的家庭邀請教學入口：以柔和的品牌色（brand-50／200）卡片突顯，引導新舊家庭了解邀請機制 */}
           <a
             href="/guides/family-invitations"
-            className="group flex items-center justify-between p-3 rounded-2xl bg-indigo-50/70 border border-indigo-200/70 hover:border-indigo-300 hover:bg-indigo-50/90 hover:shadow-xs transition-all text-left"
+            className="group flex items-center justify-between p-3 rounded-2xl bg-brand-50 border border-brand-200 hover:border-emerald-300 hover:shadow-xs transition-all text-left"
           >
             <div className="flex items-center gap-2.5 min-w-0">
-              <div className="w-9 h-9 rounded-xl bg-indigo-100/90 flex items-center justify-center shrink-0 text-lg">
-                👥
+              <div className="w-9 h-9 rounded-xl bg-emerald-100 flex items-center justify-center shrink-0 text-lg">
+                <Icon name="users" className="h-5 w-5 text-slate-700" />
               </div>
               <div className="min-w-0">
                 <div className="flex items-center gap-1.5">
-                  <span className="text-xs font-bold text-slate-800 group-hover:text-indigo-600 transition-colors">
+                  <span className="text-xs font-bold text-slate-800 group-hover:text-brand-700 transition-colors">
                     {text({ id: 'Cara Mengundang Keluarga', zh: '如何邀請家人使用家健錄？', en: 'How to invite family to Family Health Note' })}
                   </span>
-                  <span className="shrink-0 text-[10px] font-semibold text-indigo-700 bg-indigo-100/90 px-1.5 py-0.5 rounded-full">
+                  <span className="shrink-0 text-[10px] font-semibold text-brand-700 bg-emerald-100 px-1.5 py-0.5 rounded-full">
                     {text({ id: 'Panduan', zh: '操作教學', en: 'Guide' })}
                   </span>
                 </div>
@@ -126,7 +134,7 @@ export function LoginScreen({ onEnterDemo, showDemo = true }: LoginScreenProps) 
                 </p>
               </div>
             </div>
-            <span aria-hidden="true" className="text-slate-400 group-hover:text-indigo-600 group-hover:translate-x-0.5 transition-all text-sm font-bold pl-2 shrink-0">
+            <span aria-hidden="true" className="text-slate-400 group-hover:text-brand-700 group-hover:translate-x-0.5 transition-all text-sm font-bold pl-2 shrink-0">
               →
             </span>
           </a>
@@ -136,28 +144,28 @@ export function LoginScreen({ onEnterDemo, showDemo = true }: LoginScreenProps) 
               href="/guides/blood-pressure-722"
               className="p-2 rounded-xl bg-rose-50/60 border border-rose-200/60 hover:border-rose-300 hover:bg-rose-50 transition-colors text-center text-[11px] font-medium text-slate-700 hover:text-slate-900"
             >
-              <div className="text-lg mb-0.5">🩺</div>
+              <Icon name="stethoscope" className="mx-auto mb-0.5 block h-5 w-5 text-slate-700" />
               {text({ id: 'Tekanan Darah 722', zh: '血壓 722' ,en: "Blood pressure 722" })}
             </a>
             <a
               href="/guides/medication-schedule"
               className="p-2 rounded-xl bg-blue-50/60 border border-blue-200/60 hover:border-blue-300 hover:bg-blue-50 transition-colors text-center text-[11px] font-medium text-slate-700 hover:text-slate-900"
             >
-              <div className="text-lg mb-0.5">💊</div>
+              <Icon name="pill" className="mx-auto mb-0.5 block h-5 w-5 text-slate-700" />
               {text({ id: 'Jadwal Obat', zh: '用藥時段' ,en: "Medication schedule" })}
             </a>
             <a
               href="/guides/caregiver-handover"
               className="p-2 rounded-xl bg-amber-50/60 border border-amber-200/60 hover:border-amber-300 hover:bg-amber-50 transition-colors text-center text-[11px] font-medium text-slate-700 hover:text-slate-900"
             >
-              <div className="text-lg mb-0.5">📋</div>
+              <Icon name="clipboard" className="mx-auto mb-0.5 block h-5 w-5 text-slate-700" />
               {text({ id: 'Operan Pengasuh', zh: '看護交接' ,en: 'Caregiver handover' })}
             </a>
             <a
               href="/guides/pet-chronic-disease"
               className="p-2 rounded-xl bg-green-50/60 border border-green-200/60 hover:border-green-300 hover:bg-green-50 transition-colors text-center text-[11px] font-medium text-slate-700 hover:text-slate-900"
             >
-              <div className="text-lg mb-0.5">🐾</div>
+              <Icon name="paw" className="mx-auto mb-0.5 block h-5 w-5 text-slate-700" />
               {text({ id: 'Hewan Kronis', zh: '寵物紀錄' ,en: 'Chronic pet care' })}
             </a>
           </div>
@@ -166,6 +174,7 @@ export function LoginScreen({ onEnterDemo, showDemo = true }: LoginScreenProps) 
         {/* 登入與試用按鈕區 */}
         <div className="w-full space-y-3 pt-2">
           <div className="w-full flex justify-center">
+            {/* 為什麼保留 GIS 原生高度：官方 iframe 沒有自訂高度；外層留白不會增加實際可點面。 */}
             <GoogleSignInButton key={locale} locale={locale} onError={setErrorMessage} />
           </div>
 
@@ -177,9 +186,9 @@ export function LoginScreen({ onEnterDemo, showDemo = true }: LoginScreenProps) 
                 trackEvent('demo_start', { locale })
                 onEnterDemo()
               }}
-              className="w-full h-11 inline-flex items-center justify-center gap-2 rounded-full bg-gradient-to-r from-indigo-600 via-indigo-700 to-slate-900 hover:from-indigo-500 hover:to-slate-800 px-6 text-sm font-bold text-white shadow-md shadow-indigo-600/20 active:scale-[0.98] transition-all"
+              className="w-full h-11 inline-flex items-center justify-center gap-2 rounded-full bg-brand-700 hover:bg-emerald-800 active:bg-emerald-900 px-6 text-sm font-bold text-white shadow-md shadow-brand-700/20 active:scale-[0.98] transition-all"
             >
-              <span aria-hidden="true">✨</span>
+              <Icon name="sparkles" className="h-4 w-4" />
               <span>{text({ id: 'Coba sekarang', zh: '試用看看' ,en: 'Try the demo' })}</span>
             </button>
 
@@ -199,7 +208,7 @@ export function LoginScreen({ onEnterDemo, showDemo = true }: LoginScreenProps) 
             onClick={() => setShowTrustDetails((prev) => !prev)}
             aria-expanded={showTrustDetails}
             aria-controls="login-trust-details"
-            className="mx-auto flex items-center gap-1 text-xs font-semibold text-slate-500 hover:text-slate-700"
+            className="mx-auto flex items-center gap-1 text-xs font-semibold text-slate-500 hover:text-slate-700 min-h-11"
           >
             <span aria-hidden="true">{showTrustDetails ? '▾' : '▸'}</span>
             <span>{text({ id: 'Bagaimana data Anda dilindungi?', zh: '您的資料如何被保護？' ,en: 'How is your data protected?' })}</span>
@@ -209,7 +218,7 @@ export function LoginScreen({ onEnterDemo, showDemo = true }: LoginScreenProps) 
             <ul id="login-trust-details" className="mt-2 space-y-1.5 rounded-2xl border border-slate-200 bg-white/70 p-3">
               {TRUST_ITEMS.map((item) => (
                 <li key={item.href + item.text.zh} className="text-[11px] leading-relaxed text-slate-600">
-                  <a href={item.href} className="underline decoration-slate-300 hover:decoration-slate-500 hover:text-slate-900">
+                  <a href={item.href} className="underline decoration-slate-300 hover:decoration-slate-500 hover:text-slate-900 inline-flex min-h-11 items-center">
                     {text(item.text)}
                   </a>
                 </li>
@@ -223,7 +232,7 @@ export function LoginScreen({ onEnterDemo, showDemo = true }: LoginScreenProps) 
           {locale === 'zh' ? <>繼續即表示您同意<a className="font-semibold underline text-slate-700 hover:text-slate-900" href="/terms">《服務條款》</a>，並確認已閱讀<a className="font-semibold underline text-slate-700 hover:text-slate-900" href="/privacy">《隱私權政策》</a>。</> : locale === 'en' ? <>By continuing, you agree to the <a className="font-semibold underline text-slate-700 hover:text-slate-900" href="/terms">Terms of Service</a> and confirm that you have read the <a className="font-semibold underline text-slate-700 hover:text-slate-900" href="/privacy">Privacy Policy</a>.</> : <>Dengan melanjutkan, Anda menyetujui <a className="font-semibold underline text-slate-700 hover:text-slate-900" href="/terms">Syarat & Ketentuan</a> dan mengonfirmasi telah membaca <a className="font-semibold underline text-slate-700 hover:text-slate-900" href="/privacy">Kebijakan Privasi</a>.</>}
         </p>
 
-        <ContactAndVersionFooter className="text-slate-400" />
+        <ContactAndVersionFooter className="text-slate-500" />
 
         {errorMessage && (
           <p className="mx-auto max-w-xs rounded-2xl bg-red-50 p-3 text-xs text-red-700 border border-red-100 font-medium">

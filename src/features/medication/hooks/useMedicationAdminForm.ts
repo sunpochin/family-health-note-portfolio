@@ -34,6 +34,7 @@ import { useConfirm } from '../../../hooks/useConfirm'
 import { useExistingPlanFormState } from './useExistingPlanFormState'
 import { useNewMedicationFormState } from './useNewMedicationFormState'
 import { useMedicationAdminData } from './useMedicationAdminData'
+import { useMedicationPlanBatchForm } from './useMedicationPlanBatchForm'
 
 // withDosageForm 原本定義在這個檔案；移到 lib/medication/medicationAdminFormHelpers 後在這裡重新匯出，
 // 讓 MedicationAdminSection.tsx 等既有呼叫端不必改 import 路徑。
@@ -156,6 +157,9 @@ export function useMedicationAdminForm({ patientId, isOwnPatient, onMedicationPl
     setMedicationId(current => resolveMedicationSelection(current, data.medications))
   }
 
+  // 批次有自己的選取與確認狀態，但共用寫入鎖和重讀入口，避免與單筆調整同時送出。
+  const batch = useMedicationPlanBatchForm({ patientId, plans, medicationById, canEditSubject, saving, setSaving, refresh, onMedicationPlanChanged })
+
   const refreshAfterSave = async (successMessage: LocalizedText) => {
     setStatus(successMessage)
     try {
@@ -260,11 +264,7 @@ export function useMedicationAdminForm({ patientId, isOwnPatient, onMedicationPl
       editPanelRef.current?.scrollIntoView?.({ behavior: 'smooth', block: 'start' })
       setPendingEditScroll(false)
     }, 60)
-    return () => {
-      // 測試環境在 afterEach 可能提前 teardown window，避免非同步 cleanup 拋出 ReferenceError
-      if (typeof window !== 'undefined') window.clearTimeout(timer)
-      else clearTimeout(timer)
-    }
+    return () => window.clearTimeout(timer)
   }, [pendingEditScroll])
 
   useEffect(() => {
@@ -274,11 +274,7 @@ export function useMedicationAdminForm({ patientId, isOwnPatient, onMedicationPl
       newMedicationPanelRef.current?.scrollIntoView?.({ behavior: 'smooth', block: 'start' })
       setPendingNewMedicationScroll(false)
     }, 60)
-    return () => {
-      // 測試環境在 afterEach 可能提前 teardown window，避免非同步 cleanup 拋出 ReferenceError
-      if (typeof window !== 'undefined') window.clearTimeout(timer)
-      else clearTimeout(timer)
-    }
+    return () => window.clearTimeout(timer)
   }, [pendingNewMedicationScroll])
 
   useEffect(() => {
@@ -585,6 +581,7 @@ export function useMedicationAdminForm({ patientId, isOwnPatient, onMedicationPl
   }
 
   return {
+    batch,
     confirmDialog,
     locale,
     text,

@@ -29,17 +29,17 @@ export function CaregiverHandoverGuidePage() {
       </GuideSection>
 
       <GuideSection title={{ id: 'Empat bagian inti dalam serah terima', zh: '交接清單的四大區塊', en: 'Four core sections of the handover' }}>
-        <p className="font-semibold text-gray-900">{text({ id: '1. Jadwal minum obat', zh: '1. 服藥時間表', en: '1. Medication schedule' })}</p>
+        <p className="font-semibold text-slate-900">{text({ id: '1. Jadwal minum obat', zh: '1. 服藥時間表', en: '1. Medication schedule' })}</p>
         <GuideList items={[
           { id: 'Dikelompokkan per waktu: sebelum/sesudah sarapan, makan siang, makan malam, dan sebelum tidur.', zh: '依時段分組：早餐前／後、午餐前／後、晚餐前／後、睡前。', en: 'Grouped by time slot: before/after breakfast, lunch, dinner, and bedtime.' },
           { id: 'Nama obat, jumlah dosis, dan jumlah tablet/kapsul untuk setiap waktu.', zh: '每個時段列出藥名、劑量與顆數。', en: 'Medication name, dosage, and tablet/capsule count for each slot.' },
           { id: 'Daftar terpisah untuk obat "bila perlu" (PRN) yang tidak diminum rutin.', zh: '另列「需要時服用」的藥物，與固定時段藥物分開列示。', en: 'Separate list for "as-needed" (PRN) medications taken irregularly.' },
         ]} />
-        <p className="mt-4 font-semibold text-gray-900">{text({ id: '2. Alergi dan pantangan', zh: '2. 過敏與禁忌', en: '2. Allergies and dietary restrictions' })}</p>
+        <p className="mt-4 font-semibold text-slate-900">{text({ id: '2. Alergi dan pantangan', zh: '2. 過敏與禁忌', en: '2. Allergies and dietary restrictions' })}</p>
         <p>{text({ id: 'Contoh: alergi kacang, hindari makanan pedas — dituliskan singkat dan jelas.', zh: '例如：對花生過敏、避免辛辣食物——簡短明確地寫下來。', en: 'e.g., peanut allergy, avoid spicy food — written concisely and clearly.' })}</p>
-        <p className="mt-4 font-semibold text-gray-900">{text({ id: '3. Rutinitas harian', zh: '3. 慣用作息', en: '3. Daily routine' })}</p>
+        <p className="mt-4 font-semibold text-slate-900">{text({ id: '3. Rutinitas harian', zh: '3. 慣用作息', en: '3. Daily routine' })}</p>
         <p>{text({ id: 'Contoh: bangun jam 06:30, istirahat siang 13:00–14:30 — kebiasaan yang membuat orang yang dirawat merasa nyaman.', zh: '例如：06:30 起床、午休 13:00–14:30——讓照護對象感到熟悉安心的習慣。', en: 'e.g., wake up 06:30, afternoon nap 13:00–14:30 — habits that keep the care recipient comfortable.' })}</p>
-        <p className="mt-4 font-semibold text-gray-900">{text({ id: '4. Kontak darurat', zh: '4. 緊急聯絡人', en: '4. Emergency contacts' })}</p>
+        <p className="mt-4 font-semibold text-slate-900">{text({ id: '4. Kontak darurat', zh: '4. 緊急聯絡人', en: '4. Emergency contacts' })}</p>
         <p>{text({ id: 'Nama dan nomor telepon keluarga yang bisa dihubungi kapan saja, satu baris per orang.', zh: '可隨時聯絡的家屬姓名與電話，每行一位。', en: 'Names and phone numbers of family members who can be reached anytime, one per line.' })}</p>
       </GuideSection>
 

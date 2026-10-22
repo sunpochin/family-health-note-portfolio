@@ -1,13 +1,18 @@
 /*
 檔案用途：藥量倒數與回診／抽血／打針／疫苗到期提醒的每日照護頁籤，列出、新增與結案提醒。
 所在層：src/features/reminders/pages；由 DailyCarePage 依 careReminders 模組掛載。
-主要關聯：src/lib/careDueReminders.ts 負責資料存取與純邏輯，本檔只處理畫面呈現與表單狀態。
+主要關聯：src/lib/careDueReminders.ts 負責資料存取與純邏輯，本檔只處理畫面呈現與表單狀態；
+照護閉環 T6（issue #956）起非藥量倒數的提醒可填科別並連回時間線事件／檢驗值（ReminderSourcePicker、useReminderSources）。
 */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useI18n, type LocalizedText } from '../../../lib/i18n'
 import { calendarDateKey } from '../../../lib/careDay'
 import { isDemoPatientId } from '../../../lib/demoData'
 import { AttentionItem } from '../../../components/ui/AttentionItem'
+import { linkedSourceLabel } from '../../../lib/reminderSources'
+import { useReminderSources } from '../hooks/useReminderSources'
+import { ReminderSourceChip } from '../components/ReminderSourceChip'
+import { ReminderSourcePicker } from '../components/ReminderSourcePicker'
 import {
   classifyReminderDueLevel,
   computeMedicationDueDate,
@@ -19,6 +24,7 @@ import {
   setCareDueReminderStatus,
   updateCareDueReminder,
   REMINDER_TYPE_META,
+  REMINDER_VISIT_DEPARTMENT_MAX_LENGTH,
   type CareDueReminder,
   type CareRecipientType,
   type ReminderType,
@@ -36,6 +42,10 @@ type FormState = {
   daysSupply: string
   dueDate: string
   thresholdDays: string
+  // 非藥量倒數才用：兩個關聯 id 至多一個有值（選擇器保證互斥），空字串＝沒有連結。
+  relatedEntryId: string
+  relatedLabResultId: string
+  visitDepartment: string
 }
 
 function defaultFormState(reminderType: ReminderType, today: string): FormState {
@@ -45,6 +55,9 @@ function defaultFormState(reminderType: ReminderType, today: string): FormState 
     daysSupply: '',
     dueDate: '',
     thresholdDays: String(REMINDER_TYPE_META[reminderType].defaultThresholdDays),
+    relatedEntryId: '',
+    relatedLabResultId: '',
+    visitDepartment: '',
   }
 }
 
@@ -100,6 +113,8 @@ export function CareDueRemindersPage({ patientId, canManage, careRecipientType }
   const patientReminders = patientReady ? reminders : []
   const activeReminders = patientReminders.filter(item => item.status === 'active').sort((a, b) => a.due_date.localeCompare(b.due_date))
   const inactiveReminders = patientReminders.filter(item => item.status !== 'active')
+  // 候選只在表單開啟時讀；已連結來源跟著提醒清單讀，供清單 chip 與編輯時預填的選項使用。
+  const sources = useReminderSources({ patientId, reminders: patientReminders, formOpen: showForm, enabled: !demoPatient })
 
   const openAddForm = () => {
     setEditingId(null)
@@ -115,6 +130,10 @@ export function CareDueRemindersPage({ patientId, canManage, careRecipientType }
       daysSupply: reminder.days_supply ? String(reminder.days_supply) : '',
       dueDate: reminder.reminder_type === 'medication_refill' ? '' : reminder.due_date,
       thresholdDays: String(reminder.threshold_days),
+      // 編輯預填既有連結與科別：表單送出時三欄都會明確帶值，所以只改到期日不會把連結清掉。
+      relatedEntryId: reminder.related_entry_id ?? '',
+      relatedLabResultId: reminder.related_lab_result_id ?? '',
+      visitDepartment: reminder.visit_department ?? '',
     })
     setShowForm(true)
   }
@@ -148,6 +167,12 @@ export function CareDueRemindersPage({ patientId, canManage, careRecipientType }
         thresholdDays,
         daysSupply,
         dueDate: isMedication ? undefined : form.dueDate,
+        // 藥量倒數不送這三欄（adapter 也會一律壓成 null）；其餘型別明確送出，空字串在 adapter 轉成 null＝清除。
+        ...(isMedication ? {} : {
+          relatedEntryId: form.relatedEntryId || null,
+          relatedLabResultId: form.relatedLabResultId || null,
+          visitDepartment: form.visitDepartment,
+        }),
       }
       const saved = editingId ? await updateCareDueReminder(editingId, input) : await createCareDueReminder(input)
       if (!isCurrentPatient(mutationPatientId)) return
@@ -191,8 +216,9 @@ export function CareDueRemindersPage({ patientId, canManage, careRecipientType }
     } catch (error) {
       console.error('[care due reminder delete error]', error)
       if (!isCurrentPatient(mutationPatientId)) return
-      // 已經送過 Telegram 通知的提醒會留下 care_due_reminder_deliveries 稽核紀錄，
-      // 外鍵是 ON DELETE RESTRICT 讓刪除在資料庫層被擋下；這種情況要請照護者改用「略過」，
+      // 已經送過通知的提醒會留下送達紀錄（退場前是 care_due_reminder_deliveries 的 ON DELETE RESTRICT 外鍵；
+      // #1061 階段 D 之後是 personal_notification_outbox 列＋ migration 20261009110000 的 BEFORE DELETE trigger，同樣以 23503 拋出），
+      // 刪除在資料庫層被擋下；這種情況要請照護者改用「略過」，
       // 而不是顯示看起來像系統故障、其實永遠會失敗的通用錯誤訊息。
       const isBlockedByDeliveryHistory = (error as { code?: string })?.code === '23503'
       setErrorMessage(isBlockedByDeliveryHistory
@@ -222,54 +248,69 @@ export function CareDueRemindersPage({ patientId, canManage, careRecipientType }
         {errorMessage && <p role="alert" className="mb-3 rounded-xl bg-red-50 p-3 text-base font-semibold text-red-700">{text(errorMessage)}</p>}
 
         {canManage && <div className="mb-4 flex justify-end">
-          <button type="button" disabled={!patientReady || loading} onClick={patientReady && showForm && !editingId ? closeForm : openAddForm} className="min-h-11 rounded-2xl bg-sky-700 px-4 text-sm font-black text-white shadow-sm active:bg-sky-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-600 focus-visible:ring-offset-2 disabled:opacity-60">
+          <button type="button" disabled={!patientReady || loading} onClick={patientReady && showForm && !editingId ? closeForm : openAddForm} className="min-h-11 rounded-2xl bg-brand-700 px-4 text-sm font-black text-white shadow-sm active:bg-emerald-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-700 focus-visible:ring-offset-2 disabled:opacity-60">
             {patientReady && showForm && !editingId ? text({ id: 'Tutup formulir', zh: '關閉表單', en: 'Close form' }) : text({ id: '+ Tambah pengingat', zh: '＋ 新增提醒', en: '＋ Add reminder' })}
           </button>
         </div>}
 
-        {patientReady && showForm && canManage && <section className="mb-4 rounded-3xl border border-sky-200 bg-sky-50 p-4 shadow-sm">
-          <h3 className="text-base font-black text-sky-950">{editingId ? text({ id: 'Ubah pengingat', zh: '編輯提醒', en: 'Edit reminder' }) : text({ id: 'Pengingat baru', zh: '新增提醒', en: 'New reminder' })}</h3>
+        {patientReady && showForm && canManage && <section className="mb-4 rounded-3xl border border-brand-200 bg-brand-50 p-4 shadow-sm">
+          <h3 className="text-base font-black text-slate-900">{editingId ? text({ id: 'Ubah pengingat', zh: '編輯提醒', en: 'Edit reminder' }) : text({ id: 'Pengingat baru', zh: '新增提醒', en: 'New reminder' })}</h3>
           <div className="mt-3 space-y-3">
             <label className="block">
-              <span className="mb-1 block text-sm font-bold text-sky-900">{text({ id: 'Jenis', zh: '類型', en: 'Type' })}</span>
+              <span className="mb-1 block text-sm font-bold text-slate-800">{text({ id: 'Jenis', zh: '類型', en: 'Type' })}</span>
               <select
                 value={form.reminderType}
                 disabled={Boolean(editingId)}
                 onChange={event => setForm(current => ({ ...defaultFormState(event.target.value as ReminderType, today), startDate: current.startDate }))}
-                className="min-h-11 w-full rounded-xl border border-sky-300 bg-white px-3 text-base font-semibold text-slate-900"
+                className="min-h-11 w-full rounded-xl border-2 border-control-border bg-white px-3 text-base font-semibold text-slate-900"
               >
                 {applicableTypes.map(type => <option key={type} value={type}>{text(REMINDER_TYPE_META[type].label)}</option>)}
               </select>
             </label>
 
             <label className="block">
-              <span className="mb-1 block text-sm font-bold text-sky-900">{form.reminderType === 'medication_refill' ? text({ id: 'Tanggal ambil obat', zh: '領藥日期', en: 'Medication pickup date' }) : text({ id: 'Tanggal mulai', zh: '起算日期', en: 'Start date' })}</span>
-              <input type="date" value={form.startDate} onChange={event => setForm(current => ({ ...current, startDate: event.target.value }))} className="min-h-11 w-full rounded-xl border border-sky-300 bg-white px-3 text-base font-semibold text-slate-900" />
+              <span className="mb-1 block text-sm font-bold text-slate-800">{form.reminderType === 'medication_refill' ? text({ id: 'Tanggal ambil obat', zh: '領藥日期', en: 'Medication pickup date' }) : text({ id: 'Tanggal mulai', zh: '起算日期', en: 'Start date' })}</span>
+              <input type="date" value={form.startDate} onChange={event => setForm(current => ({ ...current, startDate: event.target.value }))} className="min-h-11 w-full rounded-xl border-2 border-control-border bg-white px-3 text-base font-semibold text-slate-900" />
             </label>
 
             {form.reminderType === 'medication_refill'
               ? <label className="block">
-                <span className="mb-1 block text-sm font-bold text-sky-900">{text({ id: 'Jumlah hari obat', zh: '藥量天數', en: 'Medication supply (days)' })}</span>
-                <input type="number" min={1} value={form.daysSupply} onChange={event => setForm(current => ({ ...current, daysSupply: event.target.value }))} className="min-h-11 w-full rounded-xl border border-sky-300 bg-white px-3 text-base font-semibold text-slate-900" />
-                {previewDueDate && <span className="mt-1 block text-xs font-semibold text-sky-800">{text({ id: `Jatuh tempo: ${previewDueDate}`, zh: `到期日：${previewDueDate}`, en: `Due date: ${previewDueDate}` })}</span>}
+                <span className="mb-1 block text-sm font-bold text-slate-800">{text({ id: 'Jumlah hari obat', zh: '藥量天數', en: 'Medication supply (days)' })}</span>
+                <input type="number" min={1} value={form.daysSupply} onChange={event => setForm(current => ({ ...current, daysSupply: event.target.value }))} className="min-h-11 w-full rounded-xl border-2 border-control-border bg-white px-3 text-base font-semibold text-slate-900" />
+                {previewDueDate && <span className="mt-1 block text-xs font-semibold text-slate-600">{text({ id: `Jatuh tempo: ${previewDueDate}`, zh: `到期日：${previewDueDate}`, en: `Due date: ${previewDueDate}` })}</span>}
               </label>
               : <label className="block">
-              <span className="mb-1 block text-sm font-bold text-sky-900">{text({ id: 'Tanggal jatuh tempo', zh: '到期日', en: 'Due date' })}</span>
-                <input type="date" value={form.dueDate} onChange={event => setForm(current => ({ ...current, dueDate: event.target.value }))} className="min-h-11 w-full rounded-xl border border-sky-300 bg-white px-3 text-base font-semibold text-slate-900" />
+              <span className="mb-1 block text-sm font-bold text-slate-800">{text({ id: 'Tanggal jatuh tempo', zh: '到期日', en: 'Due date' })}</span>
+                <input type="date" value={form.dueDate} onChange={event => setForm(current => ({ ...current, dueDate: event.target.value }))} className="min-h-11 w-full rounded-xl border-2 border-control-border bg-white px-3 text-base font-semibold text-slate-900" />
               </label>}
 
+            {form.reminderType !== 'medication_refill' && <>
+              <label className="block">
+                <span className="mb-1 block text-sm font-bold text-slate-800">{text({ id: 'Bagian/Departemen', zh: '科別', en: 'Department' })}</span>
+                <input maxLength={REMINDER_VISIT_DEPARTMENT_MAX_LENGTH} value={form.visitDepartment} onChange={event => setForm(current => ({ ...current, visitDepartment: event.target.value }))} placeholder={text({ id: 'Contoh: Kardiologi', zh: '例如：心臟內科', en: 'Ex: Cardiology' })} className="min-h-11 w-full rounded-xl border-2 border-control-border bg-white px-3 text-base font-semibold text-slate-900" />
+              </label>
+              <ReminderSourcePicker
+                candidates={sources.candidates}
+                linked={sources.linked}
+                selection={{ entryId: form.relatedEntryId, labResultId: form.relatedLabResultId }}
+                loading={sources.candidatesLoading}
+                failed={sources.candidatesFailed}
+                onChange={next => setForm(current => ({ ...current, relatedEntryId: next.entryId, relatedLabResultId: next.labResultId }))}
+              />
+            </>}
+
             <label className="block">
-              <span className="mb-1 block text-sm font-bold text-sky-900">{text({ id: 'Ingatkan berapa hari sebelumnya', zh: '提前幾天提醒', en: 'Remind me how many days ahead' })}</span>
-              <input type="number" min={1} max={180} value={form.thresholdDays} onChange={event => setForm(current => ({ ...current, thresholdDays: event.target.value }))} className="min-h-11 w-full rounded-xl border border-sky-300 bg-white px-3 text-base font-semibold text-slate-900" />
+              <span className="mb-1 block text-sm font-bold text-slate-800">{text({ id: 'Ingatkan berapa hari sebelumnya', zh: '提前幾天提醒', en: 'Remind me how many days ahead' })}</span>
+              <input type="number" min={1} max={180} value={form.thresholdDays} onChange={event => setForm(current => ({ ...current, thresholdDays: event.target.value }))} className="min-h-11 w-full rounded-xl border-2 border-control-border bg-white px-3 text-base font-semibold text-slate-900" />
             </label>
           </div>
           <div className="mt-4 grid grid-cols-2 gap-3">
             <button type="button" onClick={closeForm} className="min-h-12 rounded-2xl border border-slate-300 bg-white px-4 text-base font-black text-slate-700 active:bg-slate-100">{text({ id: 'Batal', zh: '取消', en: 'Cancel' })}</button>
-            <button type="button" disabled={busyId === (editingId ?? 'new')} onClick={submitForm} className="min-h-12 rounded-2xl bg-sky-700 px-4 text-base font-black text-white shadow-sm active:bg-sky-900 disabled:opacity-60">{text({ id: 'Simpan', zh: '儲存', en: 'Save' })}</button>
+            <button type="button" disabled={busyId === (editingId ?? 'new')} onClick={submitForm} className="min-h-12 rounded-2xl bg-brand-700 px-4 text-base font-black text-white shadow-sm active:bg-emerald-800 disabled:opacity-60">{text({ id: 'Simpan', zh: '儲存', en: 'Save' })}</button>
           </div>
         </section>}
 
-        {loading && <p className="py-12 text-center text-base text-gray-500">{text({ id: 'Memuat…', zh: '載入中…', en: 'Loading…' })}</p>}
+        {loading && <p className="py-12 text-center text-base text-slate-500">{text({ id: 'Memuat…', zh: '載入中…', en: 'Loading…' })}</p>}
 
         {!loading && activeReminders.length === 0 && <section className="rounded-3xl border border-dashed border-slate-300 bg-white p-6 text-center shadow-sm">
           <p className="text-sm font-medium leading-6 text-slate-600">{text({ id: 'Belum ada pengingat aktif.', zh: '目前沒有進行中的提醒。', en: 'There are no active reminders.' })}</p>
@@ -281,7 +322,8 @@ export function CareDueRemindersPage({ patientId, canManage, careRecipientType }
             const level = classifyReminderDueLevel(remainingDays, reminder.threshold_days)
             const description = reminder.reminder_type === 'medication_refill'
               ? text({ id: `Ambil ${reminder.start_date}, cukup ${reminder.days_supply} hari · jatuh tempo ${reminder.due_date}`, zh: `領藥日 ${reminder.start_date}，共 ${reminder.days_supply} 天份・到期日 ${reminder.due_date}`, en: `Picked up ${reminder.start_date}, ${reminder.days_supply} days supplied · due ${reminder.due_date}` })
-              : text({ id: `Jatuh tempo ${reminder.due_date}`, zh: `到期日 ${reminder.due_date}`, en: `Due ${reminder.due_date}` })
+              : text({ id: `Jatuh tempo ${reminder.due_date}`, zh: `到期日 ${reminder.due_date}`, en: `Due ${reminder.due_date}` }) + (reminder.visit_department ? ` · ${reminder.visit_department}` : '')
+            const sourceLabel = linkedSourceLabel(reminder, sources.linked, sources.linkedFailed, text)
             return (
               <AttentionItem
                 key={reminder.id}
@@ -289,11 +331,13 @@ export function CareDueRemindersPage({ patientId, canManage, careRecipientType }
                 title={text(REMINDER_TYPE_META[reminder.reminder_type].label)}
                 badge={text(remainingDaysText(remainingDays))}
                 description={description}
+                meta={sourceLabel ? <ReminderSourceChip label={sourceLabel} /> : undefined}
                 actions={canManage && <>
-                  <button type="button" disabled={busyId === reminder.id} onClick={() => openEditForm(reminder)} className="min-h-9 rounded-xl border border-slate-300 bg-white px-3 text-xs font-black text-slate-700 active:bg-slate-100">{text({ id: 'Ubah', zh: '編輯', en: 'Edit' })}</button>
-                  <button type="button" disabled={busyId === reminder.id} onClick={() => changeStatus(reminder, 'completed')} className="min-h-9 rounded-xl border border-emerald-300 bg-emerald-50 px-3 text-xs font-black text-emerald-800 active:bg-emerald-100">{text({ id: 'Selesai', zh: '已完成', en: 'Completed' })}</button>
-                  <button type="button" disabled={busyId === reminder.id} onClick={() => changeStatus(reminder, 'dismissed')} className="min-h-9 rounded-xl border border-slate-300 bg-white px-3 text-xs font-black text-slate-700 active:bg-slate-100">{text({ id: 'Abaikan', zh: '略過', en: 'Dismiss' })}</button>
-                  <button type="button" disabled={busyId === reminder.id} onClick={() => removeReminder(reminder)} className="min-h-9 rounded-xl border border-red-300 bg-red-50 px-3 text-xs font-black text-red-800 active:bg-red-100">{text({ id: 'Hapus', zh: '刪除', en: 'Delete' })}</button>
+                  {/* 四顆動作鈕擠在同一列最容易誤觸，所以都要 44px 高（#1198）；AttentionItem 動作列會 flex-wrap，375px 不會撐破。 */}
+                  <button type="button" disabled={busyId === reminder.id} onClick={() => openEditForm(reminder)} className="min-h-11 rounded-xl border border-slate-300 bg-white px-3 text-xs font-black text-slate-700 active:bg-slate-100">{text({ id: 'Ubah', zh: '編輯', en: 'Edit' })}</button>
+                  <button type="button" disabled={busyId === reminder.id} onClick={() => changeStatus(reminder, 'completed')} className="min-h-11 rounded-xl border border-emerald-300 bg-emerald-50 px-3 text-xs font-black text-emerald-800 active:bg-emerald-100">{text({ id: 'Selesai', zh: '已完成', en: 'Completed' })}</button>
+                  <button type="button" disabled={busyId === reminder.id} onClick={() => changeStatus(reminder, 'dismissed')} className="min-h-11 rounded-xl border border-slate-300 bg-white px-3 text-xs font-black text-slate-700 active:bg-slate-100">{text({ id: 'Abaikan', zh: '略過', en: 'Dismiss' })}</button>
+                  <button type="button" disabled={busyId === reminder.id} onClick={() => removeReminder(reminder)} className="min-h-11 rounded-xl border border-red-300 bg-red-50 px-3 text-xs font-black text-red-800 active:bg-red-100">{text({ id: 'Hapus', zh: '刪除', en: 'Delete' })}</button>
                 </>}
               />
             )
@@ -301,16 +345,18 @@ export function CareDueRemindersPage({ patientId, canManage, careRecipientType }
         </ul>}
 
         {inactiveReminders.length > 0 && <div className="mt-5">
-          <button type="button" onClick={() => setShowCompleted(current => !current)} className="min-h-9 text-sm font-bold text-sky-800 underline decoration-sky-300 underline-offset-4">
+          {/* 「顯示已完成」是文字連結，原 36px 在清單角落容易按錯，改 min-h-11（44px，#1198）。 */}
+          <button type="button" onClick={() => setShowCompleted(current => !current)} className="min-h-11 text-sm font-bold text-brand-700 underline decoration-brand-200 underline-offset-4">
             {showCompleted ? text({ id: 'Sembunyikan riwayat', zh: '收合已結案', en: 'Hide history' }) : text({ id: `Lihat riwayat (${inactiveReminders.length})`, zh: `查看已結案（${inactiveReminders.length}）`, en: `View history (${inactiveReminders.length})` })}
           </button>
           {showCompleted && <ul className="mt-3 space-y-2">
             {inactiveReminders.map(reminder => (
               <li key={reminder.id} className="rounded-xl border border-slate-200 bg-white p-3 text-sm text-slate-600">
+                {/* 句尾的「重新啟用」是文字按鈕，原本只有一行字高；inline-flex + min-h-11 讓點擊區到 44px（#1198）。 */}
                 <span className="font-bold text-slate-800">{text(REMINDER_TYPE_META[reminder.reminder_type].label)}</span>
                 {' · '}{text({ id: `Jatuh tempo ${reminder.due_date}`, zh: `到期日 ${reminder.due_date}`, en: `Due ${reminder.due_date}` })}
                 {' · '}{text(reminder.status === 'completed' ? { id: 'Selesai', zh: '已完成', en: 'Completed' } : { id: 'Diabaikan', zh: '已略過', en: 'Dismissed' })}
-                {canManage && <button type="button" disabled={busyId === reminder.id} onClick={() => changeStatus(reminder, 'active')} className="ml-2 font-bold text-sky-700 underline">{text({ id: 'Aktifkan lagi', zh: '重新啟用', en: 'Reactivate' })}</button>}
+                {canManage && <button type="button" disabled={busyId === reminder.id} onClick={() => changeStatus(reminder, 'active')} className="ml-2 inline-flex min-h-11 items-center font-bold text-brand-700 underline">{text({ id: 'Aktifkan lagi', zh: '重新啟用', en: 'Reactivate' })}</button>}
               </li>
             ))}
           </ul>}

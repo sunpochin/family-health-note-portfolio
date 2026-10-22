@@ -1,19 +1,21 @@
 /*
-檔案用途：將血壓原始紀錄整理成每日列表、結構化報告、CSV 與 GPT 摘要輸出。
+檔案用途：將血壓原始紀錄整理成每日列表與結構化報告（含列印版面）；CSV／GPT 輸出按鈕已拆到 ReportExportActions，放在面板頂端好按。
 所在層：src/components；由血壓模組的近期趨勢與封存對象唯讀歷史頁共用的報告內容元件。
 主要關聯：由 BloodPressureReportPanel 傳入紀錄，使用 lib/recordReport 計算模型，並以 VitalReading 與 PulseReading 呈現固定生命徵象樣式。
 */
-import { useEffect, useMemo, useState, type ReactNode } from 'react'
+import { MedicationHoldSummary } from '../../medication/components/MedicationHoldSummary'
+import { useMemo, useState, type ReactNode } from 'react'
 import dayjs from 'dayjs'
 import 'dayjs/locale/id'
 import 'dayjs/locale/zh-tw'
 import utc from 'dayjs/plugin/utc'
 import timezone from 'dayjs/plugin/timezone'
 import type { BpRecord } from '../../../types/database'
-import { ALERT_BAR_CLASS, ALERT_ICON, ALERT_SOFT_CHIP_CLASS, alertTone } from '../../../lib/alertPresentation'
+import { Icon } from '../../../components/ui/Icon'
+import { ALERT_BAR_CLASS, ALERT_ICON, ALERT_SOFT_CHIP_CLASS, alertLabelText, alertTone } from '../../../lib/alertPresentation'
 import { useBpEvaluator, type StandardAwareEvaluation } from '../hooks/useBpEvaluator'
 import { SESSION_LABELS } from '../../../lib/dashboardStats'
-import { buildGptReportText, buildRecordCsv, buildRecordReportModel, bpStandardsUsed, reportWindow, REPORT_TIMEZONE } from '../../../lib/recordReport'
+import { buildRecordReportModel, bpStandardsUsed, reportWindow, REPORT_TIMEZONE } from '../../../lib/recordReport'
 import { formatDoseAmountLocalized, formatMedicationDisplayName, type MedicationPlanView } from '../../../lib/medication/medications'
 import { compareMedicationSlots, medicationSlotText } from '../../../lib/medication/medicationSchedule'
 import { PulseReading, VitalReading } from './VitalReading'
@@ -35,11 +37,10 @@ type RecordFilter = 'all' | 'flagged'
 
 const DEFAULT_TRAJECTORY_SOURCE_STATUS: PreVisitSourceStatuses = { medicationChanges: 'ok', timelineEntries: 'ok', dueReminders: 'ok' }
 
-export function RecordReport({ records, subjectLabel, selectedDays, canExport, isOfflineData, cacheUpdatedAt, currentMedications = [], trajectoryEvents = [], trajectorySourceStatus = DEFAULT_TRAJECTORY_SOURCE_STATUS, preVisitBriefItems = null, briefAdoption }: {
+export function RecordReport({ records, subjectLabel, selectedDays, isOfflineData, cacheUpdatedAt, currentMedications = [], trajectoryEvents = [], trajectorySourceStatus = DEFAULT_TRAJECTORY_SOURCE_STATUS, preVisitBriefItems = null, briefAdoption }: {
   records: BpRecord[]
   subjectLabel: string
   selectedDays: number
-  canExport: boolean
   isOfflineData: boolean
   cacheUpdatedAt: string | null
   currentMedications?: MedicationPlanView[]
@@ -53,7 +54,6 @@ export function RecordReport({ records, subjectLabel, selectedDays, canExport, i
   const { locale, text } = useI18n()
   const evaluator = useBpEvaluator()
   const [filter, setFilter] = useState<RecordFilter>('all')
-  const [actionStatus, setActionStatus] = useState<{ kind: 'success' | 'error'; text: string } | null>(null)
   const model = useMemo(() => buildRecordReportModel(records, evaluator.resolver), [records, evaluator.resolver])
   // 定期藥依時段分組方便對照藥袋；「需要時」藥效不固定時段，另外整段列出，不能混進固定時段分組誤導成規律服藥。
   const scheduledMedicationGroups = useMemo(() => {
@@ -71,51 +71,10 @@ export function RecordReport({ records, subjectLabel, selectedDays, canExport, i
   const measurementPeriodLabel = model.startAt && model.endAt
     ? `${dayjs(model.startAt).tz(REPORT_TIMEZONE).format('YYYY/MM/DD HH:mm')} – ${dayjs(model.endAt).tz(REPORT_TIMEZONE).format('YYYY/MM/DD HH:mm')}`
     : '—'
-  const exportContext = { selectedDays, isOfflineData, cacheUpdatedAt, standardResolver: evaluator.resolver }
   // R5：報告表頭要說出這份報告依據哪一（幾）份標準。跨越標準變更日時會列出兩份，
   // 不是只印現在那一份——醫師看到「偏高」必須知道是對著哪一組目標講的。
   const standardsUsed = bpStandardsUsed(model.chronological, evaluator.resolver)
-  const trajectoryReportSection = { events: trajectoryEvents, sourceStatus: trajectorySourceStatus }
-
-  useEffect(() => {
-    // 切換對象、區間或資料來源後，舊的「已複製」訊息已不再可信，必須清掉。
-    setActionStatus(null)
-  }, [records, subjectLabel, selectedDays, isOfflineData, cacheUpdatedAt])
-
-  const copyForGpt = async () => {
-    // 部分 WebView/非 HTTPS 環境沒有 Clipboard API，先判斷避免點擊按鈕直接拋錯。
-    if (!navigator.clipboard) {
-      setActionStatus({ kind: 'error', text: text({ id: 'Browser tidak mendukung API clipboard.', zh: '瀏覽器不支援剪貼簿 API。', en: 'The browser does not support the Clipboard API.' }) })
-      return
-    }
-    try {
-      await navigator.clipboard.writeText(buildGptReportText(records, exportContext, trajectoryReportSection, preVisitBriefItems ?? undefined))
-      setActionStatus({ kind: 'success', text: text({ id: 'Ringkasan disalin; siap ditempel ke GPT.', zh: '摘要已複製，可貼給 GPT。', en: 'The summary has been copied and can be pasted into GPT.' }) })
-    } catch {
-      setActionStatus({ kind: 'error', text: text({ id: 'Tidak dapat menyalin. Periksa izin browser.', zh: '無法複製，請確認瀏覽器權限。', en: 'Unable to copy, please confirm your browser permissions.' }) })
-    }
-  }
-
-  const downloadCsv = () => {
-    const csv = buildRecordCsv(records, subjectLabel, exportContext)
-    const link = document.createElement('a')
-    const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }))
-    const start = model.startAt ? dayjs(model.startAt).tz(REPORT_TIMEZONE).format('YYYY-MM-DD') : 'empty'
-    const end = model.endAt ? dayjs(model.endAt).tz(REPORT_TIMEZONE).format('YYYY-MM-DD') : 'empty'
-    link.href = url
-    // 檔名不放姓名，避免下載檔留在共用裝置時直接暴露健康資料屬於誰。
-    link.download = `blood-pressure-${start}-${end}.csv`
-    document.body.append(link)
-    link.click()
-    link.remove()
-    // 某些瀏覽器尚未排入下載就撤銷 Blob URL 會產生空檔，因此延後釋放資源。
-    setTimeout(() => URL.revokeObjectURL(url), 100)
-    setActionStatus({ kind: 'success', text: text({ id: 'CSV berhasil diunduh.', zh: 'CSV 已下載。', en: 'CSV downloaded.' }) })
-  }
-
   const hasRecords = records.length > 0
-  const actionsDisabled = !hasRecords || !canExport
-  const actionClass = 'min-h-11 rounded-xl border px-3 py-2 text-left text-xs font-bold transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600 disabled:cursor-not-allowed disabled:opacity-45'
   const average = model.summary.avgSystolic == null || model.summary.avgDiastolic == null
     ? '—'
     : <VitalReading systolic={model.summary.avgSystolic} diastolic={model.summary.avgDiastolic} showPulse={false} showUnits={false} />
@@ -134,8 +93,8 @@ export function RecordReport({ records, subjectLabel, selectedDays, canExport, i
           <div>
             {/* 繁體中文註解：Dashboard 已用 h1，明細與日期依序降為 h2/h3，讓讀屏器不會跳過層級。 */}
             <h2 id="daily-records-title" className="text-base font-extrabold tracking-tight text-slate-950">{text({ id: 'Detail harian', zh: '每日紀錄', en: 'Daily Record' })}</h2>
-            <p className="mt-0.5 text-xs print:text-[11px] text-slate-500">{text({ id: 'Angka asli selalu ditampilkan', zh: '永遠保留原始數值', en: 'Always keep original value' })}</p>
           </div>
+          {/* 繁體中文註解：篩選鈕群組的底色是 slate-100，未選中按鈕的字若用 slate-500 只有 4.35:1，低於 WCAG AA 要求的 4.5:1（slate-500 在白底 4.76、slate-50 底 4.55 才過，換到 slate-100 就掉下去）。所以未選中改 slate-600（實測約 6.9:1）；選中的白底按鈕維持 slate-950。只改色階，不動篩選邏輯與文案。 */}
           <div className="print-hidden inline-flex self-start rounded-lg bg-slate-100 p-1" aria-label={text({ id: 'Saring catatan', zh: '篩選紀錄', en: 'Filter records' })}>
             {([
               ['all', text({ id: `Semua ${model.summary.recordCount}`, zh: `全部 ${model.summary.recordCount}`, en: `All ${model.summary.recordCount}` })],
@@ -146,7 +105,7 @@ export function RecordReport({ records, subjectLabel, selectedDays, canExport, i
                 type="button"
                 aria-pressed={filter === value}
                 onClick={() => setFilter(value)}
-                className={`min-h-11 rounded-lg px-3 text-xs print:text-[11px] font-bold focus-visible:outline-2 focus-visible:outline-indigo-600 ${filter === value ? 'bg-white text-slate-950 shadow-sm' : 'text-slate-500'}`}
+                className={`min-h-11 rounded-lg px-3 text-xs print:text-[11px] font-bold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand-700 ${filter === value ? 'bg-white text-slate-950 shadow-sm' : 'text-slate-600'}`}
               >
                 {label}
               </button>
@@ -183,7 +142,9 @@ export function RecordReport({ records, subjectLabel, selectedDays, canExport, i
                   {group.summary.avgSystolic != null && group.summary.avgDiastolic != null && <VitalReading systolic={group.summary.avgSystolic} diastolic={group.summary.avgDiastolic} showPulse={false} className="text-sm font-extrabold text-slate-900" />}
                 </div>
               </div>
-              <div className="hidden grid-cols-[minmax(7rem,0.8fr)_minmax(6rem,0.7fr)_minmax(5rem,0.5fr)_minmax(10rem,1.6fr)] gap-3 border-y border-slate-100 px-3 py-2 text-xs print:text-[10px] font-bold uppercase tracking-wide text-slate-400 sm:grid">
+              {/* 繁體中文註解（issue #1162）：這一列欄位標題與下方明細列的單位字（mmHg／bpm）原本是 slate-400，
+                  白底只有約 2.6:1，sm 以上與列印頁都看得到；統一改 slate-500（白底 4.76:1）。 */}
+              <div className="hidden grid-cols-[minmax(7rem,0.8fr)_minmax(6rem,0.7fr)_minmax(5rem,0.5fr)_minmax(10rem,1.6fr)] gap-3 border-y border-slate-100 px-3 py-2 text-xs print:text-[10px] font-bold uppercase tracking-wide text-slate-500 sm:grid">
                 <span>{text({ id: 'Waktu', zh: '時間', en: 'Time' })}</span><span>{text({ id: 'Tekanan', zh: '血壓', en: 'Blood pressure' })}</span><span>{text({ id: 'Pulse', zh: '心跳', en: 'Heart rate' })}</span><span>{text({ id: 'Tanda sistem', zh: '系統提示', en: 'System note' })}</span>
               </div>
               <ul className="divide-y divide-slate-100">
@@ -204,7 +165,7 @@ export function RecordReport({ records, subjectLabel, selectedDays, canExport, i
       <section className="record-report rounded-3xl border border-slate-200 bg-white p-4 shadow-[0_8px_30px_rgba(15,23,42,0.06)]" aria-labelledby="record-report-title">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div>
-            <p className="text-xs print:text-[10px] font-bold uppercase tracking-[0.16em] text-indigo-600">{text({ id: 'Laporan terstruktur', zh: '結構化報告', en: 'Structured report' })}</p>
+            <p className="text-xs print:text-[10px] font-bold uppercase tracking-[0.16em] text-brand-700">{text({ id: 'Laporan terstruktur', zh: '結構化報告', en: 'Structured report' })}</p>
             <h2 id="record-report-title" className="mt-1 text-lg font-extrabold tracking-tight text-slate-950">{text({ id: 'Untuk dokter & GPT', zh: '醫師與 GPT 版', en: 'For doctor & GPT' })}</h2>
             <p className="mt-1 text-xs text-slate-500">{subjectLabel} · {periodLabel} · {REPORT_TIMEZONE} (UTC+8)</p>
             <p className="mt-1 text-xs print:text-[11px] text-slate-500">{text({ id: 'Data tersedia:', zh: '實際首末筆：', en: 'Actual first and last strokes:' })}{measurementPeriodLabel}</p>
@@ -235,35 +196,6 @@ export function RecordReport({ records, subjectLabel, selectedDays, canExport, i
             </p>
           </div>
         )}
-
-        <div className="print-hidden mt-4 grid grid-cols-2 gap-2 sm:grid-cols-3" aria-label={text({ id: 'Ekspor laporan', zh: '輸出報告', en: 'Export report' })}>
-          <button type="button" disabled={actionsDisabled} onClick={copyForGpt} className={`${actionClass} col-span-2 border-indigo-200 bg-indigo-50 text-indigo-900 sm:col-span-1`}>
-            <span className="block text-base" aria-hidden="true">✦</span>
-            {text({ id: 'Salin untuk GPT', zh: '複製摘要', en: 'Copy for GPT' })}
-          </button>
-          <button type="button" disabled={actionsDisabled} onClick={downloadCsv} className={`${actionClass} border-slate-200 bg-white text-slate-800`}>
-            <span className="block text-base" aria-hidden="true">↓</span>
-            {text({ id: 'Unduh CSV', zh: '下載 CSV', en: 'Download CSV' })}
-          </button>
-          <button type="button" disabled={actionsDisabled} onClick={() => window.print()} className={`${actionClass} border-slate-200 bg-white text-slate-800`}>
-            <span className="block text-base" aria-hidden="true">▧</span>
-            {text({ id: 'Cetak / Simpan PDF', zh: '列印 / 存為 PDF', en: 'Print/Save as PDF' })}
-          </button>
-        </div>
-
-        {!canExport && (
-          <p className="print-hidden mt-2 rounded-lg bg-amber-50 px-3 py-2 text-xs print:text-[11px] text-amber-800">
-            {text({ id: 'Masuk untuk memakai tombol ekspor', zh: '登入後可使用輸出按鈕', en: 'Log in to use the Output button' })}
-          </p>
-        )}
-        {canExport && (
-          <p className="print-hidden mt-2 rounded-lg bg-indigo-50 px-3 py-2 text-xs print:text-[11px] leading-relaxed text-indigo-800">
-            {text({ id: 'Paket GPT tidak memuat nama, tetapi berisi semua nilai kesehatan per catatan. Periksa sebelum membagikannya.', zh: 'GPT 摘要不含姓名，但包含所有逐筆健康數值，貼出前請確認。', en: 'The GPT summary does not contain the name, but contains all health values on a case-by-case basis. Please confirm before posting.' })}
-          </p>
-        )}
-        <p className={`print-hidden mt-2 min-h-4 text-xs print:text-[11px] ${actionStatus?.kind === 'error' ? 'text-red-700' : 'text-emerald-700'}`} role="status" aria-live="polite">
-          {actionStatus?.text ?? ''}
-        </p>
 
         <div className="mt-3 grid grid-cols-2 gap-2 md:grid-cols-4">
           <SummaryCard label={text({ id: 'Rata-rata', zh: '逐筆平均', en: 'Average' })} value={average} detail={<><PulseReading pulse={model.summary.avgPulse} className="text-xs print:text-[10px]" /> · n={model.summary.recordCount}</>} />
@@ -305,7 +237,7 @@ export function RecordReport({ records, subjectLabel, selectedDays, canExport, i
         {/* 就診當下最有用的是「現在正在吃什麼」；跟血壓數據放在同一份可列印報告，看診時不用切換分頁。 */}
         {currentMedications.length > 0 && (
           <div className="mt-4 rounded-xl border border-slate-200 bg-white p-3" aria-labelledby="current-medications-title">
-            <p id="current-medications-title" className="text-xs print:text-[10px] font-bold uppercase tracking-[0.16em] text-indigo-600">{text({ id: 'Daftar obat saat ini', zh: '目前藥單', en: 'Current medications' })}</p>
+            <p id="current-medications-title" className="text-xs print:text-[10px] font-bold uppercase tracking-[0.16em] text-brand-700">{text({ id: 'Daftar obat saat ini', zh: '目前藥單', en: 'Current medications' })}</p>
             <div className="mt-2 space-y-2">
               {scheduledMedicationGroups.map(([slot, plans]) => (
                 <div key={slot}>
@@ -315,6 +247,8 @@ export function RecordReport({ records, subjectLabel, selectedDays, canExport, i
                       <li key={plan.id} className="text-xs print:text-[11px] text-slate-800">
                         {formatMedicationDisplayName(plan.medication, locale)} · {formatDoseAmountLocalized(plan.dose_amount, plan.medication.dosage_form, locale)}
                         {plan.dose_count > 1 ? ` × ${plan.dose_count}` : ''}
+                        {/* 報告只列醫囑，不以某次血壓代替當次服藥確認。 */}
+                        <MedicationHoldSummary rule={plan.holdRule} />
                       </li>
                     ))}
                   </ul>
@@ -380,7 +314,7 @@ function ExtremeReading({ label, record }: { label: string; record: BpRecord | n
   return (
     <div className="rounded-xl border border-slate-200 px-3 py-3">
       <p className="text-xs print:text-[10px] font-bold text-slate-500">{label}</p>
-      <VitalReading systolic={record.systolic} diastolic={record.diastolic} pulse={record.pulse} className="mt-1 text-lg font-black text-slate-950" unitClassName="text-slate-400" />
+      <VitalReading systolic={record.systolic} diastolic={record.diastolic} pulse={record.pulse} className="mt-1 text-lg font-black text-slate-950" unitClassName="text-slate-500" />
       <p className="mt-1 text-xs print:text-[10px] text-slate-500">{dayjs(record.measured_at).tz(REPORT_TIMEZONE).format('YYYY/MM/DD HH:mm')}</p>
     </div>
   )
@@ -405,7 +339,8 @@ function compactRecordStatus(evaluation: StandardAwareEvaluation): LocalizedText
     below_target: { id: 'Di bawah target', zh: '低於目標', en: 'Below target' },
     diastolic_below_ref: { id: 'D di bawah acuan', zh: '低壓低於參考', en: 'D below reference' },
   }
-  const base = labels[evaluation.bpRule.key] ?? evaluation.labels
+  // 沒有縮寫的規則 key 退回完整標籤；完整標籤帶推播用的 emoji，畫面上要剝掉（issue #1153）。
+  const base = labels[evaluation.bpRule.key] ?? alertLabelText(evaluation.labels)
 
   // 手機欄位必須同列，將規則名稱縮短但保留「偏高／偏低／心跳快」等可行動訊息，不能只留下顏色或省略風險。
   if (!evaluation.pulseWarning) return base
@@ -422,24 +357,34 @@ function RecordRow({ record, hiddenOnScreen }: { record: BpRecord; hiddenOnScree
   // 同一份報告裡上下兩列可以合法地依不同標準判讀——那正是生效日期化的目的。
   const evaluation = evaluator.evaluateAt(record.systolic, record.diastolic, record.pulse, record.measured_at)
   const compactStatus = compactRecordStatus(evaluation)
+  const statusLabel = alertLabelText(evaluation.labels)
   const tone = alertTone(evaluation)
   // 紙本走淺底（實心深紅會吃墨、家用印表機容易糊成一塊黑），但保留同一組左側色條，
   // 四階的視覺階梯在灰階列印下仍然成立。
   const statusStyle = `${ALERT_SOFT_CHIP_CLASS[tone]} ${ALERT_BAR_CLASS[tone]}`
 
+  // 手機欄寬：時間 2.75rem 放得下「00:00」再留間距，不再跟收縮壓黏在一起；血壓 4.5rem 容納「180/110」；
+  // 心跳至少 2rem、間距 1.5、標籤 px-1 是擠出來的空間，讓四字中文標籤（偏高觀察）不會從字中間斷行。
+  // 心跳欄用 max-content 而非固定寬：三位數心跳（≥100，正是要看清楚的異常值）會比 2rem 寬，固定寬會壓到狀態標籤；
+  // 每列是獨立 grid，只有那一列的狀態標籤往右讓幾 px，時間與血壓欄仍上下對齊。
   return (
-    <li className={`record-row grid grid-cols-[2.5rem_4.25rem_2.75rem_minmax(0,1fr)] items-center gap-1 px-3 py-2 sm:grid-cols-[minmax(7rem,0.8fr)_minmax(6rem,0.7fr)_minmax(5rem,0.5fr)_minmax(10rem,1.6fr)] sm:gap-3 sm:py-3 ${hiddenOnScreen ? 'record-filter-hidden' : ''}`}>
+    <li className={`record-row grid grid-cols-[2.75rem_4.5rem_minmax(2rem,max-content)_minmax(0,1fr)] items-center gap-x-1.5 px-2.5 py-2 sm:grid-cols-[minmax(7rem,0.8fr)_minmax(6rem,0.7fr)_minmax(5rem,0.5fr)_minmax(10rem,1.6fr)] sm:gap-3 sm:px-3 sm:py-3 ${hiddenOnScreen ? 'record-filter-hidden' : ''}`}>
       <div className="whitespace-nowrap">
         <time className="text-sm font-extrabold tabular-nums text-slate-950" dateTime={record.measured_at}>
           {dayjs(record.measured_at).tz(REPORT_TIMEZONE).format('HH:mm')}
         </time>
       </div>
-      <VitalReading systolic={record.systolic} diastolic={record.diastolic} showPulse={false} showUnits={false} className="whitespace-nowrap text-sm font-black text-slate-950 sm:text-sm" unitClassName="text-slate-400" />
-      <PulseReading pulse={record.pulse} className="whitespace-nowrap text-xs print:text-[11px] font-bold text-slate-950" unitClassName="text-slate-400" />
+      <VitalReading systolic={record.systolic} diastolic={record.diastolic} showPulse={false} showUnits={false} className="whitespace-nowrap text-sm font-black text-slate-950 sm:text-sm" unitClassName="text-slate-500" />
+      {/* 375px 手機上這一列只有約 245px：「bpm」單位會把心跳欄撐到 56px、擠壓到狀態標籤。手機版藏單位，
+          ♥ 圖示與紫色已標明是心跳（讀屏器仍會念「心跳」）；sm 以上與列印頁寬足夠，照常顯示 bpm。 */}
+      <PulseReading pulse={record.pulse} className="whitespace-nowrap text-xs print:text-[11px] font-bold text-slate-950" unitClassName="hidden text-slate-500 sm:inline" />
       {/* 狀態是照護者判斷下一步的主要線索，因此維持至少 12px；允許換行避免印尼文長標籤造成手機水平溢出。 */}
-      <span aria-label={text(evaluation.labels)} className={`min-w-0 whitespace-normal rounded-md px-1.5 py-1 text-xs print:text-[10px] font-bold leading-tight ${statusStyle} sm:justify-self-start sm:px-2 sm:leading-snug`}>
-        <span className="sm:hidden">{ALERT_ICON[tone]} {text(compactStatus)}</span>
-        <span className="hidden sm:inline">{text(evaluation.labels)}</span>
+      {/* issue #1153：emoji 換成 SVG 圖示（inline-block＋align 讓它跟換行後的第一行文字對齊），
+          完整標籤的 emoji 留給推播，畫面與 aria-label 都用剝掉 emoji 的文字，讀屏器不會念出「紅色圓圈」。 */}
+      <span aria-label={text(statusLabel)} className={`min-w-0 whitespace-normal rounded-md px-1 py-1 text-xs print:text-[10px] font-bold leading-tight ${statusStyle} sm:justify-self-start sm:px-2 sm:leading-snug`}>
+        <Icon name={ALERT_ICON[tone]} className="mr-0.5 inline-block h-3.5 w-3.5 shrink-0 align-[-0.2em]" />
+        <span className="sm:hidden">{text(compactStatus)}</span>
+        <span className="hidden sm:inline">{text(statusLabel)}</span>
       </span>
     </li>
   )

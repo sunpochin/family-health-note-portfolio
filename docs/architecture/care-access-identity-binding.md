@@ -8,31 +8,31 @@ supabase/tests/rls-authorization.sql、supabase/seed.sql、.github/workflows/ver
 
 # care_access 身分綁定：從 email 主鍵改綁 `auth.uid()`（F-5 第 2 步規劃）
 
-- 狀態：單位 1（[#710](https://github.com/portfolio-author/jia-jian-log/issues/710)）已實作，見
-  `supabase/migrations/20260913160242_bind_care_access_to_auth_user_id.sql`；單位 2（[#711](https://github.com/portfolio-author/jia-jian-log/issues/711)）已實作，見
+- 狀態：單位 1（[#710](https://github.com/demo-xq7/jia-jian-log/issues/710)）已實作，見
+  `supabase/migrations/20260913160242_bind_care_access_to_auth_user_id.sql`；單位 2（[#711](https://github.com/demo-xq7/jia-jian-log/issues/711)）已實作，見
   `supabase/migrations/20260913165000_bind_care_access_rpcs_to_auth_user_id.sql`（新增 `current_care_access()` helper、13 支以呼叫者 email 授權的 RPC 與
   兩支分享兌換 RPC 改走身分綁定、四支家庭同步 RPC 直接寫入 `members.user_id`，以及
   `personal-notification-drain`／`medication-ocr`／`medication-ai-draft` 的查詢對齊）。
-  單位 3（[#713](https://github.com/portfolio-author/jia-jian-log/issues/713)）已實作，見
+  單位 3（[#713](https://github.com/demo-xq7/jia-jian-log/issues/713)）已實作，見
   `supabase/migrations/20260914130000_drop_care_access_email_fallback.sql`（user_id 改 NOT NULL、
   policy 與 `current_care_access`／`fetch_shareable_patients` 拿掉 email 分支、trigger fail closed、
   正規化殘留重複列後建立 `(user_id, patient_id)` 唯一約束、八支寫入 RPC 的 conflict target 一併改過）；
   **上線前置條件（§5.2 第 1 點，營運檢查，非程式）尚未由有 staging／production 唯讀查詢權限的人執行確認**——
   這支 migration 已把該檢查做成自我防護的 runtime assertion（有殘留未綁定列會直接中止整支 migration），
   但仍需要在套用到 staging／production 前，比照文件描述的方式先看一次唯讀計數並處置非零列。
-  單位 4 止血（[#774](https://github.com/portfolio-author/jia-jian-log/issues/774)）已實作，見
+  單位 4 止血（[#774](https://github.com/demo-xq7/jia-jian-log/issues/774)）已實作，見
   `supabase/migrations/20260914150000_sync_care_access_profile_email_on_login.sql`（新增 `sync_care_access_profile_email()` RPC，
   前端每次解析身分都先把本人名下的 `profile_email` 快照同步成 JWT email，關掉「改 email 後失去既有病人」的
   可用性缺口）；做法 1 收尾也已落地，見 `supabase/migrations/20260915100000_bind_downstream_policies_to_care_access_user_id.sql`
   （101 條下游 policy 的 `care_access` 子查詢改認 `user_id = auth.uid()`，整條授權鏈不再看 email 快照，見 §5.3）。
-  追蹤 issue [#590](https://github.com/portfolio-author/jia-jian-log/issues/590)。
+  追蹤 issue [#590](https://github.com/demo-xq7/jia-jian-log/issues/590)。
 - 日期：2026-09-11
 - 風險等級：AGENTS.md 第 5 節的高風險類別（Authorization、Supabase RLS、照護者資料存取邊界、migration）。每個單位都必須由高能力推理模型實作、由不同模型獨立複審，並在 staging 以核心照護帳號正反向實測。
 - 基準：`origin/staging` commit `6949c70`（本規劃盤點時的 head；實作時以當時 head 重新盤點附錄 A／B）。
 
 ## 0. ELI5（給完全不懂技術的人看）
 
-資料庫現在判斷「這個人是不是媽媽的照護者」的方法，是看他登入時**信箱地址**是不是名單上的那一個——像警衛只看名牌上的名字。名字是可以被別人印一張一樣的：只要登入方式的設定被改掉、或公司把離職者的信箱給了新人，新來的人就直接繼承了舊人的鑰匙。
+資料庫現在判斷「這個人是不是病人本人的照護者」的方法，是看他登入時**信箱地址**是不是名單上的那一個——像警衛只看名牌上的名字。名字是可以被別人印一張一樣的：只要登入方式的設定被改掉、或公司把離職者的信箱給了新人，新來的人就直接繼承了舊人的鑰匙。
 
 這次要改成看**身分證號碼**（Supabase 在每個帳號建立時發的 `auth.users.id`，不會重複、不會被改）。名牌先留著當備用：舊名單上還沒對到身分證的人，第一次登入時就把身分證號碼記下來，之後只認身分證。等每個人都對上了，再把「只看名牌」這條備用規則拿掉。
 
@@ -65,12 +65,12 @@ issue 寫的是「啟用第二種登入方式」。實際機制要分開講，�
 
 ## 2. 紅線（遷移的任何一個階段都不能破壞）
 
-1. **核心照護授權不變量**（AGENTS.md「核心照護授權不變量」一節）：兩位核心照護者帳號對媽媽病人的讀取、照護紀錄寫入、藥單管理，遷移前後都必須通過 `supabase/tests/rls-authorization.sql` 的正反向 assertions。本檔只以角色稱呼這三個帳號，不重複其 identifier。
+1. **核心照護授權不變量**（AGENTS.md「核心照護授權不變量」一節）：兩位核心照護者帳號對病人本人的讀取、照護紀錄寫入、藥單管理，遷移前後都必須通過 `supabase/tests/rls-authorization.sql` 的正反向 assertions。本檔只以角色稱呼這三個帳號，不重複其 identifier。
 2. **`care_access.patient_id` 仍是唯一授權來源**；不得順手引入 household membership、role 字串或前端 flag 當捷徑。
 3. **撤銷立即失效**：既有「DELETE care_access 後立刻查不到」的測試必須維持。
 4. **只收緊、不放寬**：雙軌 predicate 是 OR，但已綁定（`user_id IS NOT NULL`）的列**只走 uid 軌**；不允許出現「uid 對不上但 email 對得上就放行」的寫法。
 5. **不做全面改寫**：`profiles.email` 主鍵、`care_access.profile_email` 欄位與外鍵、`(profile_email, patient_id)` 唯一鍵全部保留（issue 第 3 點）。`account_usage_limits.profile_email` 等帳號層 email 鍵不在本計畫範圍。
-6. **資料治理邊界**：migration 只描述規則；backfill 用 `JOIN auth.users`，不列舉任何真實 email；測試與文件只用 `owner@example.test` 這類假 identifier；核心帳號在本檔與 sub-issue 一律以角色稱呼（核心照護者 A／B、媽媽病人本人），不把既有 seed 裡的 identifier 複製到任何新檔案。
+6. **資料治理邊界**：migration 只描述規則；backfill 用 `JOIN auth.users`，不列舉任何真實 email；測試與文件只用 `owner@example.test` 這類假 identifier；核心帳號在本檔與 sub-issue 一律以角色稱呼（核心照護者 A／B、病人本人），不把既有 seed 裡的 identifier 複製到任何新檔案。
 7. **可用性**：每個階段部署後，既有帳號登入不得掉任何一位病人；這用 §6 的 staging 實測與 `verify-supabase-migrations` 兩條線同時把關。
 
 ## 3. 設計決策（為什麼選這個做法，而不是另一個）
@@ -168,15 +168,15 @@ WHERE ca.user_id IS NULL
 
 `verify-supabase-migrations.yml` 只跑 `supabase db start`（只有 Postgres，沒有 Auth 服務），而 seed 目前**沒有**任何 `auth.users` 列——所以 backfill 在 CI 什麼都綁不到，`auth.uid()` 軌完全測不到。必須在 seed 的 `care_access` INSERT **之前**加入固定 UUID 的 `auth.users` 列（trigger 才會在 INSERT 當下綁定）：
 
-- 三個核心帳號沿用 `rls-authorization.sql` 既有的 `sub`：`…0001`（核心照護者 A）、`…0002`（核心照護者 B）、`…0005`（媽媽病人本人）；`unauthorized@example.test` 沿用 `…0004`；`owner@example.test`／`caregiver@example.test`／`viewer@example.test` 新配固定 UUID。
+- 三個核心帳號沿用 `rls-authorization.sql` 既有的 `sub`：`…0001`（核心照護者 A）、`…0002`（核心照護者 B）、`…0005`（病人本人）；`unauthorized@example.test` 沿用 `…0004`；`owner@example.test`／`caregiver@example.test`／`viewer@example.test` 新配固定 UUID。
 - 最小欄位：`id, instance_id ('00000000-0000-0000-0000-000000000000'), aud ('authenticated'), role ('authenticated'), email, email_confirmed_at, raw_app_meta_data, raw_user_meta_data, created_at, updated_at`；**同時把 `confirmation_token`、`recovery_token`、`email_change`、`email_change_token_new` 填成 `''`**——CI 只跑 Postgres 不會踩到，但開發者用完整 `supabase start` 時 GoTrue 讀到 NULL 會直接壞掉，這是 Supabase 手工 seed 的已知坑。
 - `ON CONFLICT (id) DO NOTHING`，維持 seed 可重播。
 - **seed 的 `auth.users` 列只代表授權矩陣，不代表 staging／production 真實帳號**（沿用 `auth-and-rls.md` 既有原則）。
 
 ### 4.3 `supabase/tests/rls-authorization.sql` 的變更
 
-1. **`sub` 改成動態解析**：restore drill 會拿 staging dump 跑同一份測試（`database-backup.yml`），dump 內 `care_access.user_id` 是 staging 真實 uid，寫死的 `…0001` 會讓「核心照護者 A 讀得到媽媽資料」直接失敗。改成在開頭 `DO` 區塊用 `SELECT id FROM auth.users WHERE LOWER(email) = …` 解析、找不到才退回固定 UUID，並以 `set_config('request.jwt.claims', json_build_object(...)::text, true)` 取代 `SET LOCAL request.jwt.claims = '<字面值>'`。
-2. **新增 F-5 核心反向 assertion**（放在核心帳號正向測試之後）：先斷言核心照護者 A 對媽媽 patient 的 `care_access.user_id IS NOT NULL`（否則 seed 沒綁定、測試無意義），再以「**同 email、不同 `sub`**」的 claims 查血壓、藥單與 `care_access` 本身，三者都必須為空。這一條就是 F-5 的回歸測試：email 被搶走也拿不到資料。
+1. **`sub` 改成動態解析**：restore drill 會拿 staging dump 跑同一份測試（`database-backup.yml`），dump 內 `care_access.user_id` 是 staging 真實 uid，寫死的 `…0001` 會讓「核心照護者 A 讀得到病人本人資料」直接失敗。改成在開頭 `DO` 區塊用 `SELECT id FROM auth.users WHERE LOWER(email) = …` 解析、找不到才退回固定 UUID，並以 `set_config('request.jwt.claims', json_build_object(...)::text, true)` 取代 `SET LOCAL request.jwt.claims = '<字面值>'`。
+2. **新增 F-5 核心反向 assertion**（放在核心帳號正向測試之後）：先斷言核心照護者 A 對病人本人 patient 的 `care_access.user_id IS NOT NULL`（否則 seed 沒綁定、測試無意義），再以「**同 email、不同 `sub`**」的 claims 查血壓、藥單與 `care_access` 本身，三者都必須為空。這一條就是 F-5 的回歸測試：email 被搶走也拿不到資料。
 3. **新增 TOFU 過渡 assertion**：以 superuser 建一筆 `unbound@example.test` 的 profile＋`care_access`（`user_id` NULL、無 `auth.users` 列）→ 任意 `sub` 配該 email 可讀（過渡期預期）→ 模擬首次登入 `UPDATE user_id = <sub A>` → `<sub B>` 配同 email 必須讀不到。整段包在 SAVEPOINT 內回滾。
 4. **新增 CASCADE assertion**：superuser 在 SAVEPOINT 內 `DELETE FROM auth.users WHERE id = <viewer uid>`，斷言 viewer 的 `care_access` 列消失，然後回滾。
 5. 既有「撤銷後立即失效」「view-only 不可寫」「unauthorized 讀不到」全部保留，且要在**綁定後的 claims** 下通過。
@@ -214,7 +214,7 @@ WHERE ca.user_id IS NULL
 ### 5.2 單位 3
 
 - 前提（營運檢查，不是程式）：在 staging 與 production 各執行一次唯讀 `SELECT count(*) FROM care_access WHERE user_id IS NULL`（只看數字、不列 email）；非零的列逐筆決定是「對方從未登入的授權 → 撤銷」還是「等他登入」；`scripts/seed-staging.ts` 要先確認它寫的 email 在 staging 都有 `auth.users`，否則 `NOT NULL` 上線後 seed 會失敗。
-- **migration 自我檢查在 CI 也要能通過，但不靠放寬檢查本身**：migration 一開始會用 `SELECT count(*) FROM care_access WHERE user_id IS NULL` 自我檢查前提是否成立，非零就 `RAISE EXCEPTION` 中止，無條件執行，不因環境不同而放寬。但 CI 的 `replay-local-migrations`（`supabase db start` 快速重播）不啟動 Auth 服務，從零重播時 `auth.users` 是空的，歷史上以字面 email 授權的 7 列 `care_access` 全部綁不到，這個檢查在 CI 會確定性失敗——曾經試過在 migration 裡加「auth.users 是空的就跳過／清空未綁定列」的條件，已證實會刪掉 `seed.sql` 稍後才會正確綁定回去的既有列，已改回無條件檢查；也試過在 workflow 裡「先搬開單位 1–3、套用 seed 之後再放回」，但 `20260914120000` 依賴單位 2 定義的 `current_care_access()`、`seed.sql` 依賴單位 1 新增的 `user_id` 欄位，順序一調就在 CI 之前壞掉（本機以純 Postgres 重播實證），且搬開的檔名在合併時已改成 `20260914130000`，那一版 workflow 從未成功跑過。現行解法：`verify-supabase-migrations.yml` 在 `supabase db start` **之前**用 awk 把 `supabase/seed.sql` 既有的 `auth.users` 區塊原樣擷取成排序最前的第一支 migration（版本 `20000101000000`，只存在於 runner），讓 CI 專用的假 `auth.users` 身分在所有真實 migration 之前就存在——這正是 staging／production 的真實起點（帳號早就登入過）。不另開 fixture 檔重複這些 email：`seed.sql` 已是 repo 內 CI／本機假身分的唯一來源與既有例外。該區塊除了原有的七個身分，還補上 `neneknancylee`／`demo-oauth-tester`／`joseguitarra17` 三個歷史 migration 直接以字面 email 寫入 `care_access` 的對象，因為從零重播時這三列一定存在、綁定靠 email 相符（不能改用合成 email）、而 staging 上它們已是「已綁定或已撤銷」（count = 0）。`tests/unit/ciAuthUsersFixture.test.ts` 鎖住 `seed.sql` 區塊與 workflow 擷取步驟不漂移。**本機從零 `supabase db reset` 也會撞到同一條自我檢查**，做法相同：先用同一條 awk 把區塊擷取進 `supabase/migrations/` 再 reset，事後刪掉，不要 commit。
+- **migration 自我檢查在 CI 也要能通過，但不靠放寬檢查本身**：migration 一開始會用 `SELECT count(*) FROM care_access WHERE user_id IS NULL` 自我檢查前提是否成立，非零就 `RAISE EXCEPTION` 中止，無條件執行，不因環境不同而放寬。但 CI 的 `replay-local-migrations`（`supabase db start` 快速重播）不啟動 Auth 服務，從零重播時 `auth.users` 是空的，歷史上以字面 email 授權的 7 列 `care_access` 全部綁不到，這個檢查在 CI 會確定性失敗——曾經試過在 migration 裡加「auth.users 是空的就跳過／清空未綁定列」的條件，已證實會刪掉 `seed.sql` 稍後才會正確綁定回去的既有列，已改回無條件檢查；也試過在 workflow 裡「先搬開單位 1–3、套用 seed 之後再放回」，但 `20260914120000` 依賴單位 2 定義的 `current_care_access()`、`seed.sql` 依賴單位 1 新增的 `user_id` 欄位，順序一調就在 CI 之前壞掉（本機以純 Postgres 重播實證），且搬開的檔名在合併時已改成 `20260914130000`，那一版 workflow 從未成功跑過。現行解法：`verify-supabase-migrations.yml` 在 `supabase db start` **之前**用 awk 把 `supabase/seed.sql` 既有的 `auth.users` 區塊原樣擷取成排序最前的第一支 migration（版本 `20000101000000`，只存在於 runner），讓 CI 專用的假 `auth.users` 身分在所有真實 migration 之前就存在——這正是 staging／production 的真實起點（帳號早就登入過）。不另開 fixture 檔重複這些 email：`seed.sql` 已是 repo 內 CI／本機假身分的唯一來源與既有例外。該區塊除了原有的七個身分，還補上三個歷史 migration 直接以字面 email 寫入 `care_access` 的對象（實際 email 只存在 `seed.sql`，本文不重複列出），因為從零重播時這三列一定存在、綁定靠 email 相符（不能改用合成 email）、而 staging 上它們已是「已綁定或已撤銷」（count = 0）。`tests/unit/ciAuthUsersFixture.test.ts` 鎖住 `seed.sql` 區塊與 workflow 擷取步驟不漂移。**本機從零 `supabase db reset` 也會撞到同一條自我檢查**，做法相同：先用同一條 awk 把區塊擷取進 `supabase/migrations/` 再 reset，事後刪掉，不要 commit。
 - migration：`ALTER COLUMN user_id SET NOT NULL`；policy 改為只有 `user_id = auth.uid()`；trigger 改成解析不到 uid 就 `RAISE EXCEPTION`（fail closed，之後不會再產生未綁定列）；`current_care_access` 拿掉 email 分支。
 - **`(user_id, patient_id)` 唯一索引不能直接加**，因為既有 upsert 全部以 `ON CONFLICT (profile_email, patient_id)` 為 conflict target：帳號改過 email 後，舊列仍以舊 email 為鍵、`user_id` 相同，新 email 的 INSERT 對不到舊 conflict target，會直接撞新唯一索引，讓邀請確認或家庭同步整個中止。要依序做完三件事才能建索引：
   1. **正規化重複列**：找出同一 `(user_id, patient_id)` 卻有多個 `profile_email` 的群組，保留 `profile_email` 等於目前 `auth.users.email` 的那一列，能力欄位取群組 OR，其餘刪除；找不到符合現行 email 的列就中止並輸出計數，不猜。
@@ -235,7 +235,7 @@ WHERE ca.user_id IS NULL
   2. `(profile_email, patient_id)` 唯一鍵：同一位 patient 若已有一列「新 email 但綁在別的 `user_id`」（email 曾屬於別的帳號、那一列還沒被撤銷或 CASCADE 掉），`NOT EXISTS` 讓同步略過本人那一筆——不猜、不合併，留給 owner 依 `set_household_patient_access` 既有的「先撤銷舊授權」規則處理。
   3. 同步失敗不阻斷登入：整段包在 `BEGIN … EXCEPTION WHEN OTHERS` 裡，失敗只回 0、寫 WARNING 並維持同步前狀態；前端對 RPC 錯誤也只 `console.error` 後照常讀取身分。讓登入／`auto_provision_profile` 整支失敗會連個人空間都進不去，比現況更糟。這不是授權判斷，所以不適用 fail closed。
 - **policy 數量**：#774 盤點時是 83 條；§3.1 規劃時是 94 條；本 PR 本機重播時 `pg_policies` 裡引用 `care_access` 的已超過 100 條（後續 migration 持續新增）。文件裡的數字只是盤點快照。做法 1 施工時（無 Docker）改以「靜態重播 `supabase/migrations` 全部 `CREATE`／`ALTER`／`DROP POLICY`、取每條 policy 最後定義」建構清單：123 條 live policy 中 102 條提到 `profile_email`，其中 101 條是 `care_access` 子查詢的 email 比對（40 張表，含 `storage.objects` 5 條），剩下 1 條（`active_patient_preferences` SELECT）比對的是自己那一列的 `profile_email` 欄位、不在範圍內；83／94 都低估了。
-- **觸發器面**：`bind_care_access_user_id_trigger` 只在 `NEW.user_id IS NULL` 時解析身分，這裡 `user_id` 早已 NOT NULL，不會進 fail-closed 分支；`enforce_mother_patient_only_access_trigger` 只在新 email 是媽媽帳號且 patient 不是她本人時 `RETURN NULL`（靜默略過該列），不會 RAISE、不可能放寬。
+- **觸發器面**：`bind_care_access_user_id_trigger` 只在 `NEW.user_id IS NULL` 時解析身分，這裡 `user_id` 早已 NOT NULL，不會進 fail-closed 分支；`enforce_mother_patient_only_access_trigger` 只在新 email 是病人本人帳號且 patient 不是本人時 `RETURN NULL`（靜默略過該列），不會 RAISE、不可能放寬。
 - **驗證**：本機純 Postgres 重播全部 migration → `seed.sql` → `rls-authorization.sql`（bootstrap 最小 `auth`／`storage` shim，不進 repo）；PR 觸發 `verify-supabase-migrations`。
 - **收尾（已施工，2026-09-15）**：`20260915100000_bind_downstream_policies_to_care_access_user_id.sql` 用 `ALTER POLICY` 逐條把 101 條 policy 的 `LOWER(access.profile_email) = LOWER(auth.jwt() ->> 'email')` 換成 `access.user_id = auth.uid()`；名稱、指令、角色與其他條件（`patient_id` 對應、能力位、`recorded_by`／`created_by` 記錄者稽核、`is_admin_email()`、storage path 前綴）逐字不動，所以 `verify-restore.ts` 比對的 policy 身分集合**不需要**更新（§3.1 反對逐條重寫的「diff 上千行」顧慮，靠「只換一個述詞、其他逐字保留、reviewer 可 diff 對照」化解）。檔尾以 `pg_depend` 自我檢查（查 policy 對 `care_access.profile_email` 欄位的 catalog 依賴，不比對 `pg_policies` 反解析文字，別名或引號怎麼寫都躲不掉）沒有任何 policy 還在比對 `access.profile_email`，漏一條就讓 `db push` 失敗；`ALTER POLICY` 對不存在的 policy 直接報錯（不用 `IF EXISTS`），環境 policy 集合跟 repo 不一致時也會擋下。`rls-authorization.sql` 的 `f5_unit3_uid_only` (c) 與 `f5_unit4_email_sync` 前置斷言已反轉成「快照過期仍讀得到」；`tests/unit/downstreamPolicyUidOnlyMigration.test.ts` 靜態鎖定 101 條身分清單、只用 `ALTER POLICY`、無殘留 email 比對。本節的同步 RPC 保留（無害、仍讓稽核快照跟上 JWT email）。
 
@@ -246,7 +246,7 @@ WHERE ca.user_id IS NULL
 | 靜態契約 | `bun test tests/unit/careAccessIdentityBindingMigration.test.ts`（單位 1 新增） | 全綠；`bun test tests/unit` 其餘不受影響 |
 | Migration replay + runtime RLS | PR 觸發 `verify-supabase-migrations`（改到 `supabase/migrations/**`、`supabase/tests/**`、`supabase/seed.sql` 都會觸發） | replay 成功；`rls-authorization.sql` 舊有 assertions＋§4.3 新增四組全過。本機沒有 Docker 時不得 `pip install` 或改用其他工具鏈，以 CI 結果為準並在 PR 註明 |
 | 還原演練 | 合併後下一次 `database-backup.yml` 的 restore drill | `verify-restore.ts` 的 policy 集合比對與 RLS assertions 仍綠（這是動態 `sub` 的驗收點） |
-| Staging 實測（人工，migration 由 staging workflow 自動套用後） | (1) 三個核心帳號登入，各自能看到並讀寫媽媽的血壓／藥單；(2) 用 staging 測試帳號走一次「邀請家人 → 申請 → owner 確認」，用唯讀查詢確認新列 `user_id IS NOT NULL`；(3) owner 撤銷後對方立即被拒；(4) **CASCADE 實測**：用一個可拋棄的 staging Google 帳號登入取得授權，在 Supabase Dashboard 刪除該 `auth.users` 列後，確認其 `care_access` 已 CASCADE 消失；再以同 email 重新登入，確認拿到的是全新 uid 且沒有任何授權（這一步只證明 CASCADE 與「刪帳號後重新登入不繼承」，**不能**證明 automatic linking）；(5) **automatic linking**：只有在有 Google Workspace 測試網域、能把同一個地址重新指派給另一個 Google identity時才做——保留舊的 `auth.users` 列不刪，以新 identity 登入，查看 session 的 `sub` 是否等於舊 uid。做不到就維持「未驗證」，不得改寫 §1.2 的措辭 | (1)～(4) 皆符合；(5) 若無法執行，在 `security-review-handoff.md` 明寫未驗證。任何一項不符即停止 promotion 並回到本檔修訂設計 |
+| Staging 實測（人工，migration 由 staging workflow 自動套用後） | (1) 三個核心帳號登入，各自能看到並讀寫病人本人的血壓／藥單；(2) 用 staging 測試帳號走一次「邀請家人 → 申請 → owner 確認」，用唯讀查詢確認新列 `user_id IS NOT NULL`；(3) owner 撤銷後對方立即被拒；(4) **CASCADE 實測**：用一個可拋棄的 staging Google 帳號登入取得授權，在 Supabase Dashboard 刪除該 `auth.users` 列後，確認其 `care_access` 已 CASCADE 消失；再以同 email 重新登入，確認拿到的是全新 uid 且沒有任何授權（這一步只證明 CASCADE 與「刪帳號後重新登入不繼承」，**不能**證明 automatic linking）；(5) **automatic linking**：只有在有 Google Workspace 測試網域、能把同一個地址重新指派給另一個 Google identity時才做——保留舊的 `auth.users` 列不刪，以新 identity 登入，查看 session 的 `sub` 是否等於舊 uid。做不到就維持「未驗證」，不得改寫 §1.2 的措辭 | (1)～(4) 皆符合；(5) 若無法執行，在 `security-review-handoff.md` 明寫未驗證。任何一項不符即停止 promotion 並回到本檔修訂設計 |
 | 語意化安全審查 | 本機 `/security-review`（載入 `ai-security-review-prompt.md` 與 `ai-security-review-false-positives.md`），並依 `docs/ai/model-routing.md` 交由獨立模型複審 | Critical／High 為零或有人工 disposition；結果回寫 `security-review-handoff.md` |
 
 驗證時**不得**讀取 secret、真實健康資料或對 production 做任何試探；staging 查詢只回傳計數。
@@ -277,7 +277,7 @@ WHERE ca.user_id IS NULL
 
 | 觸點 | 為什麼會浮上來 | 延後到哪個時間點 | 設計時要回答的問題 |
 | --- | --- | --- | --- |
-| 家庭管理頁的照護者清單顯示「尚未登入／已綁定」 | 單位 3 的前提是「`user_id IS NULL` 的列已處置」。現在 owner 只看得到 email 清單，看不出哪些人從沒登入過、哪些是「留著沒用的鑰匙」；營運上得靠 SQL 查計數 | 單位 2 合併後、單位 3 之前 | `fetch_household_patient_access` 是否多回傳一個 `bound: boolean`；未綁定要不要在列上給「提醒對方登入」／「撤銷」兩個動作；三語文案怎麼寫才不會讓家屬以為「未綁定＝資料外洩」 |
+| 家庭管理頁的照護者清單顯示「尚未登入／已綁定」 | 單位 3 的前提是「`user_id IS NULL` 的列已處置」。現在 owner 只看得到 `CaregiverInvitationManagement` 的邀請清單（原本顯示 `fetch_household_patient_access` 的「家庭成員與照護授權」畫面已於 #1173 移除，這個觸點現在要加在邀請清單上），看不出哪些人從沒登入過、哪些是「留著沒用的鑰匙」；營運上得靠 SQL 查計數 | 單位 2 合併後、單位 3 之前 | `fetch_household_patient_access` 是否多回傳一個 `bound: boolean`；未綁定要不要在列上給「提醒對方登入」／「撤銷」兩個動作；三語文案怎麼寫才不會讓家屬以為「未綁定＝資料外洩」 |
 | 「照護者離開時撤銷」的引導 | §1.2 第 3 點：email 回收靠撤銷或刪帳號擋，不靠 `user_id`。撤銷入口已存在（`CaregiverInvitationManagement` 的 `revoke_caregiver_access`），但沒有任何地方提醒 owner「人離開了記得撤銷」 | 與上一列同一次設計 | 是放在家庭管理頁的常駐說明、還是只在「超過 N 天未登入」時才出現；要不要在公開教學頁 `/guides/family-invitations` 補一段 |
 | 刪除帳號確認框的說明文字 | §3.5 的 `ON DELETE CASCADE` 讓「刪帳號」多了一層語意：同時移除你對所有病人的照護授權（以前是 RPC 自己刪，語意相同但沒寫在畫面上） | 單位 1 合併後即可，改的只是 `DeleteAccountModal` 的三語文案 | 一句話讓看護與家屬都懂：「刪除後你將無法再看到或記錄任何人的資料；家人若要你回來，需重新邀請」 |
 | 分享連結因建立者帳號被刪而失效 | 附錄 B 最後一列：`patient_share_links` 改以 `created_by_user_id` 檢查後，建立者刪帳號＝連結立即失效，接收端只會看到既有的中性「連結無效或已過期」 | 不需要新畫面；只在 `docs/product/family-invitations.md`／分享連結說明補一句 | 是否需要在管理頁的連結列表顯示「建立者已離開」 |

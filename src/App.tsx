@@ -5,19 +5,23 @@
 公開路由（Privacy／Terms／Releases／Guides／Share）已抽到 components/system/PublicRouteSwitch；
 登入後外殼的各項副作用與狀態拆到 hooks/useAppChromeEffects、useLegalConsentStatus、useInvitationHandling、
 useMedicationDisplayPreferences、useDailyCareOnboarding、useActiveSubject、useBloodPressureSession
-（issue #764 App.tsx 拆分，純搬移不改行為）。
+（issue #764 App.tsx 拆分，純搬移不改行為）；iOS 鎖屏血壓倒數的同步另在 useBloodPressureLiveActivity（issue #865）；
+Siri 捷徑的語音喚起由 components/system/NativeShortcutNavigator 接收，實際切換分頁仍走本檔的 openDailyCareModule（issue #868）。
 已無獨立的「報告」底部分頁——趨勢與報告已回到各照護模組，封存對象的唯讀歷史改由
 SettingsPage 底下的 ArchivedPatientHistoryPage 提供，詳見 docs/features/vitals.md。
 */
 import { useCallback, useMemo, useRef, useState, lazy, Suspense } from 'react'
-import type { ComponentType } from 'react'
+import type { ComponentType, ReactNode } from 'react'
 import { useAuth } from './hooks/useAuth'
 import { isLineBrowser, isAdministratorEmail, type Subject } from './lib/auth'
 import { useMedicationCatalogCuratorAccess } from './features/system-admin/hooks/useMedicationCatalogCuratorAccess'
 import { saveActivePatientPreference } from './lib/preferences/activeSubjectPreference'
 import { BpStandardProvider } from './features/vitals/hooks/useBpEvaluator'
+import { BloodPressureQueueProvider } from './features/vitals/hooks/BloodPressureQueueProvider'
+import { MedicationQueueProvider } from './features/medication/hooks/MedicationQueueProvider'
+import { BloodPressureSaveRejectedBanner } from './features/vitals/components/BloodPressureSaveRejectedBanner'
 import { resolveWritableSubject } from './lib/careSubjectGuard'
-import { buildDailyCareDisplaySettingsHash, DAILY_CARE_DISPLAY_SETTINGS_ANCHOR, visibleDailyCareModules as getVisibleDailyCareModules, type DailyCareModuleId } from './lib/dailyCareModules'
+import { DAILY_CARE_DISPLAY_SETTINGS_ANCHOR, resolveDailyCareModuleOpen, visibleDailyCareModules as getVisibleDailyCareModules, type DailyCareModuleId } from './lib/dailyCareModules'
 import { markOnboardingWizardCompleted, type OnboardingCareTarget } from './lib/onboardingWizard'
 import { OnboardingWizard } from './components/onboarding/OnboardingWizard'
 import { common, useI18n } from './lib/i18n'
@@ -35,6 +39,7 @@ import { PatientInvitationJoinPage } from './features/care-family/pages/PatientI
 import { PatientInvitationScreen } from './features/care-family/components/PatientInvitationScreen'
 import { CaregiverInvitationScreen } from './features/care-family/components/CaregiverInvitationScreen'
 import { BloodPressureCountdownBanner } from './components/ui/BloodPressureCountdownBanner'
+import { NativeShortcutNavigator } from './components/system/NativeShortcutNavigator'
 import { consumePwaShortcutQuery, resolvePwaShortcutTarget } from './lib/pwaShortcuts'
 import { usePublicRoute } from './components/system/PublicRouteSwitch'
 import { DemoModeBanner } from './components/system/DemoModeBanner'
@@ -48,6 +53,7 @@ import { useMedicationDisplayPreferences } from './hooks/useMedicationDisplayPre
 import { useDailyCareOnboarding } from './hooks/useDailyCareOnboarding'
 import { useActiveSubject } from './hooks/useActiveSubject'
 import { useBloodPressureSession } from './hooks/useBloodPressureSession'
+import { useBloodPressureLiveActivity } from './hooks/useBloodPressureLiveActivity'
 
 // 包裝 React.lazy 以提供網路出錯或版本更新時的自動重試機制。
 const lazyWithRetry = (importFn: () => Promise<{ default: ComponentType<any> }>) =>
@@ -139,6 +145,8 @@ export default function App() {
     userId,
     resolvedSelectedPatientId,
   })
+  // 同一個 currentMeasurementSession 同時餵 App 內 banner 與 iOS 鎖屏倒數，兩邊不會各自計時而不同步（issue #865）。
+  useBloodPressureLiveActivity({ session: currentMeasurementSession, locale, loading })
 
   const {
     medicationSlotsExpanded,
@@ -165,6 +173,7 @@ export default function App() {
     dailyCarePreference,
     useCustomDailyCareTemplate,
     dailyCareSettingsSaving,
+    dailyCarePreferenceLoadedPatientId,
     dailyCareSettingsError,
     onboardingWizardPatientId,
     setOnboardingWizardPatientId,
@@ -188,7 +197,7 @@ export default function App() {
     [dailyCarePreference, canUseMedication, activePatientCareRecipientType, useCustomDailyCareTemplate],
   )
 
-  const { privacyPolicyStatus, setPrivacyPolicyStatus, healthConsentStatus, setHealthConsentStatus } = useLegalConsentStatus(userId)
+  const { privacyPolicyStatus, setPrivacyPolicyStatus, healthConsentStatus, setHealthConsentStatus, termsUpdateRequired, privacyUpdateRequired } = useLegalConsentStatus(userId)
 
   const {
     pendingPatientInvitations,
@@ -230,7 +239,7 @@ export default function App() {
 
   if (loading) {
     return (
-      <div className="h-dvh flex items-center justify-center bg-white text-gray-400 text-sm">
+      <div className="h-dvh flex items-center justify-center bg-white text-slate-500 text-sm">
         {text(common.loading)}
       </div>
     )
@@ -243,7 +252,7 @@ export default function App() {
       // 否則畫面會先閃一次「未授權」才變成藥品目錄分頁，讓真正的 curator 誤以為自己沒有權限。
       if (curatorAccessLoading) {
         return (
-          <div className="h-dvh flex items-center justify-center bg-white text-gray-400 text-sm">
+          <div className="h-dvh flex items-center justify-center bg-white text-slate-500 text-sm">
             {text(common.loading)}
           </div>
         )
@@ -252,11 +261,11 @@ export default function App() {
     }
     return (
       <Suspense fallback={
-        <div className="h-dvh flex items-center justify-center bg-white text-gray-400 text-sm">
+        <div className="h-dvh flex items-center justify-center bg-white text-slate-500 text-sm">
           {text(common.loading)}
         </div>
       }>
-        <div className="flex h-dvh flex-col bg-gray-50">
+        <div className="flex h-dvh flex-col bg-slate-50">
           <AppStatusBar />
           <div className="min-h-0 flex-1"><AdminPage isAdministrator={isAdministratorUser} isCatalogCurator={isCatalogCurator} /></div>
         </div>
@@ -270,32 +279,49 @@ export default function App() {
     return <LoginScreen onEnterDemo={enterDemoMode} />
   }
 
-  if (!isDemoMode && (privacyPolicyStatus === 'idle' || privacyPolicyStatus === 'loading' || healthConsentStatus === 'idle' || healthConsentStatus === 'loading')) return <div className="h-dvh flex items-center justify-center bg-white text-sm text-gray-400">{text(common.loading)}</div>
-  if (!isDemoMode && privacyPolicyStatus !== 'ready') return <PrivacyPolicyUpdateScreen onAccepted={async () => { setPrivacyPolicyStatus('ready') }} />
+  if (!isDemoMode && (privacyPolicyStatus === 'idle' || privacyPolicyStatus === 'loading' || healthConsentStatus === 'idle' || healthConsentStatus === 'loading')) return <div className="h-dvh flex items-center justify-center bg-white text-sm text-slate-500">{text(common.loading)}</div>
+  if (!isDemoMode && privacyPolicyStatus !== 'ready') return <PrivacyPolicyUpdateScreen showTermsUpdate={termsUpdateRequired} showPrivacyUpdate={privacyUpdateRequired} onAccepted={async () => { setPrivacyPolicyStatus('ready') }} />
   if (!isDemoMode && healthConsentStatus !== 'ready') return <HealthDataConsentScreen onAccepted={async () => { setHealthConsentStatus('ready') }} />
 
-  if (currentPath === '/join') return <CaregiverInvitationJoinPage userEmail={user?.email} />
-  if (currentPath === '/patient-invite') return <PatientInvitationJoinPage userEmail={user?.email} />
+  const withMedicationQueue = (node: ReactNode) => (
+    <MedicationQueueProvider patientId={resolvedSelectedPatientId ?? ''} userEmail={effectiveUserEmail}>{node}</MedicationQueueProvider>
+  )
+
+  // 登入後、進到主殼層之前還有幾個會擋住 App 好幾分鐘的畫面（邀請連結頁、邀請、精靈）。血壓與服藥佇列在這些畫面仍要補送，
+  // 否則登入後停在邀請等待頁時，連線恢復也沒有人接手。寫成函式而不是元件：定義在 render 內的元件
+  // 每次重繪都是新的型別，React 會把補送器整個卸載重掛、丟掉它的狀態；函式只是回傳同一組既有元件的 JSX。
+  // BpStandardProvider 是補送器的前提；還沒有照護對象時給空字串，補送器對「畫面上這位」不會讀到任何桶，只補送其他人的。
+  const withBloodPressureQueue = (node: ReactNode) => (
+    <BpStandardProvider patientId={resolvedSelectedPatientId ?? ''}>
+      <BloodPressureQueueProvider patientId={resolvedSelectedPatientId ?? ''} userEmail={effectiveUserEmail}>
+        {withMedicationQueue(node)}
+      </BloodPressureQueueProvider>
+    </BpStandardProvider>
+  )
+
+  // 已登入的照護者打開邀請連結後，可能停在「已申請、等擁有者」的畫面好幾天（第三輪 Codex P1）。
+  if (currentPath === '/join') return withBloodPressureQueue(<CaregiverInvitationJoinPage userEmail={user?.email} />)
+  if (currentPath === '/patient-invite') return withBloodPressureQueue(<PatientInvitationJoinPage userEmail={user?.email} />)
 
   // 被照顧者尚未有自己的 profile 時，先處理明確邀請，不能讓 auto-provision 先建立另一個私人病人。
   if (!isDemoMode && user && !subject && patientInvitationLoadError) {
-    return <PatientInvitationScreen invitations={[]} loadFailed onRetry={() => setPatientInvitationLoadAttempt(attempt => attempt + 1)} onResolved={handlePatientInvitationResolved} />
+    return withBloodPressureQueue(<PatientInvitationScreen invitations={[]} loadFailed onRetry={() => setPatientInvitationLoadAttempt(attempt => attempt + 1)} onResolved={handlePatientInvitationResolved} />)
   }
-  if (!isDemoMode && user && !subject && pendingPatientInvitations === null) return <div className="h-dvh flex items-center justify-center bg-white text-sm text-gray-400">{text(common.loading)}</div>
+  if (!isDemoMode && user && !subject && pendingPatientInvitations === null) return withMedicationQueue(<div className="h-dvh flex items-center justify-center bg-white text-sm text-slate-500">{text(common.loading)}</div>)
   if (!isDemoMode && user && pendingPatientInvitations && pendingPatientInvitations.length > 0) {
-    return <PatientInvitationScreen invitations={pendingPatientInvitations} onResolved={handlePatientInvitationResolved} />
+    return withBloodPressureQueue(<PatientInvitationScreen invitations={pendingPatientInvitations} onResolved={handlePatientInvitationResolved} />)
   }
 
   if (!isDemoMode && user && caregiverInvitationsRequiringRequest.length > 0) {
     // requested 已完成受邀者動作，應讓有既有照護工作的使用者回到 App 等待 owner，而不是被邀請畫面鎖住。
-    return <CaregiverInvitationScreen invitations={caregiverInvitationsRequiringRequest} onRequested={invitationId => setPendingCaregiverInvitations(current => current.map(invitation => invitation.invitationId === invitationId ? { ...invitation, status: 'requested' } : invitation))} />
+    return withBloodPressureQueue(<CaregiverInvitationScreen invitations={caregiverInvitationsRequiringRequest} onRequested={invitationId => setPendingCaregiverInvitations(current => current.map(invitation => invitation.invitationId === invitationId ? { ...invitation, status: 'requested' } : invitation))} />)
   }
 
-  if (!isDemoMode && user && !subject) return <UnauthorizedScreen email={user.email} />
+  if (!isDemoMode && user && !subject) return withMedicationQueue(<UnauthorizedScreen email={user.email} />)
 
   if (!activeSubject) {
-    return (
-      <div className="h-dvh flex items-center justify-center bg-white text-gray-400 text-sm">
+    return withMedicationQueue(
+      <div className="h-dvh flex items-center justify-center bg-white text-slate-500 text-sm">
         {text(common.loading)}
       </div>
     )
@@ -304,16 +330,25 @@ export default function App() {
   const selectedPatientId = resolvedSelectedPatientId
   const resolvedOwnPatientId = ownPatientId ?? ''
   if (!selectedPatientId) {
-    return (
-      <div className="h-dvh flex items-center justify-center bg-white px-6 text-center text-sm text-gray-500">
+    return withMedicationQueue(
+      <div className="h-dvh flex items-center justify-center bg-white px-6 text-center text-sm text-slate-500">
         {text({ id: 'Data keluarga belum siap. Silakan hubungi keluarga.', zh: '家庭資料尚未完成設定，請聯絡家屬。' ,en: 'Family information is not yet set up, please contact a family member.' })}
       </div>
     )
   }
   const canConfigureActiveSubject = effectiveAccessibleSubjects.length > 1
+  // Siri 捷徑（issue #868）「語音沒有指名對象，多位時不猜」（AGENTS.md § 3.5）的判斷。刻意不重用 canConfigureActiveSubject：
+  // 那個旗標的語意是設定頁「能不能切換對象」，之後若加上權限條件，會悄悄關掉這道防線。
+  // 這裡數的是外殼對象選擇器裡的對象：含只能查看的對象、不含已封存的，帳號本人一定算一位。
+  const hasMultipleSubjects = effectiveAccessibleSubjects.length > 1
 
   if (!isDemoMode && onboardingWizardPatientId && onboardingWizardPatientId === selectedPatientId) {
     return (
+      // 精靈可能開著好幾分鐘；這段期間另一位病人離線暫存的血壓一樣要補送、家屬一樣要收到通知（PR #1218 Codex P1），
+      // 所以補送器在這裡也要掛著。BpStandardProvider 是補送器的前提（評畫面上這位的等級用）。
+      <BpStandardProvider patientId={selectedPatientId}>
+      <BloodPressureQueueProvider patientId={selectedPatientId} userEmail={effectiveUserEmail}>
+      <MedicationQueueProvider patientId={selectedPatientId} userEmail={effectiveUserEmail}>
       <OnboardingWizard
         // 用病人 id 當 key：換病人時強制整個精靈重新掛載，避免上一位病人已經選到一半的答案
         // （物種、勾選項目）留在同一個元件實例裡，被誤存成下一位病人的每日照護設定。
@@ -331,6 +366,9 @@ export default function App() {
           setOnboardingWizardPatientId(null)
         }}
       />
+      </MedicationQueueProvider>
+      </BloodPressureQueueProvider>
+      </BpStandardProvider>
     )
   }
 
@@ -357,6 +395,20 @@ export default function App() {
     setTab(nextTab)
   }
 
+  // 「打開某個照護模組」的唯一實作，今天頁的一步操作（issue #752）與 Siri 捷徑（issue #868）共用：
+  // 病人若已在設定關掉該模組，「照護」頁會找不到這個分頁而靜默退到別的分頁，使用者完全看不出發生什麼事，
+  // 所以先確認可見性，不可見時直接帶去顯示設定卡並指名該項目。
+  const openDailyCareModule = (moduleId: DailyCareModuleId) => {
+    const action = resolveDailyCareModuleOpen(moduleId, visibleDailyCareModules)
+    if (action.kind === 'openSection') {
+      setDailyCareSectionRequest(action.moduleId)
+      changeTab('dailyCare')
+      return
+    }
+    window.location.hash = action.hash
+    changeTab('settings')
+  }
+
   return (
     /*
       血壓判讀標準的掛載點（issue #898）。掛在這一層而不是各頁自己接，是因為
@@ -366,11 +418,44 @@ export default function App() {
       封存對象的唯讀歷史頁另有巢狀 Provider 覆蓋這一層，見 BloodPressureReportPanel。
     */
     <BpStandardProvider patientId={selectedPatientId}>
+    {/* 血壓離線佇列的常駐補送器（issue #1138）。掛在殼層而不是血壓輸入區段：看護離線存了危險血壓後切到今天頁，
+        連線恢復時補送與家屬通知不能等有人再打開血壓區段。必須在 BpStandardProvider 之內——補送到畫面上這位的紀錄時
+        要用她的判讀標準決定要不要提示「家人沒收到」。 */}
+    <BloodPressureQueueProvider patientId={selectedPatientId} userEmail={effectiveUserEmail}>
+    {/* 服藥佇列的常駐擁有者（issue #1228）：切到設定或別的 tab 後仍要接住 online／回前景事件，並補送此帳號各病人的分桶。 */}
+    <MedicationQueueProvider patientId={selectedPatientId} userEmail={effectiveUserEmail}>
     <div className="app-shell flex h-dvh flex-col mx-auto max-w-md">
       {isDemoMode && <DemoModeBanner onExitDemoMode={() => exitDemoMode()} />}
       <AppStatusBar />
       <BloodPressureCountdownBanner session={currentMeasurementSession} />
       {archivedSubjectNotice && <ArchivedSubjectNotice onDismiss={() => setArchivedSubjectNotice(false)} />}
+      {/* 離開血壓頁或換病人後才被拒絕的線上血壓儲存（issue #1117）：輸入頁沒開著時只有這裡能講「剛才那筆沒存進去」；
+          回到那位病人的輸入頁後由輸入頁接手顯示，橫幅自動消失。掛在對象提示之下、分頁內容之上，哪一個分頁都看得到。 */}
+      <BloodPressureSaveRejectedBanner
+        selectedPatientId={selectedPatientId}
+        patients={allAccessiblePatients}
+        switchablePatientIds={accessiblePatients.map(patient => patient.patientId)}
+        onOpenBloodPressure={() => openDailyCareModule('bloodPressure')}
+        onSwitchTo={rejectedPatientId => {
+          // 用病人 id 反查對象鍵：切換器與偏好都以 subject 為鍵，被拒絕的那筆只記 patient_id（§ 3.5）。
+          // 只認 accessiblePatients（不含已封存）：patientIdsBySubject 含封存對象，從這裡切過去會讓封存對象變成可寫入的現役對象
+          //（PR #1219 Codex 第二輪 P1）；封存對象的紀錄只能在設定頁唯讀查看。
+          if (!accessiblePatients.some(patient => patient.patientId === rejectedPatientId)) return
+          const entry = Object.entries(patientIdsBySubject).find(([, candidatePatientId]) => candidatePatientId === rejectedPatientId)
+          if (entry) changeActiveSubject(entry[0])
+        }}
+      />
+      {/* Siri 捷徑（issue #868）：外殼走到這裡才表示登入、同意與對象都已就緒，所以在這裡才訂閱；
+          多位照護對象時停在今天頁並提示先選對象，不由語音決定是誰（AGENTS.md § 3.5）。 */}
+      <NativeShortcutNavigator
+        // 偏好讀完才處理：冷啟動時 dailyCarePreference 還是預設值（全部可見），拿它判斷會先開到病人已關掉的模組。
+        ready={dailyCarePreferenceLoadedPatientId !== null && dailyCarePreferenceLoadedPatientId === activePatientId}
+        tab={tab}
+        hasMultipleSubjects={hasMultipleSubjects}
+        activePatientId={selectedPatientId}
+        onOpenModule={openDailyCareModule}
+        onChooseSubject={() => changeTab('today')}
+      />
 
       {demoHandoffNotice && (
         <DemoHandoffNotice
@@ -385,7 +470,7 @@ export default function App() {
 
       <main className="flex-1 min-h-0 overflow-y-auto bg-slate-50">
         <Suspense fallback={
-          <div className="h-full flex items-center justify-center bg-slate-50 text-gray-400 text-sm">
+          <div className="h-full flex items-center justify-center bg-slate-50 text-slate-500 text-sm">
             {text(common.loading)}
           </div>
         }>
@@ -403,17 +488,7 @@ export default function App() {
                 medicationSlotsExpanded={medicationSlotsExpanded}
                 medicationNameEnglishFirst={medicationNameEnglishFirst}
                 caregiverDensityMode={caregiverDensityMode}
-                onOpenBloodPressureMeasurement={() => {
-                  // issue #752：病人若已在設定關掉血壓模組，「照護」頁會找不到這個分頁而靜默退到別的分頁，
-                  // 使用者完全看不出發生什麼事。改成先確認可見性，不可見時直接帶去顯示設定卡並指名血壓項目。
-                  if (visibleDailyCareModules.some(module => module.id === 'bloodPressure')) {
-                    setDailyCareSectionRequest('bloodPressure')
-                    changeTab('dailyCare')
-                    return
-                  }
-                  window.location.hash = buildDailyCareDisplaySettingsHash('bloodPressure')
-                  changeTab('settings')
-                }}
+                onOpenBloodPressureMeasurement={() => openDailyCareModule('bloodPressure')}
                 onOpenReminders={() => { setDailyCareSectionRequest('careReminders'); changeTab('dailyCare') }}
                 onOpenHistory={() => changeTab('events')}
               />
@@ -440,6 +515,8 @@ export default function App() {
 
       {!keyboardOpen && <BottomNav tab={tab} onChangeTab={changeTab} />}
     </div>
+    </MedicationQueueProvider>
+    </BloodPressureQueueProvider>
     </BpStandardProvider>
   )
 }

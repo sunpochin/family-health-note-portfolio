@@ -23,7 +23,7 @@ export const SHARE_LINK_PRIVACY_INTRO: LocalizedText = {
 export const SHARE_LINK_PRIVACY_ITEMS: ReadonlyArray<{ label: LocalizedText; body: LocalizedText }> = [
   {
     label: { id: 'Pengendali data:', zh: '資料控制者：', en: 'Data controller:' },
-    body: { id: 'Pengembang perorangan portfolio-author (bukan perusahaan); kontak tercantum di bagian "Hubungi Kami" pada Kebijakan Privasi.', zh: '個人開發者 portfolio-author（非公司），聯絡方式見隱私權條款的「聯絡我們」。', en: 'The individual developer portfolio-author (not a company); contact details are in the "Contact Us" section of the Privacy Policy.' },
+    body: { id: 'Pengembang perorangan demo-xq7 (bukan perusahaan); kontak tercantum di bagian "Hubungi Kami" pada Kebijakan Privasi.', zh: '個人開發者 demo-xq7（非公司），聯絡方式見隱私權條款的「聯絡我們」。', en: 'The individual developer demo-xq7 (not a company); contact details are in the "Contact Us" section of the Privacy Policy.' },
   },
   {
     label: { id: 'Tujuan:', zh: '目的：', en: 'Purpose:' },

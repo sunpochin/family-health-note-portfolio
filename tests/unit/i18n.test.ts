@@ -1,5 +1,5 @@
 /*
-檔案用途：測試三語系（zh／id／en）切換、預設語系解析、localStorage 讀取、通用字典結構與 src 文案的英文欄位掃描。
+檔案用途：測試三語系（zh／id／en）切換、預設語系解析、localStorage 讀取、通用字典結構、src 文案的英文欄位掃描，以及 placeholder 不得寫死中文的守門。
 所在層：tests/unit 單元測試層。
 主要關聯：驗證 src/lib/i18n.tsx 邏輯。
 */
@@ -94,6 +94,32 @@ describe('i18n helpers and initial locale resolution', () => {
     expect(files.some(source => /en:\s*'[^'\n]*\$\{/.test(source) || /en:\s*"[^"\n]*\$\{/.test(source))).toBe(false)
   })
 
+  test('placeholder 屬性不得寫死 CJK 字串，必須走 text({ id, zh, en })', () => {
+    // 為什麼：placeholder 是輸入框裡看得見的系統文字（AGENTS.md § 3.6），但 React 的 placeholder 本來就收任何 string，
+    // 型別檢查擋不住 `placeholder="例：250"`；結果印尼文／英文看護在輸入框看到中文（issue #1094，一次抓到 11 處）。
+    // 只擋「引號直接接字串且含 CJK」：`placeholder={text({ … zh: '例：1' … })}` 與 `placeholder={{ id, zh, en }}` 的
+    // 第一個字元不是引號，不會被誤判；aria-label 等其他屬性（例如 LanguageSwitcher 刻意三語並列）不在本條範圍。
+    const hardcodedCjkPlaceholder = /placeholder\s*=\s*\{?\s*(['"`])((?:\\.|(?!\1)[^\\])*)\1/g
+    const cjk = /[\u3000-\u303f\u3400-\u9fff\uff00-\uffef]/
+    const findHardcoded = (source: string) => [...source.matchAll(hardcodedCjkPlaceholder)].filter(match => cjk.test(match[2])).map(match => match[0])
+
+    // 先證明 regex 本身有效：若它哪天改壞而永遠比不到，下方全庫掃描會靜默通過。
+    expect(findHardcoded('<input placeholder="例：250" />')).toHaveLength(1)
+    expect(findHardcoded("<input placeholder='例：250' />")).toHaveLength(1)
+    expect(findHardcoded("<input placeholder={'例：250'} />")).toHaveLength(1)
+    expect(findHardcoded('<input placeholder={`例：${count}`} />')).toHaveLength(1)
+    expect(findHardcoded('<input placeholder="例：250" />\n<input placeholder="例：4" />')).toHaveLength(2)
+    expect(findHardcoded("<input placeholder={text({ id: 'Contoh: 250', zh: '例：250', en: 'e.g. 250' })} />")).toHaveLength(0)
+    expect(findHardcoded("<Field placeholder={{ id: 'Contoh: 250', zh: '例：250', en: 'e.g. 250' }} />")).toHaveLength(0)
+    expect(findHardcoded('<input placeholder="mg" />')).toHaveLength(0)
+
+    const placeholderCount = readSourceFiles().reduce((total, { source }) => total + (source.match(/placeholder\s*=/g)?.length ?? 0), 0)
+    expect(placeholderCount).toBeGreaterThan(20)
+
+    const offenders = readSourceFiles().flatMap(({ path, source }) => findHardcoded(source).map(snippet => `${path}: ${snippet}`))
+    expect(offenders).toEqual([])
+  })
+
   test('en 欄位與 id 完全相同時，必須是允許清單裡的國際通用字', () => {
     // 為什麼：en 若直接照抄 id 的印尼文，畫面照樣能渲染、型別也過，英文使用者卻看到看不懂的字
     // （issue #920 稽核出 AdminPage「Tanggal daftar」等）。但單位、醫學縮寫、品牌名本來就兩語相同，
@@ -101,7 +127,7 @@ describe('i18n helpers and initial locale resolution', () => {
     const allowedIdenticalValues = new Set([
       '', '%', '—', 'kg', 'kcal', 'ml', 'mg/dL', // 單位與空白佔位
       'Normal', '✓ Normal', 'Insulin', 'Insulin (unit)', 'Total insulin', 'Total:', 'Tablet', 'Vitamin', 'HbA1c', 'Hemoglobin (Hb)', // 兩語同形的醫療用語
-      'Premium', 'Family Health Note', 'Mog-Nee', // 方案與品牌名
+      'Premium', 'Family Health Note', 'Mog-Nee', 'Telegram', 'LINE', // 方案與品牌名
       'Local', 'Development', 'Staging', 'Preview', // 部署環境名稱
     ])
     const literal = /\{\s*id:\s*(['"`])((?:\\.|(?!\1)[^\\])*)\1\s*,\s*zh:\s*(['"`])(?:\\.|(?!\3)[^\\])*\3\s*,\s*en:\s*(['"`])((?:\\.|(?!\4)[^\\])*)\4\s*,?\s*\}/g

@@ -3,10 +3,11 @@
 套用替換規則後產生一份可供 portfolio:check 驗證的乾淨快照。純本機執行，絕不觸網、絕不 push。
 所在層：scripts/portfolio，由 package.json 的 `portfolio:build` 呼叫。
 主要關聯：docs/operations/portfolio-pipeline.md 第 3、4 節；allowlist.ts；
+scripts/portfolio/README.public.md（公開版 README 原稿，人工撰寫）；
 scripts/portfolio/replacements.local.json（私有、版控外，見 replacements.local.json.example）。
 */
 import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs'
-import { dirname, join, relative } from 'node:path'
+import { dirname, join, relative, sep } from 'node:path'
 
 import {
   ALLOWLIST_DIRS,
@@ -15,13 +16,18 @@ import {
   EXCLUDE_WITHIN_ALLOWLIST,
   KEPT_PACKAGE_JSON_SCRIPTS,
 } from './allowlist'
+// 為什麼沿用 checker 的文字判斷：副檔名白名單會漏掉 LICENSE 這類無副檔名文字檔，讓作者資料留在輸出。
+import { isTextFile } from './checkLogic'
+import { planTestPruning } from './testPruneLogic'
 
 const REPO_ROOT = process.cwd()
 const OUTPUT_DIR = join(REPO_ROOT, 'tmp', 'jia-jian-log-portfolio')
 const REPLACEMENTS_PATH = join(REPO_ROOT, 'scripts', 'portfolio', 'replacements.local.json')
-
-// 只對這些副檔名的檔案內容做文字替換；圖片與 lockfile 等二進位／格式敏感檔案不動內容。
-const TEXT_EXTENSIONS = new Set(['.ts', '.tsx', '.js', '.jsx', '.json', '.md', '.css', '.html', '.yml', '.yaml', '.svg', '.txt'])
+// 公開版 README 的原稿。為什麼是獨立的 Markdown 檔而不是寫死在這支腳本的字串裡：README 是面試官
+// 打開公開 repo 第一眼看到的頁面，內容要能像一般文件那樣被審閱、diff 與修改；塞在 TypeScript 樣板
+// 字串裡會讓每次改文案都變成改程式碼，反引號與 `${}` 還得逐一跳脫。它不在 allowlist 裡（公開 repo
+// 只需要根目錄那份產生出來的 README.md），但會跟其他文字檔一起走 3.4 節的替換規則與 check 的禁字掃描。
+const PUBLIC_README_SOURCE = join(REPO_ROOT, 'scripts', 'portfolio', 'README.public.md')
 
 type ReplacementsConfig = {
   minEntries: number
@@ -75,11 +81,6 @@ function loadReplacements(): ReplacementsConfig {
   return { minEntries, literalReplacements: literalReplacements as Record<string, string> }
 }
 
-function isTextFile(path: string): boolean {
-  const ext = path.slice(path.lastIndexOf('.'))
-  return TEXT_EXTENSIONS.has(ext)
-}
-
 function listFilesRecursive(dir: string): string[] {
   const entries = readdirSync(dir, { withFileTypes: true })
   const files: string[] = []
@@ -91,6 +92,31 @@ function listFilesRecursive(dir: string): string[] {
   return files
 }
 
+// 為什麼自動移除而不是只靠 allowlist.ts 的手動排除清單：這類「讀 supabase/migrations、import
+// supabase/functions 或 scripts/」的測試每週都在增加，手動清單每次重新發布前都已經過期
+// （2026-09 第二次發布時一次就多出 40 幾個），而且漏列的後果只是公開版測試紅燈、要人工逐一補。
+// 判斷條件是「私有 repo 有、公開輸出沒有」（見 testPruneLogic.ts），不猜目錄名稱。
+// 必須在所有 allowlist 檔案複製完之後、套用替換規則之前執行：前者才知道公開輸出最終有哪些檔案，
+// 後者讓「某條替換只命中被移除的測試」照樣被判定為沒命中，而不是替已經不公開的檔案做白工。
+function pruneTestsWithUnpublishedDependencies(): void {
+  const testsDir = join(OUTPUT_DIR, 'tests', 'unit')
+  if (!existsSync(testsDir)) return
+  const files = new Map<string, string>()
+  for (const path of listFilesRecursive(testsDir)) {
+    if (!/\.tsx?$/.test(path)) continue
+    files.set(relative(OUTPUT_DIR, path).split(sep).join('/'), readFileSync(path, 'utf8'))
+  }
+  const removed = planTestPruning(
+    files,
+    repoPath => existsSync(join(REPO_ROOT, repoPath)),
+    repoPath => existsSync(join(OUTPUT_DIR, repoPath)),
+  )
+  for (const relPath of removed.keys()) rmSync(join(OUTPUT_DIR, relPath))
+  if (removed.size === 0) return
+  console.log(`→ 自動移除 ${removed.size} 個依賴未公開檔案的測試（私有 repo 仍完整執行它們）：`)
+  for (const [relPath, reference] of removed) console.log(`   - ${relPath}（依賴 ${reference}）`)
+}
+
 // 有些程式碼把網域／字串包在 regex 常值裡（例如 /https:\/\/real-app\.vercel\.app\//），
 // `.` 和 `/` 會被跳脫成 `\.`、`\/`——這時候純文字比對找不到，字面上根本是不同的字串。
 // 所以每個 key 除了比對原始寫法，也要比對「跳脫過的」寫法，兩種都命中才算真的掃過。
@@ -100,7 +126,7 @@ function regexEscapedVariant(value: string): string {
 
 // 回傳每個 literalReplacements key 被實際套用的次數，讓呼叫端判斷有沒有「設定了但完全沒用到」的字串——
 // 那通常代表範本沒改、或程式碼已經變了但設定忘記更新，兩種情況都不該悄悄放行。
-function applyReplacements(outputFiles: string[], literalReplacements: Record<string, string>): Map<string, number> {
+export function applyReplacements(outputFiles: string[], literalReplacements: Record<string, string>): Map<string, number> {
   const matchCounts = new Map<string, number>(Object.keys(literalReplacements).map(key => [key, 0]))
 
   // 把每個 key 展開成「原始寫法」與「regex 跳脫寫法」兩筆，再一起由長到短排序。
@@ -121,7 +147,8 @@ function applyReplacements(outputFiles: string[], literalReplacements: Record<st
     let changed = false
     for (const { from, to, originalKey } of expandedEntries) {
       // 大小寫不敏感比對＋替換：真實案例是同一個 email 在不同測試檔案裡被打成不同大小寫
-      // （'admin@careapp.local' vs 'admin@careapp.local'），原本大小寫敏感的 .includes()／
+      // （形如 'real.person@example.com' vs 'Real.Person@example.com'；這支腳本本身會公開，
+      // 註解裡不寫真實 email），原本大小寫敏感的 .includes()／
       // .split().join() 完全放過了後者，讓混合大小寫的真實 email 沒被換掉、也差點沒被
       // 禁字掃描攔下（見 checkLogic.ts findForbiddenHit 同一次修正）。這裡要保留原始大小寫
       // 的 `to` 值直接取代整段大小寫不同的命中內容，語意是「這個字串本身不該存在，不管
@@ -150,40 +177,26 @@ function writePrunedPackageJson(srcPath: string, destPath: string) {
   const pkg = JSON.parse(readFileSync(srcPath, 'utf8'))
   const prunedScripts: Record<string, string> = {}
   for (const key of KEPT_PACKAGE_JSON_SCRIPTS) {
-    if (pkg.scripts?.[key]) prunedScripts[key] = pkg.scripts[key]
+    // 公開版的 `bun test` 一律補上 --isolate（跟 check.ts、portfolio-ci.yml 一致）：不帶的話公開版子集
+    // 的 React hook harness mock 會跨檔外洩，nativeAuthFlow.test.ts 會無限重繪卡住（Codex review 在 PR #1011 抓到
+    // 公開版 `bun run test:unit`／`test:coverage` 原樣複製私有版指令、繞過了這個修正）。
+    if (pkg.scripts?.[key]) prunedScripts[key] = pkg.scripts[key].replace(/\bbun test(?! --isolate)/g, 'bun test --isolate')
   }
   pkg.scripts = prunedScripts
   writeFileSync(destPath, `${JSON.stringify(pkg, null, 2)}\n`)
 }
 
-function writeGeneratedReadme(destPath: string) {
-  const content = `# 家健錄（Jia Jian Log）— Sanitized Portfolio Edition
-
-> 這是家健錄（一個家人與寵物健康紀錄 App）私有 repository 的**淨化作品集版本**，由可重建的自動化產線產生，
-> 不是完整原始碼。所有個人資料、正式環境金鑰、基礎設施識別碼與私有維運流程皆已移除或替換為合成資料。
->
-> 產線細節與設計理由見私有 repo 的 \`docs/operations/portfolio-pipeline.md\`（PORTFOLIO-01）。
-
-## 技術棧
-
-Vite + React 18 + TypeScript、Supabase（Postgres + RLS + Edge Functions）、Capacitor（iOS／Android 殼）、Cloudflare Worker。
-
-## 這個版本刻意不包含的內容
-
-- Supabase migration 歷史與 RLS 逐步演進（改以架構文件呈現設計，而非可執行的完整 schema 變更序列）。
-- 部署、備份、資料匯入等維運腳本與其設定。
-- 任何私有環境金鑰、正式環境網域與資料庫識別碼。
-
-## 開發
-
-\`\`\`bash
-bun install
-bun run dev
-bun test tests/unit
-bun run build
-\`\`\`
-`
-  writeFileSync(destPath, content)
+// 公開版 README 直接複製人工撰寫的原稿；找不到原稿就直接失敗，而不是退回一份泛用樣板——
+// 沒有 README 的公開 repo 比 build 失敗更糟（面試官看到的第一頁是空的），且靜默退回會讓
+// 「原稿被誤刪／改名」這種錯誤一路溜到 push 之後才被發現。
+// 必須在套用替換規則之前呼叫：README 要跟其他文字檔一樣經過 3.4 節的字面替換，再被 check 掃一次禁字，
+// 讓原稿裡萬一寫進真實網域／email 也走同一條防線，而不是因為「最後才寫入」而繞過掃描。
+function copyPublicReadme(destPath: string) {
+  if (!existsSync(PUBLIC_README_SOURCE)) {
+    console.error(`❌ PORTFOLIO BUILD FAILED: 找不到公開版 README 原稿 ${relative(REPO_ROOT, PUBLIC_README_SOURCE)}`)
+    process.exit(1)
+  }
+  cpSync(PUBLIC_README_SOURCE, destPath)
 }
 
 function writeGeneratedGitignore(destPath: string) {
@@ -227,7 +240,7 @@ jobs:
       - run: bun install --frozen-lockfile
       - run: bun run lint
       - run: npx tsc --noEmit
-      - run: bun test tests/unit
+      - run: bun test --isolate tests/unit
       - run: bun run build
       - run: docker run --rm -v "\${{ github.workspace }}:/repo" ghcr.io/gitleaks/gitleaks:v8.30.0 detect --source /repo --no-git
 `
@@ -260,6 +273,9 @@ function main() {
     cpSync(srcPath, join(OUTPUT_DIR, file))
   }
 
+  pruneTestsWithUnpublishedDependencies()
+  copyPublicReadme(join(OUTPUT_DIR, 'README.md'))
+
   const outputFiles = listFilesRecursive(OUTPUT_DIR).filter(path => statSync(path).isFile())
   const matchCounts = applyReplacements(outputFiles, literalReplacements)
   const unused = [...matchCounts.entries()].filter(([, count]) => count === 0).map(([key]) => key)
@@ -270,7 +286,6 @@ function main() {
     process.exit(1)
   }
 
-  writeGeneratedReadme(join(OUTPUT_DIR, 'README.md'))
   writeGeneratedGitignore(join(OUTPUT_DIR, '.gitignore'))
   writeGeneratedGitleaksIgnore(join(OUTPUT_DIR, '.gitleaksignore'))
   writeGeneratedCiWorkflow(join(OUTPUT_DIR, '.github', 'workflows', 'portfolio-ci.yml'))
@@ -284,4 +299,5 @@ function main() {
   console.log('   下一步：bun run portfolio:check')
 }
 
-main()
+// 為什麼只在直接執行時建置：測試需要呼叫真正的替換流程，但匯入模組不能順便清掉或重建作品集輸出。
+if (import.meta.main) main()

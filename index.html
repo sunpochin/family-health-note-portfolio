@@ -12,7 +12,8 @@
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <!-- 為保留無障礙縮放，這裡不限制 viewport 尺寸；表單字級由 src/index.css 處理。 -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-    <meta name="theme-color" content="#ef4444" />
+    <!-- 與 vite.config.ts 的 PWA_THEME_COLOR（manifest theme_color）同值＝頁面底色；紅色代表危險，不能當網址列顏色。 -->
+    <meta name="theme-color" content="#f8fafc" />
     <!-- React 載入後會依目前語系更新標題；預設品牌標題統一更新為英文 Family Health Note。 -->
     <title>Family Health Note</title>
     <!-- iOS Safari「加入主畫面」優先讀這個 meta 而非 <title>；React 載入後會依語系改成中文「家健錄」或印尼文「Family Health Note」，這裡先放預設語系（中文）的值。 -->

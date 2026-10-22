@@ -41,16 +41,17 @@ PRN 每次使用保留在專屬 `prn_medication_events` 邊界，不自動寫入
 
 ## 照片保留與清理
 
-照片保留期限以事件建立者的帳號方案決定，不把 `patient_id` UUID 改成字串方案值：`account_usage_limits.photo_retention_tier = 'standard'` 預設保留 30 天，設為 `'vip'` 則保留 180 天。期限從事件的資料庫 `created_at` 起算，因此在很舊事件上後補照片時，照片可能很快進入清理範圍；這個保守規則避免由瀏覽器自行回寫保留期限。
+照片在**第一張貼上時**由資料庫 trigger 寫入 `photo_retention_days`（30／180）與 `photo_retention_started_at`（資料庫當下時間），清理只讀這兩欄（H5 #1181）。一般家庭 30 天，病人所屬家庭 Premium 180 天；H7 contract 前仍 dual-read 事件 `created_by` 的 legacy `photo_retention_tier = 'vip'`。全域 `photo_retention_180` 暫停時，新蓋章一律 30 天。`patient_id` 與既有 `care_access` 授權不變，同一照護者服務多個家庭也各自取病人所屬家庭。
 
-管理者要標記 VIP 帳號時，請在受控 SQL／migration 中對 `account_usage_limits` 以 `profile_email` 建立或更新 `photo_retention_tier = 'vip'`；沒有設定列的帳號一律採 30 天。不要把病人 UUID 或登入 user UUID 改寫成 `vip`，因為它們仍是授權與資料關聯的 canonical identity。
+升級不回溯延長、降級與 kill switch 不縮短既有承諾。同一事件後來加圖共用首次時間與天數，清空後重貼也不重新計時；從來沒有照片的舊事件，第一次補圖才開始計時。trigger 對每次 INSERT／UPDATE 都丟棄客戶端提供的保存值，不能只掛 `UPDATE OF photo_paths`。欄位級 REVOKE 是補充，表級 UPDATE 仍供正常編輯使用，所以真正的防竄改邊界是 trigger。既有 RLS／Storage policy 不變。
 
-```sql
-INSERT INTO account_usage_limits (profile_email, photo_retention_tier)
-VALUES ('vip-account@example.com', 'vip')
-ON CONFLICT (profile_email) DO UPDATE
-SET photo_retention_tier = EXCLUDED.photo_retention_tier, updated_at = now();
-```
+Migration `20261013170144` 對有照片的既有列回填 `started_at = created_at`（歷史沒有上傳時間），家庭 Premium 或 legacy VIP 寫 180，其餘 30；刻意不以 kill switch 縮短既有照片，只做規則式回填、不點名帳號、不刪照片。缺少或不合法的保存 metadata 時，清理跳過該列，不默認成 30 天。
+
+**合併／發布前的必要交接**：目前 migration workflow 先套 schema 再部署 Function，中途失敗或取消時舊 cron 仍可能按 30 天刪掉剛蓋為 180 天的照片。環境擁有者必須在合併前暫停 `care-event-photo-retention` 排程，確認沒有執行中的清理，再讓 GitHub Actions 套 migration 與新 Function；以 staging 假資料確認新 Function 保留 31～180 天的 Premium 照片、僅清理真正到期的列後才恢復排程。任何一步失敗都維持暫停，`photo_retention_180` kill switch 不能代替暫停 cron。production promotion 也必須重做這項交接並取得發布核准；Agent 不自行操作遠端排程。回滾保留已蓋章的欄位與 trigger，不能恢復舊清理 Function 後直接重啟排程。
+
+**對「回顧類」功能的限制**：標準 30 天、VIP 180 天是照片存在的上限，到期後檔案與 `photo_paths` 都會被清掉，所以任何要回頭看舊照片的功能（例如 #422「一年前的今天」）在現行政策下沒有資料可用，只會變成永遠不顯示的功能。要做這類功能，必須先另案決定長期保存政策（儲存成本、`/health-data-notice` 的利用期間文案與法律版本更新、是否列入 Premium，見 `docs/product/monetization-plan.md`），而不是在前端補一個查詢。文字事件（`care_timeline_entries` 本身）不受這條清理影響，只有照片會消失。
+
+管理者透過既有家庭 Premium 操作流程設定權益；真人權益是 runtime data，不得用 migration 點名開通。家庭 Premium 與 `photo_retention_180` 暫停開關只影響之後首次貼圖的事件。
 
 `care-event-photo-retention` Edge Function 以 service role 讀取事件 metadata，先呼叫 Storage API 刪除原圖與縮圖，再透過 expected-path CAS RPC 清空 `photo_paths`；不能直接刪 `storage.objects`，否則可能只刪資料庫列而留下實體孤兒檔。若照護者剛好同時補照片，CAS 會保留新 metadata，下一輪再重試。部署後應每日排程呼叫它，並設定 `CARE_EVENT_PHOTO_RETENTION_CRON_SECRET`。目前每張照片最多約 720 KiB（原圖與縮圖合計），所以標準方案在少量家庭使用下可控；VIP 六個月的最壞情況仍可能超過免費方案容量，正式商業規模需監控 Storage usage 或改用付費方案／外部長期封存。
 
@@ -74,7 +75,7 @@ SET photo_retention_tier = EXCLUDED.photo_retention_tier, updated_at = now();
 
 `medication_change` 是保留給資料讀取與歷史顯示的 system event，不是人工表單選項。它必須帶 `medication_plan_change_log_id` 與 snapshot，且由調藥 RPC 在同一 transaction 建立；partial unique index 確保同一筆 canonical change log 不會出現兩個時間線投影。畫面不提供這類事件的修改／刪除按鈕，避免交班時間線與實際藥單脫鉤。
 
-一般人工紀錄仍可使用 `doctor_instruction`、`family_observation`、`reassessment` 等類型。每日兩筆限制只計手動事件，調藥不會因當天已寫滿手動筆記而失敗；這個例外由資料庫 trigger 依 linkage 判斷，不依賴前端提示。
+一般人工紀錄仍可使用 `doctor_instruction`、`family_observation`、`reassessment` 等類型。每日防濫用上限（預設每位病人每天 9 筆，issue #1058、ADR-011 D1）只計手動事件，調藥不會因當天已寫滿手動筆記而失敗；這個例外由資料庫 trigger 依 linkage 判斷，不依賴前端提示。
 
 ## 軌跡頁（D 期，issue #735）：取代事件 tab 與「變更藥物」子頁
 

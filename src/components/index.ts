@@ -21,7 +21,6 @@ export * from './system/MengniCatMark'
 export * from './system/MengniRabbitMark'
 // Pickle 也從共用入口輸出，避免設定頁與其他寵物視覺入口各自複製鳥的 SVG。
 export * from './system/PickleBirdMark'
-export * from './system/TenantApp'
 // 登入頁只需組合 WebView 條件；提示內容集中在元件內，避免語系文案再度分散。
 export * from './system/WebViewWarning'
 

@@ -182,7 +182,7 @@ export function GoogleSignInButton({ locale, onError, width }: GoogleSignInButto
         <div ref={buttonRef} className={`w-full flex justify-center max-w-full [&>div]:max-w-full [&>iframe]:max-w-full ${status === 'signing-in' ? 'pointer-events-none opacity-60' : ''}`} />
       )}
       {(status === 'loading' || status === 'signing-in') && (
-        <p role="status" aria-live="polite" className="text-xs text-gray-500">
+        <p role="status" aria-live="polite" className="text-xs text-slate-500">
           {text(status === 'loading'
             ? { id: 'Memuat tombol Google…', zh: '正在載入 Google 登入按鈕…', en: 'Loading Google Login Button...' }
             : { id: 'Menyelesaikan login…', zh: '正在完成登入…', en: 'Completing sign in...' })}

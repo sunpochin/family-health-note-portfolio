@@ -16,7 +16,7 @@
 - 狀態：**排序完成；owner 已於 2026-09-26 對 §8 前三個問題做出決定；PR #971 的 Codex review 帶出兩個新問題（§8 第 4、5 項）待 owner 決定**（本文件不修改任何程式碼、migration 或設定，不開實作票，不關閉 #848；§7 各項仍待 owner 挑選開票）
 - 日期：2026-09-26
 - 基準：`origin/staging` commit `841d4109`（209 支 migration；原審查基準 `85a6359` 為 195 支，其間新增 14 支）
-- 追蹤：issue [#848](https://github.com/portfolio-author/jia-jian-log/issues/848)
+- 追蹤：issue [#848](https://github.com/demo-xq7/jia-jian-log/issues/848)
 - 上一輪：[`maintainability-review-2026-09.md`](./maintainability-review-2026-09.md) §7（2026-09-17）與 [`q4-2026-outcome-compression.md`](../product/q4-2026-outcome-compression.md) §7（2026-09-17）
 
 ## 0. ELI5（給完全不懂技術的人看）
@@ -31,9 +31,9 @@
 
 | 項目 | 現況（2026-09-26） | 對本文件的影響 |
 | --- | --- | --- |
-| A1 通知 delivery 語意 | ADR-007 的核准 PR [#966](https://github.com/portfolio-author/jia-jian-log/pull/966) 仍 open（非 draft，開向 `staging`）；staging 上的 ADR 檔案仍寫 `Proposed`。實作票已開：#958–#963、#965 七張 `[Opus / Astra]`，#964 一張 `[Sonnet]`，票 7 沿用 #603 | 七張 Astra 票是 §5 產能計算的主要占用者 |
+| A1 通知 delivery 語意 | ADR-007 的核准 PR [#966](https://github.com/demo-xq7/jia-jian-log/pull/966) 仍 open（非 draft，開向 `staging`）；staging 上的 ADR 檔案仍寫 `Proposed`。實作票已開：#958–#963、#965 七張 `[Opus / Astra]`，#964 一張 `[Sonnet]`，票 7 沿用 #603 | 七張 Astra 票是 §5 產能計算的主要占用者 |
 | A4 營運邊界 | #877 已完成（PR #893，2026-09-21）；#944 改為逐支部署；#950（自動開的缺 secret 票）仍 open | 不影響本文件排序 |
-| A7 audit 覆蓋 | ADR-008 的核准 PR [#970](https://github.com/portfolio-author/jia-jian-log/pull/970) 仍 open；owner 決定本季實作，#967、#968 `[Opus / Astra]`，#969 `[Sonnet]` | 兩張 Astra 票；#967 會重新定義 `delete_user_account`，是 §3.2 A5 修補的可能落點 |
+| A7 audit 覆蓋 | ADR-008 的核准 PR [#970](https://github.com/demo-xq7/jia-jian-log/pull/970) 仍 open；owner 決定本季實作，#967、#968 `[Opus / Astra]`，#969 `[Sonnet]` | 兩張 Astra 票；#967 會重新定義 `delete_user_account`，是 §3.2 A5 修補的可能落點 |
 
 ## 2. 方法與無法驗證的部分
 
@@ -145,7 +145,7 @@
 依 AGENTS.md § 3.5 評估風險：
 
 - **不變量原文**：查詢、快取、圖表都以 `patient_id` 分區，「切換照護對象後不得殘留、混用或覆寫另一人的數值」。
-- **觸發條件**：同一個登入者有兩個以上可切換的 patient（在這個系統裡寵物也是 patient），在較慢的查詢回來前切換。三位核心使用者的家庭同時有媽媽與寵物，**寵物頁正好是 §3.5 那 8 個零防護檔案中的 3 個**，`PetTrendPanel` 又是查詢最多的檔案——這不是「第二個多家庭使用者」那種尚未出現的前提，是每天都在發生的操作。
+- **觸發條件**：同一個登入者有兩個以上可切換的 patient（在這個系統裡寵物也是 patient），在較慢的查詢回來前切換。核心家庭同時有長輩與寵物，**寵物頁正好是 §3.5 那 8 個零防護檔案中的 3 個**，`PetTrendPanel` 又是查詢最多的檔案——這不是「第二個多家庭使用者」那種尚未出現的前提，是每天都在發生的操作。
 - **失敗形態**：舊病人的數值被畫進新病人的圖或列表，直到下一次重新查詢。不會寫壞資料庫（寫入路徑有 RLS 與 `patient_id` 綁定），但會違反不變量、且沒有任何測試會抓到。
 - **選項 3 的性質**：純前端、不動 migration／RLS、每檔一到三行。但它決定「哪一位病人的健康數值會出現在畫面上」，屬 AGENTS.md § 5 的「敏感健康資料存取路徑」與 `docs/agents/model-escalation.md` 的「敏感健康資料的存取路徑變更」。依 `docs/ai/model-routing.md`，落入高風險類別就一律 `[Opus / Astra]`，不看改動大小。本文件初版與原審查都標成 `[Sonnet]`、不需 Astra，是錯的；PR #971 的 Codex review 指出，已更正。
 - **為了少占 Astra 名額**：8 個零防護檔案合成**一張 PR、一輪 Astra**，全部改用既有的 `useLatestRequest`，不各自發明防護寫法，並附一組「切換病人後過期回應不落地」的 hook 測試。另外 12 個有防護字樣的檔案，逐一核對與改寫屬第二張 PR，排 2027-Q1。
@@ -248,6 +248,6 @@ Second-pass triage of the six un-ticketed findings (A2, A3, A5, A6, A8, A10) fro
 - **A5's blocker has fired, but not from care-loop.** Care-loop T1–T5 added no tables. Two other tables were added since the baseline: `patient_bp_standards` (#897) and `care_access_capability_change_logs` (#424). `delete_user_account` was not updated (still 9 hand-copied definitions). `patient_bp_standards.created_by → auth.users` is the only one of 20 FKs to `auth.users` with no `ON DELETE` action, and the table's immutability trigger forbids changing `created_by`. **Inferred, not executed:** any account that ever set a BP standard can no longer delete itself. Codex review on PR #971 found an older instance: `caregiver_invitations` and `patient_care_invitations` reference the inviter with `ON DELETE RESTRICT`, and `delete_user_account` deletes neither, so any account that ever sent an invitation has likely been undeletable since 2026-08-14. Recommended fix: drop the FK (matching ADR-008's no-FK precedent) or add a trigger exemption, `[Opus / Astra]`, reviewed in the same Astra round as #967, which already redefines `delete_user_account` (**owner decision, 2026-09-26**). Add a `[Sonnet]` static test allowing only `CASCADE`/`SET NULL` on FKs to `auth.users`, shipped now with a self-expiring allowlist of the three offending FKs (**owner decision**), plus a runtime test that deletes an account owning a row in every referencing table. Whether the invitation FKs also ride on #967 is pending an owner decision.
 - **A2, A3 premises unchanged** (no second multi-household user, no email change). But #424 added a fourth inline role→capability rule and a new email-keyed audit table one day after ADR-008 decided "uid only". Keep deferred to 2027-Q1 under one ADR ("account identity and household resolution"); add a `[Sonnet]` migration-lint fence now.
 - **A6 unlocked** by #932 (CI now replays migrations and checks `schema.sql`): option 1 is a `[Sonnet]` ticket, no Astra.
-- **A8**: counts unchanged (47 `supabase.from(` in 20 files, 2 guarded). 8 files show no race-guard token at all, 3 of them pet pages; with a mother and pets in the same household this violates AGENTS.md § 3.5 in daily use. Do option 3 (race guards) this quarter. It changes a sensitive health-data access path, so it is `[Opus / Astra]`, not `[Sonnet]` as first written (corrected after Codex review). One PR for the 8 unguarded files takes one Astra round; the other 12 files move to 2027-Q1. Options 1/2 need an ADR in 2027-Q1.
+- **A8**: counts unchanged (47 `supabase.from(` in 20 files, 2 guarded). 8 files show no race-guard token at all, 3 of them pet pages; with an elderly patient and pets in the same household this violates AGENTS.md § 3.5 in daily use. Do option 3 (race guards) this quarter. It changes a sensitive health-data access path, so it is `[Opus / Astra]`, not `[Sonnet]` as first written (corrected after Codex review). One PR for the 8 unguarded files takes one Astra round; the other 12 files move to 2027-Q1. Options 1/2 need an ADR in 2027-Q1.
 - **A10** unchanged; fold the dead-directory deletion into #851.
 - **Review capacity**: 7 notify + 2 audit `[Opus / Astra]` tickets are already queued (≥9 Astra rounds, ~12 with rework). Assuming a sustainable 1–2 rounds/week (**accepted by the owner, 2026-09-26**), that fills the quarter. **Add one new Astra round** (A8-3, pending owner confirmation, ~13 total) and three `[Sonnet]` items (A6-1, schema contract tests, A10-1 via #851).

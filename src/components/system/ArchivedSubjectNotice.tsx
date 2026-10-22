@@ -4,6 +4,7 @@
 主要關聯：從 App.tsx 抽出（issue #764 App.tsx 拆分），搭配 lib/careSubjectGuard 的自動換回邏輯使用。
 */
 import { useI18n } from '../../lib/i18n'
+import { Icon } from '../ui/Icon'
 
 interface ArchivedSubjectNoticeProps {
   onDismiss: () => void
@@ -13,7 +14,7 @@ export function ArchivedSubjectNotice({ onDismiss }: ArchivedSubjectNoticeProps)
   const { text } = useI18n()
   return (
     <div role="status" className="print-hidden flex shrink-0 items-start gap-2 border-b border-amber-200 bg-amber-50 px-4 py-2.5 text-xs font-semibold text-amber-900">
-      <span aria-hidden="true" className="text-base leading-5">⚠️</span>
+      <Icon name="alert-triangle" className="mt-0.5 h-4 w-4 shrink-0" />
       <p className="min-w-0 flex-1 leading-5">
         {text({
           id: 'Penerima perawatan yang diarsipkan hanya dapat dibaca lewat "Lihat riwayat hidup" di Pengaturan. Orang aktif telah dikembalikan agar catatan baru tidak tersimpan ke nama yang salah.',
@@ -23,7 +24,7 @@ export function ArchivedSubjectNotice({ onDismiss }: ArchivedSubjectNoticeProps)
       <button
         type="button"
         onClick={onDismiss}
-        className="min-h-11 shrink-0 rounded-lg px-2 font-bold text-amber-900 underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-700"
+        className="min-h-11 shrink-0 rounded-lg px-2 font-bold text-amber-900 underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-700"
       >
         {text({ id: 'Tutup', zh: '關閉' ,en: 'Close' })}
       </button>

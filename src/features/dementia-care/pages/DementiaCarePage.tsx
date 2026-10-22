@@ -128,7 +128,7 @@ export function DementiaCarePage({ patientId, userEmail }: {
     <section className="space-y-5 px-5 py-6">
       <form onSubmit={handleSubmit} className="space-y-4 rounded-2xl bg-white p-5 shadow-sm">
         <div>
-          <label className="block text-sm font-semibold text-gray-800">
+          <label className="block text-sm font-semibold text-slate-800">
             {text({ id: 'Jenis catatan', zh: '紀錄類型', en: 'Record type' })}
           </label>
           <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-3">
@@ -138,7 +138,7 @@ export function DementiaCarePage({ patientId, userEmail }: {
                 type="button"
                 onClick={() => setRecordType(option.value)}
                 aria-pressed={recordType === option.value}
-                className={`min-h-11 rounded-xl px-3 py-2 text-sm font-bold transition ${recordType === option.value ? 'bg-indigo-700 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
+                className={`min-h-11 rounded-xl px-3 py-2 text-sm font-bold transition ${recordType === option.value ? 'bg-brand-700 text-white' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}`}
               >
                 {text(option.label)}
               </button>
@@ -147,7 +147,7 @@ export function DementiaCarePage({ patientId, userEmail }: {
         </div>
 
         <div>
-          <label className="block text-sm font-semibold text-gray-800">
+          <label className="block text-sm font-semibold text-slate-800">
             {text({ id: 'Waktu (opsional)', zh: '時段（可不填）', en: 'Time of day (optional)' })}
           </label>
           <div className="mt-2 grid grid-cols-4 gap-2">
@@ -157,7 +157,7 @@ export function DementiaCarePage({ patientId, userEmail }: {
                 type="button"
                 onClick={() => setTimePeriod(timePeriod === option.value ? '' : option.value)}
                 aria-pressed={timePeriod === option.value}
-                className={`min-h-11 rounded-xl px-2 py-2 text-xs font-bold transition sm:text-sm ${timePeriod === option.value ? 'bg-indigo-700 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
+                className={`min-h-11 rounded-xl px-2 py-2 text-xs font-bold transition sm:text-sm ${timePeriod === option.value ? 'bg-brand-700 text-white' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}`}
               >
                 {text(option.label)}
               </button>
@@ -166,22 +166,22 @@ export function DementiaCarePage({ patientId, userEmail }: {
         </div>
 
         <div>
-          <label className="block text-sm font-semibold text-gray-800">
+          <label className="block text-sm font-semibold text-slate-800">
             {text({ id: 'Catatan (kondisi yang diamati)', zh: '備註（觀察到的狀況）', en: 'Notes (observed condition)' })}
           </label>
-          <p className="mt-1 text-xs text-gray-500">
+          <p className="mt-1 text-xs text-slate-500">
             {text({ id: '(Opsional) Contoh: ingin keluar rumah, mengulang pertanyaan yang sama', zh: '（可不填）例如：想出門、重複問同樣的問題、坐立不安', en: '(Optional) e.g., wants to go outside, repeats questions, restlessness' })}
           </p>
           <textarea
             value={notes}
             onChange={e => setNotes(e.target.value)}
             rows={3}
-            className="mt-2 w-full rounded-xl border border-gray-300 px-3 py-2.5"
+            className="mt-2 w-full rounded-xl border-2 border-control-border px-3 py-2.5"
           />
         </div>
 
         {message && (
-          <p className={`text-sm ${status === 'err' ? 'text-red-600' : 'text-green-600'}`}>
+          <p className={`text-sm ${status === 'err' ? 'text-red-600' : 'text-emerald-700'}`}>
             {message}
           </p>
         )}
@@ -189,32 +189,32 @@ export function DementiaCarePage({ patientId, userEmail }: {
         <button
           type="submit"
           disabled={status === 'saving'}
-          className="w-full rounded-xl bg-indigo-700 px-4 py-3 text-sm font-bold text-white disabled:opacity-60"
+          className="w-full rounded-xl bg-brand-700 px-4 py-3 text-sm font-bold text-white disabled:opacity-60"
         >
           {text({ id: 'Simpan', zh: '儲存', en: 'Save' })}
         </button>
       </form>
 
       <div className="rounded-2xl bg-white p-5 shadow-sm">
-        <h3 className="text-sm font-bold text-gray-800">{text({ id: 'Catatan hari ini', zh: '今天的紀錄', en: 'Today’s records' })}</h3>
+        <h3 className="text-sm font-bold text-slate-800">{text({ id: 'Catatan hari ini', zh: '今天的紀錄', en: 'Today’s records' })}</h3>
         {loading ? (
-          <p className="mt-2 text-sm text-gray-500">{text({ id: 'Memuat…', zh: '讀取中…', en: 'Loading…' })}</p>
+          <p className="mt-2 text-sm text-slate-500">{text({ id: 'Memuat…', zh: '讀取中…', en: 'Loading…' })}</p>
         ) : todayRecords.length === 0 ? (
-          <p className="mt-2 text-sm text-gray-500">{text({ id: 'Belum ada catatan hari ini.', zh: '今天還沒有紀錄。', en: 'No records for today.' })}</p>
+          <p className="mt-2 text-sm text-slate-500">{text({ id: 'Belum ada catatan hari ini.', zh: '今天還沒有紀錄。', en: 'No records for today.' })}</p>
         ) : (
           <ul className="mt-2 space-y-2">
             {todayRecords.map(record => {
               const typeLabel = RECORD_TYPES.find(option => option.value === record.record_type)?.label
               const periodLabel = TIME_PERIODS.find(option => option.value === record.time_period)?.label
               return (
-                <li key={record.id} className="rounded-xl bg-gray-50 px-3 py-2 text-sm">
+                <li key={record.id} className="rounded-xl bg-slate-50 px-3 py-2 text-sm">
                   <div className="flex items-center justify-between">
-                    <span className="font-semibold text-gray-700">{typeLabel ? text(typeLabel) : record.record_type}</span>
-                    <span className="text-xs text-gray-500">
+                    <span className="font-semibold text-slate-700">{typeLabel ? text(typeLabel) : record.record_type}</span>
+                    <span className="text-xs text-slate-500">
                       {periodLabel ? text(periodLabel) : dayjs(record.occurred_at).tz(TZ).format('HH:mm')}
                     </span>
                   </div>
-                  {record.notes && <p className="mt-1 text-gray-600">{record.notes}</p>}
+                  {record.notes && <p className="mt-1 text-slate-600">{record.notes}</p>}
                 </li>
               )
             })}

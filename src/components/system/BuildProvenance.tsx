@@ -31,26 +31,26 @@ export function BuildProvenance() {
   const environmentLabel = ENVIRONMENT_LABELS[APP_ENVIRONMENT] ?? { id: APP_ENVIRONMENT, zh: APP_ENVIRONMENT ,en: APP_ENVIRONMENT }
 
   return (
-    <section className="rounded-2xl border border-indigo-100 bg-indigo-50/70 p-4" aria-labelledby="build-provenance-title">
-      <h2 id="build-provenance-title" className="text-sm font-black text-indigo-950">
+    <section className="rounded-2xl border border-line bg-surface p-4" aria-labelledby="build-provenance-title">
+      <h2 id="build-provenance-title" className="text-sm font-black text-slate-900">
         {text({ id: 'Build saat ini', zh: '目前建置版本', en: 'Build when this' })}
       </h2>
       <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-3 text-sm">
         <div className="min-w-0">
-          <dt className="text-xs font-semibold text-indigo-700/70">{text({ id: 'Versi', zh: '版本', en: 'Version' })}</dt>
-          <dd className="mt-0.5 font-mono font-bold text-indigo-950">v{APP_VERSION}</dd>
+          <dt className="text-xs font-semibold text-slate-600">{text({ id: 'Versi', zh: '版本', en: 'Version' })}</dt>
+          <dd className="mt-0.5 font-mono font-bold text-slate-900">v{APP_VERSION}</dd>
         </div>
         <div className="min-w-0">
-          <dt className="text-xs font-semibold text-indigo-700/70">{text({ id: 'Lingkungan', zh: '環境', en: 'Environment' })}</dt>
-          <dd className="mt-0.5 font-semibold text-indigo-950">{text(environmentLabel)}</dd>
+          <dt className="text-xs font-semibold text-slate-600">{text({ id: 'Lingkungan', zh: '環境', en: 'Environment' })}</dt>
+          <dd className="mt-0.5 font-semibold text-slate-900">{text(environmentLabel)}</dd>
         </div>
         <div className="min-w-0">
-          <dt className="text-xs font-semibold text-indigo-700/70">{text({ id: 'Commit', zh: '提交', en: 'Submit' })}</dt>
-          <dd className="mt-0.5 break-all font-mono font-bold text-indigo-950" title={APP_GIT_SHA}>{APP_GIT_SHA_SHORT}</dd>
+          <dt className="text-xs font-semibold text-slate-600">{text({ id: 'Commit', zh: '提交', en: 'Submit' })}</dt>
+          <dd className="mt-0.5 break-all font-mono font-bold text-slate-900" title={APP_GIT_SHA}>{APP_GIT_SHA_SHORT}</dd>
         </div>
         <div className="min-w-0">
-          <dt className="text-xs font-semibold text-indigo-700/70">{text({ id: 'Dibuat', zh: '建置時間', en: 'Built On' })}</dt>
-          <dd className="mt-0.5 font-semibold text-indigo-950">{formatBuildTime(APP_BUILD_TIME, locale)}</dd>
+          <dt className="text-xs font-semibold text-slate-600">{text({ id: 'Dibuat', zh: '建置時間', en: 'Built On' })}</dt>
+          <dd className="mt-0.5 font-semibold text-slate-900">{formatBuildTime(APP_BUILD_TIME, locale)}</dd>
         </div>
       </dl>
     </section>

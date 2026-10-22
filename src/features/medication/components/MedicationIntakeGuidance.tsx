@@ -12,6 +12,7 @@ import { detectInstructionConflict, instructionCodeText, sourceLabelText } from 
 import type { MedicationPlanView } from '../../../lib/medication/medications'
 import type { LocalizedText } from '../../../lib/i18n'
 import { useI18n } from '../../../lib/i18n'
+import { Icon, type IconName } from '../../../components/ui/Icon'
 
 // 服藥打卡卡片與每週藥單都要算「A 層等級＋B 層紀錄＋是否衝突」餵給同一個 MedicationIntakeGuidance，
 // 集中在這裡避免兩處各自重算一次、之後改判斷邏輯只改一處（原本重複寫在 MedicationPage 裡）。
@@ -40,18 +41,21 @@ const COMPACT_RECORD_TEXT: LocalizedText = { id: 'Ada catatan cara minum', zh: '
 
 // 三個精簡徽章語氣各自要能分辨，色階沿用 VitalAlertBadge 的 alertBadgeClassName() 思路
 // （700／600 色階對白字才過 WCAG AA 4.5:1）；圖示與文字同時存在，不靠顏色單獨傳遞語意。
-const COMPACT_BADGE_STYLE: Record<'conflict' | 'caution' | 'record', { icon: string; className: string; text: LocalizedText }> = {
-  conflict: { icon: '⚠', className: 'bg-red-600 text-white border-transparent', text: COMPACT_CONFLICT_TEXT },
-  caution: { icon: '⚠', className: 'bg-orange-700 text-white border-transparent', text: COMPACT_CAUTION_TEXT },
-  record: { icon: '📋', className: 'bg-sky-700 text-white border-transparent', text: COMPACT_RECORD_TEXT },
+// 「已有紀錄」用中性 slate-700 而不是 brand 綠：這顆徽章會出現在「尚未服用」的琥珀卡裡，
+// 換成綠色會跟已服用的綠色語意混在一起；原本的 sky 也不是系統訊息，所以退役（設計系統 #1146）。
+const COMPACT_BADGE_STYLE: Record<'conflict' | 'caution' | 'record', { icon: IconName; className: string; text: LocalizedText }> = {
+  conflict: { icon: 'alert-triangle', className: 'bg-red-600 text-white border-transparent', text: COMPACT_CONFLICT_TEXT },
+  caution: { icon: 'alert-triangle', className: 'bg-orange-700 text-white border-transparent', text: COMPACT_CAUTION_TEXT },
+  record: { icon: 'clipboard', className: 'bg-slate-700 text-white border-transparent', text: COMPACT_RECORD_TEXT },
 }
 
 // 完整區塊的 A 層面板依嚴重度給不同底色；淺底色（50/200-300）搭配深文字（800/900），
 // 跟既有「用途／副作用尚未提供」琥珀色面板同一種視覺語彙，跟精簡徽章的實心底色刻意不同（完整區塊要能放長句子）。
-const GUIDANCE_PANEL_STYLE: Record<SwallowGuidance['severity'], { icon: string; className: string }> = {
-  caution: { icon: '⚠', className: 'border-orange-300 bg-orange-50 text-orange-900' },
-  unknown: { icon: '❓', className: 'border-slate-300 bg-slate-50 text-slate-800' },
-  neutral: { icon: 'ℹ', className: 'border-sky-200 bg-sky-50 text-sky-900' },
+const GUIDANCE_PANEL_STYLE: Record<SwallowGuidance['severity'], { icon: IconName; className: string }> = {
+  caution: { icon: 'alert-triangle', className: 'border-orange-300 bg-orange-50 text-orange-900' },
+  unknown: { icon: 'help-circle', className: 'border-slate-300 bg-slate-50 text-slate-800' },
+  // neutral＝官方資料的說明性提示（系統訊息），所以保留 sky（info）；不是品牌色，也不承載服藥狀態。
+  neutral: { icon: 'info', className: 'border-sky-200 bg-sky-50 text-sky-900' },
 }
 
 export function MedicationIntakeGuidance({ guidance, instruction, hasConflict, compact = false, className = '' }: {
@@ -73,7 +77,7 @@ export function MedicationIntakeGuidance({ guidance, instruction, hasConflict, c
     const badge = COMPACT_BADGE_STYLE[kind]
     return (
       <span className={`inline-flex min-w-0 items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-bold whitespace-nowrap ${badge.className} ${className}`}>
-        <span aria-hidden="true">{badge.icon}</span>
+        <Icon name={badge.icon} className="h-3.5 w-3.5 shrink-0" />
         {text(badge.text)}
       </span>
     )
@@ -87,7 +91,7 @@ export function MedicationIntakeGuidance({ guidance, instruction, hasConflict, c
       <div className={`rounded-2xl border p-3 ${panel.className}`}>
         <p className="text-xs font-bold opacity-80">{text(OFFICIAL_DATA_LABEL)}</p>
         <p className="mt-1 flex items-start gap-2 text-sm font-semibold leading-6">
-          <span aria-hidden="true">{panel.icon}</span>
+          <Icon name={panel.icon} className="mt-1 h-4 w-4 shrink-0" />
           <span className="min-w-0 break-words">{text(guidance.text)}</span>
         </p>
       </div>
@@ -115,7 +119,7 @@ export function MedicationIntakeGuidance({ guidance, instruction, hasConflict, c
       </div>
 
       {hasConflict && <p className="flex items-start gap-2 rounded-2xl border border-red-300 bg-red-50 p-3 text-sm font-bold leading-6 text-red-900">
-        <span aria-hidden="true">⚠</span>
+        <Icon name="alert-triangle" className="mt-1 h-4 w-4 shrink-0" />
         <span className="min-w-0 break-words">{text(INTAKE_CONFLICT_WARNING)}</span>
       </p>}
     </div>

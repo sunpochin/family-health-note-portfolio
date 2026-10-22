@@ -100,14 +100,14 @@ export function CareAnomalyAlertSettingsPanel({ patientId, isDemoMode, canManage
   const fieldsDisabled = isDemoMode || readOnly || busy
 
   return (
-    <section className="mt-6 rounded-2xl border border-gray-200 bg-white p-4" aria-labelledby="care-anomaly-alert-settings-title">
-      <h2 id="care-anomaly-alert-settings-title" className="font-bold text-gray-900">{text(TITLE)}</h2>
-      <p className="mt-1 text-sm text-gray-500">{text(HELP)}</p>
+    <section className="mt-6 rounded-2xl border border-slate-200 bg-white p-4" aria-labelledby="care-anomaly-alert-settings-title">
+      <h2 id="care-anomaly-alert-settings-title" className="font-bold text-slate-900">{text(TITLE)}</h2>
+      <p className="mt-1 text-sm text-slate-500">{text(HELP)}</p>
 
-      {isDemoMode && <p className="mt-3 rounded-xl bg-gray-100 px-3 py-2 text-xs text-gray-600">{text(DEMO_NOTICE)}</p>}
-      {readOnly && !loading && <p className="mt-3 rounded-xl bg-gray-100 px-3 py-2 text-xs text-gray-600">{text(READ_ONLY_NOTICE)}</p>}
+      {isDemoMode && <p className="mt-3 rounded-xl bg-slate-100 px-3 py-2 text-xs text-slate-600">{text(DEMO_NOTICE)}</p>}
+      {readOnly && !loading && <p className="mt-3 rounded-xl bg-slate-100 px-3 py-2 text-xs text-slate-600">{text(READ_ONLY_NOTICE)}</p>}
 
-      {!isDemoMode && loading && <p className="mt-3 text-sm text-gray-500">{text({ id: 'Memuat…', zh: '載入中…', en: 'Loading…' })}</p>}
+      {!isDemoMode && loading && <p className="mt-3 text-sm text-slate-500">{text({ id: 'Memuat…', zh: '載入中…', en: 'Loading…' })}</p>}
 
       {!isDemoMode && !loading && loadError && (
         <p role="alert" className="mt-3 rounded-xl bg-red-50 px-3 py-2 text-xs font-semibold text-red-700">{text(loadError)}</p>
@@ -115,8 +115,8 @@ export function CareAnomalyAlertSettingsPanel({ patientId, isDemoMode, canManage
 
       {!loading && !loadError && (
         <>
-          <label className="mt-4 flex min-h-11 items-center justify-between gap-3 rounded-xl bg-gray-50 px-3 py-2">
-            <span className="font-semibold text-gray-900">{text(ENABLE_LABEL)}</span>
+          <label className="mt-4 flex min-h-11 items-center justify-between gap-3 rounded-xl bg-slate-50 px-3 py-2">
+            <span className="font-semibold text-slate-900">{text(ENABLE_LABEL)}</span>
             <input
               type="checkbox"
               checked={settings.enabled}
@@ -132,7 +132,7 @@ export function CareAnomalyAlertSettingsPanel({ patientId, isDemoMode, canManage
                 const { min, max } = CARE_ANOMALY_ALERT_SETTINGS_BOUNDS[field]
                 return (
                   <label key={field} className="flex flex-col gap-1">
-                    <span className="text-xs font-semibold text-gray-600">{text(FIELD_LABEL[field])}</span>
+                    <span className="text-xs font-semibold text-slate-600">{text(FIELD_LABEL[field])}</span>
                     <input
                       type="number"
                       min={min}
@@ -147,7 +147,7 @@ export function CareAnomalyAlertSettingsPanel({ patientId, isDemoMode, canManage
                         if (clamped === settings[field]) return
                         void handleSave({ ...settings, [field]: clamped })
                       }}
-                      className="min-h-11 rounded-xl border border-gray-300 px-3 py-2 text-sm"
+                      className="min-h-11 rounded-xl border-2 border-control-border px-3 py-2 text-sm"
                     />
                   </label>
                 )

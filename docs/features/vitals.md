@@ -12,19 +12,51 @@
 
 血壓 INSERT 遇到連線中斷、408／429 或暫時性 5xx 時，會把同一筆含 `patient_id`、normalized `recorded_by` 與 client UUID 的資料放進 `localStorage` pending queue；storage key 本身也依病人與帳號分區。RLS、每日上限與格式錯誤不進 queue，因為重試不能修好授權或資料問題；Telegram 通知仍是獨立副作用，不會因資料 queue 盲目重送而製造重複提醒。
 
+「連線中斷」由 `src/lib/dataErrors.ts` 的 `isRetryableWriteError()` 判斷，要認得 supabase-js 實際回傳的形狀：postgrest-js 2.x 不會把 fetch 的 `TypeError` 往外丟，而是回傳 `{ message: 'TypeError: Failed to fetch', code: '' }`、`status 0`（Safari 是 `TypeError: Load failed`）。2026-10-06 以前只認原生 `TypeError`，真正離線時這筆會顯示一般儲存錯誤、不進 queue，自動同步也就沒東西可送（issue #1116）。`tests/unit/dataErrors.test.ts` 用真的 supabase-js client 搭配會失敗的假 `fetch` 產生錯誤，升級 supabase-js 若又改了形狀會先在測試失敗。畫面文案刻意沒跟著改：`isConnectionError()` 仍只決定「連線或伺服器設定有問題，請通知家屬」那一句，單純沒訊號時不叫看護去找家人。
+
+佇列補送時 `insertBloodPressureRecord()` 只送 `blood_pressure_records` 真的有的欄位（issue #1126）。佇列紀錄多出的 `queued_at`／`notified` 若一起送出，PostgREST（v11 起）會把 JSON 的 key 當成 INSERT 欄位而回 400 `PGRST204`，被當成永久失敗，那筆就永遠卡在佇列、家屬也收不到通知；#1116 讓離線儲存真的進佇列之後，每一筆離線紀錄都會撞到這裡。`tests/unit/bpOfflineSaveQueue.test.ts` 用真的 supabase-js client（只注入 fetch）加上一個跟真的一樣會擋未知欄位的假 PostgREST 鎖住這件事，欄位清單直接讀 `supabase/schema.sql`。
+
+離線儲存從紅字「儲存失敗」變成琥珀色「已暫存」後，看護沒有理由打電話，但家人要等補送成功才會收到通知。所以只要目前病人的佇列裡還有「需要通知家人」等級（`isFamilyAlertLevelReading`，用量測當下生效的標準判讀）、而且還沒通知過的讀數，儲存按鈕下方的 assertive 區塊就會用三語請看護直接打電話給家人，並說明連線恢復後會自動補送、不用重新輸入（`L.queuedFamilyAlertPending`）。這個提醒直接從佇列推導（`queuedFamilyAlert`：`'none' | 'alert' | 'unknown' | 'rejected' | 'rejected_unknown'`）：切換病人再切回來、重新開 App 都還在，補送成功移出佇列就消失；也依 `patient_id` 過濾，不會掛到下一位病人的畫面上。
+
+離線重開 App 時 `BpStandardProvider` 讀不到個別標準，只能退回一般成人門檻（`unavailable: true`）；長輩標準下 100/55 是偏低警示、一般成人卻算正常，直接用退回門檻判讀就會漏掉提醒（Codex review on PR #1127）。所以讀數進佇列時，若個別標準讀得到，就把「需不需要通知家人」的結論存在本機紀錄的 `family_alert`（只存在本機，`insertBloodPressureRecord` 不會送出）。畫面判斷的順序是：個別標準讀得到就用現在的判讀；讀不到就用 `family_alert`；兩者都沒有（App 一開就離線、從沒讀到標準）時顯示另一句三語提醒（`L.queuedFamilyAlertUnknown`），說明目前無法判斷、數值偏高偏低就直接打電話，不拿一般成人門檻假裝判讀過。標準還在載入中不算「讀不到」，避免連線正常時每次開頁先閃一下這句。補送時被伺服器永久拒絕的讀數不會自動補送，「連線恢復後會自動補送」對它是錯的：需要通知家人的被拒絕讀數改顯示 `'rejected'`（`L.queuedFamilyAlertRejected`：沒有被系統接受、家人不會收到，請直接打電話），優先於其他所有狀態；等級不明的改顯示 `'rejected_unknown'`（issue #1125）。只有再試也不會成功的拒絕算數，權限類拒絕照常重試、維持原本兩句。原本列在這裡的兩個缺口（只補送畫面上那位、被擋的請求看起來像離線）已在 issue #1125 處理，見下方「離線佇列自動同步」；剩下的缺口追蹤在 issue #1138。
+
+被每日上限擋下的那一筆不進資料庫、不排入 queue、也不會通知家屬（上限是防濫用，被擋就是被擋）。所以輸入頁會在**儲存按鈕正下方**（不是頁尾的錯誤區：嵌在每日照護頁時頁尾距離按鈕好幾個螢幕高）、同一個朗讀區塊裡先講等級、再講上限說明，用同一套判讀（`useBpEvaluator`＋`VitalAlertBadge`）顯示這筆沒存進去的讀數與等級；若落在紅色三階（danger／danger-low／critical），再加一段大字提示「這筆危險、沒存進去、家人不會收到通知，請直接打電話給家屬」。實作在 `BpLimitBlockedNotice`，快照由 `useBloodPressureInputForm` 的 `limitBlockedReading` 保存，與錯誤訊息同生同滅（issue #1060）。
+
+按下儲存後的其他回饋也一樣緊貼儲存按鈕（issue #1093）：一般儲存錯誤、家屬通知失敗／無法確認／沒有送出（`notifyFailed`、`familyDelivery` 各狀態）、「這筆不會自動通知家人」與「通知送出中」說明、離線待同步區塊、兩次量測完成摘要與本筆等級卡，都排在當日明細與近期趨勢**之前**；原本頁尾的狀態區已移除。錯誤與家屬通知失敗可能同時存在（例如離線補送那一筆的通知結果，在這次送出出錯之後才非同步回來），因此共用**一個** assertive live region（錯誤在前），`BpLimitBlockedNotice` 也放進同一個 region、本身不再掛 `role="alert"`，避免讀屏器只唸最後掛上的那一個；「不會自動通知家人」與「送出中」維持 polite。家屬通知結果是儲存後數秒才非同步回來，看護可能已往下捲，所以需要看護行動的內容（錯誤、家屬通知失敗／不明、「不會自動通知家人」；不含「送出中」）一變就以 `scrollIntoView({ block: 'nearest' })` 瞬間捲到剛好看得到（已可見時不動；不用 smooth，因為動畫遇到收鍵盤或分頁在背景時會被中斷而完全沒捲到）。實作在 `BpSaveNotices`；各狀態對應哪一句由純函式 `familyNotices` 決定並有單元測試，`FamilyDeliveryState` 用 `Record` 窮舉文案，hook 新增送達狀態卻漏配文案時 typecheck 會失敗。
+
+**儲存進行中不能切換病人（issue #1103）。** 寫入途中若切到另一位病人，這筆被拒絕（非暫時性錯誤、每日上限）的結果因病人已變，依 § 3.5 不能顯示在新病人的畫面上；回到原病人時輸入已被清空、也沒有錯誤，一筆可能是危險讀數的紀錄就無聲消失（北極星鐵律 4）。既有的逐請求病人比對（PR #1092）負責「不把 A 的結果畫在 B 身上」，但不負責「讓看護知道 A 沒存成」，所以改在源頭解決：`status === 'saving'` 期間鎖住病人切換器，結果出來（成功、暫存、失敗）才解鎖，失敗訊息此時仍在原病人的畫面上。`SubjectSwitcher` 新增 `lockedReason`（`LocalizedText`，同時是「鎖住」的開關與畫面上的三語原因說明，不會出現按鈕變灰卻沒人解釋）：分段按鈕、下拉選單與「目前對象無法使用」的退路按鈕都會 `disabled`，處理函式也再擋一次。獨立 `InputPage` 自己鎖；嵌入每日照護頁時切換器在 `DailyCarePage`，由 `InputPage` 透過 `onSavingChange` 回報、`DailyCarePage` 據此鎖，InputPage 卸載時一定回報 `false`，外層不會永遠鎖著。取捨與已知缺口（追蹤在 issue #1117）：儲存請求沒有逾時，網路卡住時切換器會鎖到請求失敗為止（儲存按鈕本來就同樣停用）；這個鎖只涵蓋這兩個切換器，底部導覽與其他分頁（今天、大事記、門診、設定）的切換器都沒鎖——看護若在儲存中離開每日照護分頁，該頁卸載、儲存狀態隨之消失，這時才被拒絕的紀錄仍然看不到（即使沒換病人），所以「被拒絕的儲存一定顯示在它所屬的病人上」目前只對這兩個切換器成立。
+
 ### 離線佇列自動同步
 
-除了按「現在同步」手動重送，`src/features/vitals/hooks/usePendingBloodPressureFlush.ts` 會在連線恢復（`online`）、分頁回前景（`visibilitychange` → visible）、iOS bfcache 還原（`pageshow`）與原生殼回前景（Capacitor `App` `appStateChange`，`isActive: true`）時自動觸發既有的 `flushPendingBloodPressureRecords()`，固定 client UUID 讓回應遺失後的重試不會多出第二筆。看護在收訊不穩的地下室、電梯旁量完血壓後即使直接關掉 App，回到有訊號處或原生殼切回前景的 30 秒內也會自動送出，不需要記得手動同步。
+殼層提示的本機保存由 `src/features/vitals/lib/shellNoticeStore.ts` 的 `createPerKeyStore` 與 `hooks/usePerKeyStoreState.ts` 共用處理（issue #1227）；`bloodPressureShellNoticeStores.ts` 保留點名與拒絕提示各自的舊 namespace、解析／錯誤摘要格式及排序。模組先留在 vitals 內，避免只有血壓使用時就把它擴成全站抽象；離線佇列本身仍由 `bloodPressurePendingQueue` 負責。`useBloodPressureQueueCoordinator` 只接回提示狀態與操作，補送、通知分流及畫面接手時機不變；逐鍵事件、寫入失敗留記憶體與 clear 語意由 `tests/unit/shellNoticeStore.test.ts` 驗證，協調器測試保留補送與重新掛載的整合案例。
 
-自動觸發以單一旗標防重入，同一時間只會有一輪同步在跑；同步失敗會以遞增退避（30 秒／2 分鐘／10 分鐘，之後固定停在 10 分鐘）安排下一次自動重試，避免弱網路反覆嘗試時打爆 Supabase。血壓輸入頁下方在有待送紀錄時顯示三語「N 筆尚未同步」與最後一次嘗試時間，成功清空後這個狀態列會自動消失；永久性錯誤（權限、格式）仍照既有規則跳過，並顯示既有的錯誤訊息。
+除了按「現在同步」手動重送，`src/hooks/usePendingWriteFlush.ts`（2026-10-06 起與服藥打卡共用，issue #822；2026-10-07 起由 App 殼層的 `useBloodPressureQueueCoordinator` 呼叫、不再是血壓輸入區段，見下方 issue #1138）會在連線恢復（`online`）、分頁回前景（`visibilitychange` → visible）、iOS bfcache 還原（`pageshow`）與原生殼回前景（Capacitor `App` `appStateChange`，`isActive: true`）時自動觸發補送（2026-10-06 起是涵蓋整個帳號的 `flushAllPendingBloodPressureRecords()`，見下方），固定 client UUID 讓回應遺失後的重試不會多出第二筆。看護在收訊不穩的地下室、電梯旁量完血壓後即使直接關掉 App，回到有訊號處或原生殼切回前景的 30 秒內也會自動送出，不需要記得手動同步。
+
+自動觸發以單一旗標防重入，同一時間只會有一輪同步在跑；同步失敗會以遞增退避（30 秒／2 分鐘／10 分鐘，之後固定停在 10 分鐘）安排下一次自動重試，避免弱網路反覆嘗試時打爆 Supabase。血壓輸入頁下方在有待送紀錄時顯示三語「N 筆尚未同步」與最後一次嘗試時間，成功清空後這個狀態列會自動消失。
+
+**補送涵蓋這個帳號所有照護對象（issue #1125）。** 佇列依病人分桶，以前只補送畫面上那位：A 的危險血壓離線暫存後切到 B，連線恢復也不會送、家人收不到，要等有人再打開 A。現在每一輪都用 `flushAllPendingBloodPressureRecords()`（共用佇列的 `flushAll`）依序送這個帳號在這台裝置上所有病人的桶：畫面上這位優先，其餘依最早待送時間；遇到暫時性失敗就整輪停下，永久性失敗只卡那一筆。每筆照自己的 `patient_id` 寫入與通知。B 的畫面上只看到「其他照護對象還有 N 筆紀錄等待同步」（只有筆數、沒有數值與名字，§ 3.5），「現在同步」與自動退避也涵蓋它們。別人的紀錄補送後不用畫面上這位的判讀標準評等級（那是 B 的標準），只看入佇列時用那位自己的標準記下的 `family_alert`（`queuedRecordAlertLevel()`；兩邊都不知道時當成可能危險，因為相關提示的文案本來就是「若危險／可能沒收到，請聯絡家人」），也不寫進「這筆」的通知提示；但家屬通知可能沒到時不能吞掉，改在儲存按鈕下方同一個 assertive 區塊點名「{名字}：離線時存的血壓已補送，但家人可能沒有收到通知，請直接聯絡家人」，不帶數值（`otherPatientNotifyProblems`）。「個人通知已送達」的兩種結果不點名：家人已經收到，不能多叫看護打一通電話。畫面上這位自己的補送若提示已被較新的一筆接手（離線兩次量測一起補送時，第二筆的結果常先回來），送達問題、呼叫失敗，以及警示級讀數「沒有任何家屬通知」也都改走這個點名提示，不再靜默丟掉。點名提示在下一次儲存時清掉（與「這筆」的提示一起）；換病人時刻意不清，看護在 B 看到「A：…」後切到 A 去處理時，提示不能正好消失。補送結束時以「現在」畫面上的病人重讀佇列，補送途中切換病人不會把上一位的待同步清單蓋到新病人身上。前兩個缺口（只在血壓區塊掛載時補送、線上儲存的通知結果被丟掉）已在 issue #1138 處理，見下一段；仍留著的是：別人被拒絕的警示級讀數在目前畫面上只有一句「請切到該對象查看」（要不要點名、怎麼講是產品決定，追蹤在 #1138 的審查留言）。
+
+**補送器住在 App 殼層，不在血壓區段（issue #1138，2026-10-07）。** 以前 `usePendingWriteFlush` 由 `useBloodPressureInputForm` 呼叫，只在每日照護頁的血壓區段掛載時才有監聽器：看護離線存了 185/105、切到今天頁，連線恢復時沒有人補送，家人要等有人再打開血壓區段。現在補送、退避、通知與「家人可能沒收到」的狀態都在 `useBloodPressureQueueCoordinator`（`src/features/vitals/hooks/`），由 `BloodPressureQueueProvider` 掛在 `App.tsx` 的 `BpStandardProvider` 之內（補送到畫面上這位的紀錄時要用她的判讀標準決定要不要提示），登入後不論分頁都在。表單 hook 經 `useBloodPressureQueue()` 讀清單（依病人過濾後才顯示數值，別人的只算筆數）、按「現在同步」，並在掛載期間向補送器登記成「畫面」（`BloodPressureQueueScreen`）：補送到紀錄、要通知家人之前，補送器先問畫面 `claimNotice`，這筆的病人就在眼前才領「這筆」提示的序號；沒有畫面、不是它的、畫面已卸載、或序號已被較新的一筆接手，送達問題一律改成點名提示（`notifyProblems`），存在補送器裡，之後打開任何病人的輸入頁都看得到，下一次儲存時清掉。線上儲存的通知結果也走同一條分流：換病人、離開分頁、或被同一位病人的補送接手序號後才回來的結果，以前直接丟掉，現在改點名。同一時間只有一輪補送：同分頁靠觸發器的防重入，跨分頁靠 Web Locks（`navigator.locks`，`ifAvailable`；拿不到鎖的那一輪直接讓給另一個分頁、回「還沒清空」照常排退避，不改「連線失敗」的提示），另一個分頁送完後 `storage` 事件讓這邊立刻重讀清單；沒有 Web Locks 的舊 WebView 退回不鎖，行為與以前相同。畫面上這位的清單直接讀她自己的桶、其他人才靠列舉（`localStorage.key` 不可用時列舉會落空，眼前這位的待送清單不能因此消失）。點名提示的文案改成「{名字}：血壓已存檔，但家人可能沒有收到通知，請直接聯絡家人」，不再寫「離線時存的」，因為線上儲存也會走這句。PR #1218 的 Codex 審查再補了四件事：點名提示寫進 localStorage（`jia-jian.pending-blood-pressure.notify-problems.v1-<帳號>`，只有病人 id）並靠 `storage` 事件跨分頁同步，否則拿到鎖、送了通知的背景分頁一關，提示就沒了；待送清單與點名提示在第一次 render 就從本機讀（不等 effect），不然觸發器掛載時的那次探測之後 hasPending 才從 false 變 true、多觸發一次立即探測，把剛排好的 30 秒退避推進到 2 分鐘；帳號的第一筆紀錄若在沒有輸入頁時補送成功也要埋 `first_record_saved`，所以輸入頁入佇列時記下 `first_record`（只存本機），補送器成功後埋點（analytics 的一次性 marker 去重）；`OnboardingWizard` 與邀請畫面（病人邀請、照護者邀請）那幾條提早 return 也掛上補送器（`withBloodPressureQueue()`），那些畫面開著的幾分鐘另一位病人的離線血壓照樣補送；舊版 build 排進佇列、沒有 `first_record` 欄位的紀錄，補送成功後問一次資料庫「排除這位病人整批佇列之外還有沒有別的紀錄」（`hasOtherBloodPressureRecord()`，不 await），問不到只放棄埋點、不擋寫入與通知。第三輪再補：已登入的 `/join`、`/patient-invite` 頁也掛補送器；點名提示改成每位病人一把 key（`…notify-problems.v2-<帳號>-patient-<id>`），兩個分頁同時點名不同人不會互相覆蓋；別的分頁送走紀錄時（`storage` 事件後佇列少了的那幾筆）通知掛著的輸入頁重抓今日清單與最新讀值。Codex App 獨立審查再補：只有在前景的分頁（`document.visibilityState !== 'hidden'`）能獨占「這筆」的提示，背景分頁的表單即使掛著、拿到鎖，結果也走持久化的點名提示；本機儲存寫不進或不能列舉 key 時，點名提示仍留在記憶體（讀不到回 null、不當成「沒有提示」）；別的分頁的 `storage` 事件只依事件指到的那位加減、不整份覆蓋，寫不進本機的點名不會被別人的事件抹掉，`localStorage.clear()` 只清持久化過的。
+
+**離開頁面或換病人後才被拒絕的線上儲存不再消失；一次寫入最多等 15 秒（issue #1117，2026-10-07）。** #1103 只鎖了每日照護頁的兩個病人切換器；底部導覽與其他分頁的切換器沒鎖，儲存中點別的分頁會把輸入頁卸載，之後伺服器拒絕（每日上限、資料不合理、權限）時 `setErrMsg`／`setStatus` 落在已卸載的元件上，沒有任何畫面講這件事。現在：(1) `insertBloodPressureRecord()` 用 `AbortController` 把 INSERT 與 23505 後的回讀合計限制在 `BLOOD_PRESSURE_SAVE_TIMEOUT_MS`＝15 秒（15 秒原則；iOS Safari 自己的 fetch 逾時約一分鐘），而且整個呼叫再跟明確的期限競速（supabase-js 送請求前的 token refresh 不收 signal，登入到期又卡在弱網路時 abort 了也沒人回來；Codex App 獨立審查），到期就 abort 並立刻回 code 空字串、status 0 的「AbortError: …」（與 postgrest-js 中止時同形），`isRetryableWriteError()` 認得它，所以這筆進離線佇列、由殼層補送器重送（id 是 client UUID，伺服器其實已收到時重送只會回「已存在」）；補送路徑同樣受這個逾時保護，一輪補送不會卡死觸發器的防重入旗標。(2) 不可重試的拒絕回來時若輸入頁已卸載、或畫面上已是別人（`mountedRef`／`patientIdRef`），表單 hook 不再丟掉，改交殼層補送器保管（`rejectedSave`：病人 id、原始錯誤、被上限擋下時的讀數快照）；`App.tsx` 狀態列下方的 `BloodPressureSaveRejectedBanner` 在任何分頁點名「{名字}：剛才的血壓沒有儲存成功（原因），請到血壓區段重新輸入」，被上限擋下時用 `BpLimitBlockedNotice` 顯示等級與「請打電話」；那筆屬於別人時只點名、不講數值（§ 3.5），附「切換到她」按鈕。回到那位病人、**看得到的**輸入頁時表單 hook 接手（同一個位置、同一句話），橫幅自動消失；看護也可按「知道了」清掉；每一筆各自保留、各自清（以 client UUID 為鍵），連續兩筆都在離開後被拒絕時後到的不會蓋掉先到的（Codex 第三輪）；也寫進 localStorage（`…rejected-saves.v1-<帳號>-record-<UUID>`，值含病人 id、錯誤摘要、被上限擋下時的讀數與「要不要立刻聯絡家人」的判定）並靠 `storage` 事件跨分頁同步，瀏覽器分頁在背景（`document.visibilityState`）也算「已離開」，背景分頁不接手；那筆屬於切不到的對象（已封存）又是要聯絡家人的等級時，橫幅不畫數值但仍講「請現在打電話」（Codex 第四輪）。每日照護頁切到別的區段時 InputPage 仍掛載、只是 hidden（`DailyCarePage` 傳 `visible`），隱藏的面板與卸載同一個待遇：拒絕交殼層、不接手（PR #1219 審查）。同一輪審查也修了警報鏈上的一個洞：每日上限 trigger 是 BEFORE INSERT、只數同一天筆數、不排除 NEW.id，第 9 筆在逾時後其實已寫入、補送再來一次會先撞上限而輪不到主鍵去重，以前會被判成「再試也不會成功」永遠卡在佇列、家屬通知永遠不送；現在 `insertBloodPressureRecord()` 遇到 `daily_blood_pressure_limit` 也回讀 id，有那一列就當「已存在」正常走通知。橫幅的「切換到她」只在切換器真的切得到那位時出現（`switchablePatientIds`）。Codex 第一輪再補兩件：暫時性失敗（含逾時）後本機佇列又存不了時結果其實不明（伺服器可能已寫入），`rejectedSave.uncertain` 讓橫幅與輸入頁改講「先看今日紀錄，沒有的話再重新輸入」（`L.saveOutcomeUnknown`），不叫看護直接重輸（新 UUID 會多一筆）；同一位病人新的一筆有自己的結果在畫面上時不接手舊的拒絕（只在 status 為 idle 時接：送出中接手會讓按鈕看起來能按、切換器提早解鎖；新的一筆也被拒絕時接手會把較新那筆的訊息與等級蓋掉。成功／暫存 2 秒後回 idle 才接，被拒絕則舊的留在殼層橫幅），接手時取消成功後 2 秒歸零的計時器。第二輪又修：那筆屬於別人且結果不明時也用「不確定」文案；「切換到她」只認 `accessiblePatients`（不含已封存；從橫幅切到封存對象會讓她變成可寫入的現役對象）。重新整理頁面後不保留（記憶體狀態；票文範圍是分頁與病人切換）。票文第 3 點（通知結果在切換間隔被丟掉）不另做：#1138 已把丟掉的通知結果改成點名提示，伺服器端 sweeper（ADR-007 票 6／票 10）也會對 `delivery_unknown`／`failed_terminal`／逾時 `sending` 開 incident 顯示在今天頁橫幅。底部導覽刻意不鎖：有了上述兩條，鎖住只會違反 15 秒原則。測試：`tests/unit/bpSaveAfterLeaving.test.ts`。
+
+**補送失敗時講真正的原因（issue #1125）。** 2026-10-06 以前不論原因一律顯示「請確認網路後再重新同步」（本段舊版寫的「顯示既有的錯誤訊息」並不成立）。現在：
+
+- 被伺服器永久拒絕的那筆（權限、每日上限、資料格式）留在佇列、繼續送後面的紀錄，狀態列以「有紀錄沒有同步成功：」開頭講出原因（`queuedRejectionText()`，判斷順序與 `saveErrorMessage()` 相同；歸不了類的拒絕說重試沒用、請通知家屬，而不是「再試一次」）。原因以紀錄 id 記住（`nextPendingRejections()`）：下一輪若前面先斷線、沒嘗試到這筆，原因保留，不會一下有一下沒有；這筆自己再試時遇到暫時性失敗，就丟掉舊原因，回到一般的連線失敗處理。只顯示畫面上這位的原因；別人有被拒絕的紀錄時，只說「其他照護對象有紀錄沒有同步成功，請切換到該對象查看原因；切換清單裡找不到該對象時，請通知家屬」（那位的權限被收回或已封存時，清單裡就沒有她）。
+- 只有「再試也不會成功」的拒絕（每日上限、資料格式，程式裡叫 settled）不算「還在等自動重試」：剩下的若都是這種，這一輪就算清空、不排 10 分鐘退避，它們在下一次連線恢復、回前景、換病人或按「現在同步」時再試；否則一筆卡住的紀錄會讓整個帳號永遠停在 10 分鐘退避，另一位病人新的離線危險讀數也等不到「第一次進佇列就立刻試一次」。權限類（401／403／42501）不算定局：登入過期、或 token 換新剛好失敗時 supabase-js 退回 anon key 送出都長這樣，重新登入或下一輪就可能成功，所以照常退避重試。
+- 需要通知家人、又被 settled 拒絕的讀數，「請打電話給家人」那句改成不承諾自動補送的版本（`queuedFamilyAlert` 的 `'rejected'`；等級不明時 `'rejected_unknown'`，同樣請看護偏高偏低就打電話）。
+- 暫時性失敗時，手機自認離線（`navigator.onLine === false`），或手機自認有網路但失敗還不到 2 分鐘（`PENDING_UNREACHABLE_AFTER_MS`），講「請確認網路」。手機自認有網路、從第一次失敗起 2 分鐘以上都沒有任何一筆送到，改講「手機顯示有網路，但一直連不到伺服器；請換個網路再按『現在同步』，還是不行請通知家屬」（`L.pendingUnreachable`）。DNS、公共 Wi-Fi 登入頁、內容攔截器或過嚴的 CSP `connect-src` 擋掉請求時，postgrest-js 回的錯誤與真正離線一模一樣，只能靠這個條件分開；2 分鐘大約是退避排程的第三次嘗試，避免把收訊差的電梯口誤判成被擋。兩次失敗之間隔超過 15 分鐘（例如 App 在背景好幾小時）就重新計時，醒來後的第一次偶發失敗不會直接被說成連不到伺服器。
+- 沒有另外發 ops 告警：請求被擋時，告警也會走同一條被擋的路，前端目前也沒有錯誤回報通道。看護看到的文案就是升級路徑（通知家屬）。
+
+測試：`tests/unit/bpQueueAllPatients.test.ts` 用真的 supabase-js client（只注入 fetch）跑完整的表單 hook（連同殼層補送器，靠 `tests/unit/helpers/bloodPressureQueueHarness.ts` 把兩棵 hook 樹接起來）；跨病人補送、點名提示、拒絕原因與「連不到伺服器」都在這裡。`tests/unit/bpQueueCoordinator.test.ts` 驗證沒有輸入頁也補送並通知、卸載後／換病人後／被接手後的通知結果點名、跨分頁鎖與 `storage` 事件（issue #1138）。共用佇列的列舉與停止規則在 `tests/unit/pendingWriteQueue.test.ts`。
 
 第一筆成功後，App 外殼會以目前 `patient_id`、照護日與量測時段保存這一輪量測的截止時間，並在主要頁面上方顯示大字倒數。倒數不放在血壓輸入卡內，讓照護者等待時可以切到照護大事記、健康資料或其他每日照護分頁；第二筆成功或切換病人後才清除這個暫時狀態。狀態只存在 `sessionStorage`，因為它是本次裝置操作的流程提示，不是新的健康紀錄，也不應跨裝置同步；重新載入若已跨過照護日／時段，就會捨棄舊流程，避免第一筆新量測被誤當第二筆。
 
-722 原則是建議參考：連續 7 天、早晚各 2 次、每次 2 遍且間隔 1 分鐘；實際夜間量測依媽媽狀況與醫囑，不把建議寫成硬性警報。
+722 原則是建議參考：連續 7 天、早晚各 2 次、每次 2 遍且間隔 1 分鐘；實際夜間量測依被照護者狀況與醫囑，不把建議寫成硬性警報。
 
 ## 照護日與真實時間
 
-每日照護摘要、最近量測摘要、輸入頁的同一輪量測 key 與血壓每日新增配額，使用台北時間 04:00–隔日 04:00 的照護日。這能讓凌晨 02:00–03:59 的睡前後續量測和前一晚留在同一份交接資料，也讓 05:00 起床量測自然開始新的一天。
+每日照護摘要、最近量測摘要、輸入頁的同一輪量測 key 與血壓每日新增配額，使用台北時間 04:00–隔日 04:00 的照護日。血壓每日配額預設每位病人每個照護日 9 筆（核心照護帳號 20、CHECK 上限 20）：它是防濫用上限、不是付費牆，必須高於 722 量測法的一天 8 筆，否則被擋下的危險讀數不會進資料庫也不會通知家屬（issue #1058、[ADR-011](../adr/011-paywall-safety-boundary.md) D1）。沒有 `account_usage_limits` 列的帳號走 trigger fallback，fallback 與欄位 DEFAULT 必須同一個數字。這能讓凌晨 02:00–03:59 的睡前後續量測和前一晚留在同一份交接資料，也讓 05:00 起床量測自然開始新的一天。
 
 每筆資料仍以 `measured_at` 保存實際發生時間；醫師／GPT 報告明示照護日區間並保留逐筆原始時間。照護大事記與體重目前維持各自的日曆日語意，不可把照護日當成全系統任意改寫的日期。
 
@@ -43,6 +75,8 @@
 高壓端先判定，再判低壓端；banner 以成功送出的 snapshot 為準，不讀 reset 後的輸入框。警示不得只靠顏色，必須同時有文字或 badge。
 
 `VitalAlertBadge`（`src/features/vitals/components/VitalAlertBadge.tsx`）包裝 `evaluateReading`，統一輸出這個 badge；`DashboardStatsCards`「最新」列與 `DailyBloodPressureRecords`（本照護日新增的量測紀錄）逐筆量測共用同一份判定與樣式，避免兩處各自維護一份規則，導致總覽顯示偏高、當日清單卻看不出風險等級。
+
+徽章預設可換行（`whitespace-normal`＋`max-w-full`，多行用 `rounded-2xl` 而非 `rounded-full`），呼叫端不需要自己覆寫：最高階的印尼文標籤在 375px 手機上單行約 460px，舊版 `whitespace-nowrap` 會讓整頁出現橫向捲動（issue #1096）。最高階（`danger_high`）的行動文字只來自 `bp-levels.json` 的標籤本身，徽章不再另外接一句「立即複測」，否則同一句指示會顯示兩遍。
 
 ### 判讀標準模板（BP standard templates）
 
@@ -157,15 +191,19 @@ evaluator.resolver                                 // 傳給 src/lib 的純函�
 
 ## 視覺識別
 
-收縮壓使用 `#C23B3B`（dark `#F87171`），舒張壓使用 `#2563EB`（dark `#60A5FA`），心跳使用 `#7C3AED`（dark `#C084FC`）。圖表以高壓實線圓點、低壓實線菱形、心跳虛線方點區分；不要再加佔手機寬度的小圓點。
+收縮壓使用 `#C23B3B`，舒張壓使用 `#2563EB`，心跳使用 `#7C3AED`；OS 深色模式也維持這組亮色值，因為卡片永遠是白底（暗色值 `#F87171`／`#60A5FA`／`#C084FC` 只保留給未來的暗色表面，#1152）。圖表以高壓實線圓點、低壓實線菱形、心跳虛線方點區分；不要再加佔手機寬度的小圓點。
 
 ## Telegram 通知可靠性
 
-血壓寫入 Supabase 成功後，`src/lib/telegramNotification.ts` 只把 `recordId` 與 `patientId` 交給帶目前登入 session 的 `blood-pressure-notifier` Edge Function。Function 以 caller-scoped Supabase client 對 `blood_pressure_records` 做精確的 `id + patient_id` 查詢，再由 RLS 與 JWT email 驗證目前使用者；血壓數值、病人名稱與提交者不接受瀏覽器自訂。通知失敗不回滾已保存的血壓；網路錯誤一律不重送，避免回應遺失時產生重複提醒。Telegram 暫時性 5xx 後的「請求內重試一次」由 optional secret `BLOOD_PRESSURE_NOTIFIER_IN_REQUEST_RETRY` 控制（429 不重試：直送沒有重試者，合法 429 依 ADR-007 D4 條件 0 直接終結，不會無視 `retry_after` 再打；重試後若有任何一次結果不明，整體回報仍是不明，不會被後一次的明確拒絕覆蓋）（[ADR-007](../adr/007-notification-delivery-semantics.md) 上線約束 4 的行為開關）：不存在時走 `supabase/functions/_shared/deliveryPolicy.ts` 的 `IN_REQUEST_RETRY_DEFAULT`，在票 6（sweeper）與票 10（今天頁告警橫幅）上線前預設**保留**重試——owner 已決定危險等級寧可漏送、但一定有人知道，所以只有「有人會知道」的出口先到位，才把重試拿掉。
+血壓寫入 Supabase 成功後，`src/lib/telegramNotification.ts` 只把 `recordId` 與 `patientId` 交給帶目前登入 session 的 `blood-pressure-notifier` Edge Function。Function 以 caller-scoped Supabase client 對 `blood_pressure_records` 做精確的 `id + patient_id` 查詢，再由 RLS 與 JWT email 驗證目前使用者；血壓數值、病人名稱與提交者不接受瀏覽器自訂。通知失敗不回滾已保存的血壓；網路錯誤一律不重送，避免回應遺失時產生重複提醒。直送 Telegram 與請求內重試開關 `BLOOD_PRESSURE_NOTIFIER_IN_REQUEST_RETRY` 已於 2026-10-09 隨共用群組退場移除（issue #1061 階段 D）：Function 只用與畫面同源的判讀引擎算等級，把通知排進 `personal_notification_outbox`，送出與重試在 `personal-notification-drain`（ADR-007 D4）；排入失敗一律回 502。
 
-**直送帳本的五值狀態機（ADR-007 票 2，issue #959，migration `20260926161421`）**：送出前 Function 呼叫 `reserve_blood_pressure_notification_delivery_v2`，`pending → sending` 由一次條件式 UPDATE 原子取得，回傳 `claimed` 與 `claim_token`；**只有 `claimed = true` 才送出**，其餘一律不送、也不得回報成功。送出器回傳 `provider_*` 分類而不 throw，之後呼叫 `resolve_blood_pressure_notification_delivery` 寫終局狀態（`sent`／`delivery_unknown`／`failed_terminal`；單向、驗證 `claim_token`，舊 token 的重試在 `WHERE` 就落空，這是 D9 的 ABA 防護）。`resolve` 失敗不回 502（訊息可能已在家屬手機上），改回報 `unknown`。Function 回應帶明確的 `sharedTelegram` 結果欄位：`delivered`／`in_progress`（另一個呼叫正在送，回應附伺服器算好的 `sharedRemainingMs`＝門檻 M＝10 分鐘扣掉那次送出已耗時間；前端只拿它當相對期限回看帳本直到終局，不把伺服器時間戳和手機時鐘相減）／`unknown`（`sending` 逾時、`delivery_unknown`、resolve 失敗）／`failed`（確定沒送，且**不會自動重試**——直送路徑沒有重試者，不得對看護說「稍後重試」）／`deferred`／`not_subscribed`；輸入頁對 `in_progress`／`unknown`／`failed` 各有三語提示，都先說「血壓已存檔」，看護不必重新輸入；`personalQueued = true`（個人化通知已排入 outbox、有自己的重試者）時 `unknown`／`failed` 改用只說「家人群組那一則」的版本，並說明個人通知會自動送出，不對整條家人通知路徑說「沒送出、不會重試」。Telegram 回 2xx 但回覆內容讀不到（header 之後斷線、不是 JSON、沒有 `ok`）判 `delivery_unknown`／`provider_network_unknown`，`provider_api_rejected` 只留給真的解析到 `ok:false` 的回覆。舊簽章 `reserve_blood_pressure_notification_delivery` 在部署窗口內仍供舊版 Function 呼叫，它建立的列帶 `created_by_legacy_reserve` 標記、對 v2 的 claim 不可見（上線約束 2）；舊簽章 `confirm_blood_pressure_notification_delivery` 同樣只收 legacy-marked 的 `pending` 列，記錄者無法用它把 v2 的 `sending`／`delivery_unknown`／`failed_terminal` 蓋成 `sent`。這個欄位的過渡預設是 `true`：卡在 migration 的 `ALTER TABLE` 鎖上、之後才恢復執行的舊函式本體不會寫這個欄位，必須一樣被當成 legacy，只有 v2 自己的 INSERT 明寫 `false`；`DROP`、第二次隔離與收掉過渡預設都屬票 9。
+**直送帳本的五值狀態機（ADR-007 票 2，issue #959，migration `20260926161421`；歷史——2026-10-09 起 Function 不再直送，見下一段）**：送出前 Function 呼叫 `reserve_blood_pressure_notification_delivery_v2`，`pending → sending` 由一次條件式 UPDATE 原子取得，回傳 `claimed` 與 `claim_token`；**只有 `claimed = true` 才送出**，其餘一律不送、也不得回報成功。送出器回傳 `provider_*` 分類而不 throw，之後呼叫 `resolve_blood_pressure_notification_delivery` 寫終局狀態（`sent`／`delivery_unknown`／`failed_terminal`；單向、驗證 `claim_token`，舊 token 的重試在 `WHERE` 就落空，這是 D9 的 ABA 防護）。`resolve` 失敗不回 502（訊息可能已在家屬手機上），改回報 `unknown`。Function 回應帶明確的 `sharedTelegram` 結果欄位：`delivered`／`in_progress`（另一個呼叫正在送，回應附伺服器算好的 `sharedRemainingMs`＝門檻 M＝10 分鐘扣掉那次送出已耗時間；前端只拿它當相對期限回看帳本直到終局，不把伺服器時間戳和手機時鐘相減）／`unknown`（`sending` 逾時、`delivery_unknown`、resolve 失敗）／`failed`（確定沒送，且**不會自動重試**——直送路徑沒有重試者，不得對看護說「稍後重試」）／`deferred`／`not_subscribed`；輸入頁對 `in_progress`／`unknown`／`failed` 各有三語提示，都先說「血壓已存檔」，看護不必重新輸入；`personalQueued = true`（個人化通知已排入 outbox、有自己的重試者）時 `unknown`／`failed` 改用只說「家人群組那一則」的版本，並說明個人通知會自動送出，不對整條家人通知路徑說「沒送出、不會重試」。Telegram 回 2xx 但回覆內容讀不到（header 之後斷線、不是 JSON、沒有 `ok`）判 `delivery_unknown`／`provider_network_unknown`，`provider_api_rejected` 只留給真的解析到 `ok:false` 的回覆。舊簽章 `reserve_blood_pressure_notification_delivery` 在部署窗口內仍供舊版 Function 呼叫，它建立的列帶 `created_by_legacy_reserve` 標記、對 v2 的 claim 不可見（上線約束 2）；舊簽章 `confirm_blood_pressure_notification_delivery` 同樣只收 legacy-marked 的 `pending` 列，記錄者無法用它把 v2 的 `sending`／`delivery_unknown`／`failed_terminal` 蓋成 `sent`。這個欄位的過渡預設是 `true`：卡在 migration 的 `ALTER TABLE` 鎖上、之後才恢復執行的舊函式本體不會寫這個欄位，必須一樣被當成 legacy，只有 v2 自己的 INSERT 明寫 `false`；`DROP`、第二次隔離與收掉過渡預設都屬票 9。
 
-Telegram 標題使用 Function 從授權紀錄重新讀到的病人顯示名稱，例如「媽媽血壓量測通知」或「portfolio-author 血壓量測通知」；提交者由 JWT email 產生並移到第二行，讓收件者先辨認是哪一位被照顧者，再看到誰代為提交。前端已完全不依賴 `VITE_WORKER_URL`／`VITE_WORKER_API_KEY`；舊版 Cloudflare Worker `/notify` 已於 2026-09-07 停用並自 repo 移除，不再是任何 build 的相容路徑。
+**#1061 階段 D（2026-10-09）之後**：Function 不再呼叫 reserve／resolve，`blood_pressure_notification_deliveries` 沒有新列；回應的 `sharedTelegram` 固定是 `not_subscribed`（線上契約值，意思是「沒有共用群組那一則」；沿用舊值而不是新增 `retired`，是因為 Function 與 Vercel 前端分兩條 pipeline 部署，前端認不得的值會被當成 `unrecognized`，警示級讀數沒有任何家人會收到時看護就不再被告知），前端只看 `personalQueued`／`personalUnknown`／`personalDelivered`。直送 RPC、帳本與前端的 `in_progress` 回看留待 follow-up 清理。
+
+**#1102 第一階段（2026-10-14）**：保留的 `in_progress` 回看改呼叫唯讀 `personal_notification_counts(record_id, patient_id)`，仍只准該病人的記錄者讀取；queued／unknown／delivered 都包含免費危險級列，不重新 enqueue。RPC 失敗時沿用 `personalUnknown: true` 的警告，不重送血壓、不影響已排入的通知。兩參數 enqueue 暫留作部署相容；待確認部署中的 caller 都已遷移後，才在另一個 migration 移除，完整部署／回滾條件見 [personal-notifications.md「狀態回看與舊入口退役」](personal-notifications.md#狀態回看與舊入口退役1102)。
+
+Telegram 標題使用 Function 從授權紀錄重新讀到的病人顯示名稱，例如「王美玲血壓量測通知」或「陳伯伯血壓量測通知」；提交者由 JWT email 產生並移到第二行，讓收件者先辨認是哪一位被照顧者，再看到誰代為提交。前端已完全不依賴 `VITE_WORKER_URL`／`VITE_WORKER_API_KEY`；舊版 Cloudflare Worker `/notify` 已於 2026-09-07 停用並自 repo 移除，不再是任何 build 的相容路徑。
 
 ### 刪除血壓紀錄與 delivery 收據的生命週期（issue #932）
 
@@ -175,22 +213,21 @@ Telegram 標題使用 Function 從授權紀錄重新讀到的病人顯示名稱�
 
 ADR-007 票 1／票 2 之後 `blood_pressure_notification_deliveries` 已是五值狀態機；`20260926161421` 把這個 `BEFORE DELETE` 守門改成「有**新鮮的** `pending` 或 `sending` 收據」——兩者都代表收據可能還在被 Function 使用中，但只擋門檻 M＝10 分鐘內的（以 `COALESCE(attempt_started_at, created_at)` 判斷；舊簽章 `reserve_*` 每次交出 legacy 的 `pending` 列都會蓋上 `attempt_started_at`，所以舊 Function 正在（重）送的列仍被擋）。Function 取單後中止或 `resolve` 失敗會讓列停在 `sending`，舊 confirm 失敗會留下 legacy `pending`，兩者都沒有人會再把它轉成終局，一律擋住就永遠刪不掉那筆量測；超過 M 的 stale 列與已終局（`sent`／`delivery_unknown`／`failed_terminal`）的收據照舊放行 CASCADE。`resolve_*` 另接受 `p_attempts`（這次實際拿到的 provider 回應數；請求內重試可能是 2、缺 secret 未送是 0），`attempt_count` 依它累加而不是固定 +1。
 
-這個順序是刻意的：照護紀錄是單一真相，Telegram 是提醒副本；不能為了通知重試而重複寫入血壓，也不能把通知錯誤靜默成成功。部署修正後仍需在 staging 部署 `blood-pressure-notifier`、設定該環境的 `TELEGRAM_BOT_TOKEN`／`TELEGRAM_CHAT_ID`，並用兩個核心照護帳號驗證各自可寫入的病人紀錄通知；不執行 production 直接部署。
+這個順序是刻意的：照護紀錄是單一真相，Telegram 是提醒副本；不能為了通知重試而重複寫入血壓，也不能把通知錯誤靜默成成功。部署修正後仍需在 staging 部署 `blood-pressure-notifier` 與 `personal-notification-drain`（後者才讀 `TELEGRAM_BOT_TOKEN`），並用兩個核心照護帳號驗證各自可寫入的病人紀錄通知；不執行 production 直接部署。
 
-### 共用群組被略過時要看得見（Fail loudly）
+### 沒有家人會收到時要看得見（Fail loudly）
 
-共用 Telegram 群組只送給 `notification_subscriptions` 有啟用 `telegram` 列的病人（SEC-20260908-01）；這道閘門不放寬。以前沒訂閱或查詢失敗時 Function 什麼都不記、照樣回 `{ ok: true }`，家屬沒收到也沒有人知道。現在：
+共用 Telegram 群組與它的 SEC-20260908-01 訂閱閘門已於 2026-10-09 退場（issue #1061 階段 D；退場前的六列情況表見 git 歷史）。現在 Function 唯一的送達路徑是 `enqueue_blood_pressure_personal_notifications_v2` → outbox → drain，收件人授權（`care_access`、付費 tier 或免費危險級、綁定）在 RPC 與 drain 各驗一次：
 
-| 情況 | Function log（只有事件名與原因，不含病人 id、數值、email） | HTTP 回應 | 輸入頁 |
+| 情況 | Function log（只有事件名，不含病人 id、數值、email） | HTTP 回應 | 輸入頁 |
 | --- | --- | --- | --- |
-| 已訂閱 | — | 200 `{ ok: true, sharedTelegram: 'delivered' \| 'in_progress' \| 'unknown' \| 'failed' \| 'deferred', personalQueued }`（ADR-007 D9-b，見上方「直送帳本的五值狀態機」） | `delivered` 無提示；其餘依結果顯示三語提示 |
-| 未訂閱，但有排入個人化通知 | `blood_pressure_notifier_legacy_destination_skipped`，`reason: 'not_subscribed'` | 200 `{ ok: true, sharedTelegram: 'not_subscribed', personalQueued: true }` | 無提示（付費家屬仍會經 outbox 收到） |
-| 未訂閱，也沒有個人化通知 | 同上 | 200 `{ ok: true, sharedTelegram: 'not_subscribed', personalQueued: false }` | **只有警示級讀數**才顯示三語說明：這筆不會自動通知家人，危險值請直接聯絡家人（`role="status"`）；正常讀數不提示 |
-| 訂閱查詢失敗 | 同上，`reason: 'subscription_query_failed'` | 先照常嘗試個人化 enqueue，再回 502 | 既有的「通知失敗，請截圖回報」警示 |
-| 已訂閱，但請求沒帶 header `X-Delivery-Contract: 2`（部署窗口內仍在跑舊版快取 PWA 的看護），且結果是 `failed`／`unknown`／`in_progress`，或 `not_subscribed` 但個人那一則不明（`personalUnknown`） | `blood_pressure_notifier_legacy_contract_rejected`，`result` | 502 `{ error, sharedTelegram, personalQueued }` | 舊 adapter 只認「非 2xx＝通知失敗」，對它回 200 等於不警告；帳本、`resolve` 與個人化 enqueue 都已照常處理，只有回應退回舊契約（寧可多提醒；不能要求看護先更新 PWA，AGENTS.md § 3.7）。新版 client 以 header 帶契約版本才拿完整結果；走 header 而不是 body 欄位，是因為新版 bundle 可能先於新 Function 上線（PR preview 不部署 Function），已部署的舊 Function 只認兩個 body key、會忽略不認得的 header（PR #988 Codex P1）。`in_progress` 回看結束後若共用結果不是 delivered，前端會再呼叫一次冪等的 `enqueue_blood_pressure_personal_notifications` 重讀 `(queued_count, unknown_count)`，不拿回看前的個人快照承諾「會自動送出」；讀不到就當個人那一則不明 |
-| 未訂閱，且個人化 enqueue 失敗 | 略過事件 ＋ `blood_pressure_notifier_enqueue_failed` | 502 | 同上（不能講成「沒設定」，因為不知道原本該不該有） |
+| 有排入個人化通知（付費家屬，以及危險等級時所有綁 Telegram 的 `care_access` 成員） | — | 200 `{ ok: true, sharedTelegram: 'not_subscribed', personalQueued: true, personalUnknown, personalDelivered }` | 無提示 |
+| 沒有任何個人化通知（沒有人綁定，或非危險級且沒有付費家屬） | — | 200 `{ ok: true, sharedTelegram: 'not_subscribed', personalQueued: false, personalUnknown: false, personalDelivered: false }` | **只有警示級讀數**才顯示三語說明：這筆不會自動通知家人，危險值請直接聯絡家人（`role="status"`）；正常讀數不提示 |
+| 個人那一則可能已送達、不會重送（`personalUnknown`） | — | 200，`personalUnknown: true` | 「無法確認個人通知是否送達，請直接聯絡家人」 |
+| 個人化 enqueue 失敗 | `blood_pressure_notifier_enqueue_failed` | 502 | 既有的「通知失敗，請截圖回報」警示（不能講成「沒設定」，因為不知道原本該不該有） |
+| 請求沒帶 header `X-Delivery-Contract: 2`（部署窗口內仍在跑舊版快取 PWA 的看護）且 `personalUnknown` | `blood_pressure_notifier_legacy_contract_rejected` | 502 `{ error, sharedTelegram, personalQueued }` | 舊 adapter 只認「非 2xx＝通知失敗」，對它回 200 等於不警告；outbox 已照常處理，只有回應退回舊契約（寧可多提醒；不能要求看護先更新 PWA，AGENTS.md § 3.7） |
 
-查詢失敗與未訂閱刻意分開：前者是故障，不知道能不能送，所以不送（授權 fail closed）但也不回 ok。`personalQueued`／`personalUnknown`／`personalDelivered` 來自 `enqueue_blood_pressure_personal_notifications` 回傳的 `(queued_count, unknown_count, delivered_count)`（migration `20260927004500`）：分別是這筆紀錄目前 `pending`／`sending`、`delivery_unknown`、`sent` 的 outbox 列數（已存在＋這次新插入）；已送達另外回報，畫面才不會對 drain 已送出的通知說「已排入、會自動送出」，改用「個人通知已送達」的版本（優先序：不明 > 在路上 > 已送達）；同一筆紀錄重播或並行的第二個呼叫不會再拿到 0，否則共用群組失敗時畫面會說「家人通知沒送出、不會重試」而 outbox 其實正在重試。`personalUnknown`（至少有一則個人通知可能已送達、不會重送；可與 `personalQueued` 同時成立，此時以不明為準、不承諾「會自動送出」）時 `unknown`／`failed` 改用「個人通知無法確認是否送達」的版本，不講成「沒有個人通知」也不說「會自動送出」；`not_subscribed` 配 `personalUnknown` 時沒有任何一則被確認送達，同樣顯示「無法確認個人通知是否送達，請直接聯絡家人」而不是靜默；`failed_terminal` 的列兩邊都不算。「警示級」由 `InputPage.utils.ts` 的 `isFamilyAlertLevelReading()` 判定（北極星鐵律 3：警報分級、寧缺勿濫）：danger／danger-low／warning-low 與 warning 會提示，但 warning 裡的「偏高觀察」（九級表寫明「記錄即可，無須警報」）不提示，除非同時心跳 >120；normal、off-target、below-target（建議是記錄、回診時回報）也不提示。多數病人沒有任何家屬通知，若每筆都提示，看護很快就會忽略，真正危險的那筆反而沒人看。線上送出用 `evaluateNow`，離線補送用該筆 `measured_at` 當下生效的標準（`evaluateAt`）。Function log 不受這個門檻影響，每次略過都照記。前端 `parseTelegramNotificationResult` 對認不得的回應（例如部署窗口內舊版 Function 的 `{ ok: true }`）一律視為未略過，避免對每一筆跳出錯誤提示。回歸測試：`tests/unit/bloodPressureNotifier.test.ts`、`tests/unit/telegramNotification.test.ts`。
+`personalQueued`／`personalUnknown`／`personalDelivered` 來自 `enqueue_blood_pressure_personal_notifications_v2` 回傳的 `(queued_count, unknown_count, delivered_count)`（migration `20261005145950`，回傳語意沿用 `20260927004500`）：分別是這筆紀錄目前 `pending`／`sending`、`delivery_unknown`、`sent` 的 outbox 列數（已存在＋這次新插入）；同一筆紀錄重播或並行的第二個呼叫不會再拿到 0。畫面優先序：不明 > 在路上 > 已送達；`failed_terminal` 的列兩邊都不算。「警示級」由 `InputPage.utils.ts` 的 `isFamilyAlertLevelReading()` 判定（北極星鐵律 3：警報分級、寧缺勿濫）：danger／danger-low／warning-low 與 warning 會提示，但 warning 裡的「偏高觀察」（九級表寫明「記錄即可，無須警報」）不提示，除非同時心跳 >120；normal、off-target、below-target（建議是記錄、回診時回報）也不提示。多數病人沒有任何家屬通知，若每筆都提示，看護很快就會忽略，真正危險的那筆反而沒人看。線上送出用 `evaluateNow`，離線補送用該筆 `measured_at` 當下生效的標準（`evaluateAt`）。前端 `parseTelegramNotificationResult` 對認不得的回應（例如部署窗口內舊版 Function 的 `{ ok: true }`）一律視為未略過，避免對每一筆跳出錯誤提示。回歸測試：`tests/unit/bloodPressureNotifier.test.ts`、`tests/unit/telegramNotification.test.ts`。
 
 ### 通知與畫面同源判讀（issue #899）
 
@@ -220,6 +257,12 @@ ADR-007 票 1／票 2 之後 `blood_pressure_notification_deliveries` 已是五�
 
 結構化報告卡片同時以 `readMedicationDay(patientId, 今天照護日)` 讀出「目前藥單」（依時段分組、`as_needed` 藥品另列「需要時服用」），與統計卡片、極值和列印／存 PDF 共用同一份 `.record-report`，讓照護者就診前不必切到服藥分頁再截圖。這裡刻意讀當日有效藥單，不是 `readMedicationHistory` 的變更紀錄——變更紀錄回答「藥單什麼時候改過」，看診當下要看的是「現在正在吃什麼」，兩者語意不同不能互換。藥單清單只在畫面上顯示，不寫進 CSV／GPT 匯出，避免既有的匯出格式（每列固定血壓欄位）被迫塞進和血壓無關的欄位。
 
+輸出按鈕（複製摘要、下載 CSV、列印／存 PDF）由 `ReportExportActions`（`src/features/vitals/components/ReportExportActions.tsx`）放在面板最上方、趨勢圖之前，不再藏在結構化報告卡片裡：紀錄一多，原本要捲過趨勢圖、統計卡與整段「每日紀錄」才按得到「複製摘要」。按鈕圖示改為與文字同列的線條 SVG（舊的 ✦ ↓ ▧ 字元在部分平台會變豆腐字），「複製摘要」是唯一實心主按鈕。
+
+面板展開時用的是自己那一份 `useBpRecords`，不會跟輸入表單或「本照護日新增的量測紀錄」自動同步；`InputPage` 因此把表單的 `dailyRecordsVersion` 加上清單修改／刪除次數，當成 `refreshVersion` 傳進 `BloodPressureReportPanel`，任何一邊寫入後「每日紀錄」都會重抓，剛量的那一筆不必重新整理頁面就會出現。
+
+「每日紀錄」逐筆列在 375px 手機上只有約 245px 可用：時間 2.75rem、血壓 4.5rem（容納 180/110）、心跳 `minmax(2rem, max-content)`、其餘給狀態標籤。手機版隱藏心跳的「bpm」單位（♥ 與紫色已標明，讀屏器仍念「心跳」），sm 以上與列印照常顯示；心跳欄不用固定寬，是因為三位數心跳（≥100）正是要看清楚的異常值，固定寬會壓到狀態標籤。
+
 列印報告底部共用 `src/components/system/PrintSourceFooter.tsx`，顯示家健錄名稱、正式公開首頁與繁中／印尼文／英文的「家庭自記錄，非醫療診斷文件」免責文字。QR 由 `src/lib/qrCode.ts` 以 inline SVG 矩陣產生，payload 固定為 `APP_CANONICAL_URL`，不把 `patientId`、姓名、token 或目前頁面 query 帶進紙本；這個固定邊界也讓 staging 預覽不會把 staging host 印成對外來源。
 
 原本的四顆快速跳轉錨點已在拆掉報告頁前就先移除：手機頁面需要目錄本身就是頁面過長的症狀，而且載入中與錯誤狀態下目標區塊尚未 render，按下去沒有反應。
@@ -240,7 +283,7 @@ CSV 匯出按 patient 產生獨立檔，分頁讀取避免 1,000 筆上限；藥
 
 原本要求先從十二顆按鈕選「第幾次」才能輸入。體重不像血壓的早中晚有臨床意義，「第 7 次」對照護者沒有語意，等於要求使用者幫系統管理一個對他無意義的編號；要修正今天量過的某一筆，還得先展開「更改量測次數」再從十二顆按鈕裡找出正確的那一顆。今天的紀錄現在直接列出並可點選修改，與血壓、體溫的當日清單是同一種操作方式。底層的 INSERT／UPDATE、台北日期與病人級唯一鍵都沒有改變。
 
-體重入口只由 `patient_daily_care_preferences.show_weight` 控制，以目前被照護者的 `patient_id` 為唯一鍵；設定頁開啟後，體重只在每日照護的頁內區段顯示，不再新增底部主導覽 tab，避免同一筆健康資料在兩個入口分流。這個偏好按病人共用，不會因不同照護者登入而分歧。原本另有一層獨立的「體重功能」病人級開關（`weight_settings` 表），只是在這個顯示偏好之上多包一層永遠同步的鎖、沒有額外效果，因此已移除該開關的 UI 與 App 層狀態；`weight_settings` 資料表仍保留給舊版快取 PWA 用戶端的相容路徑，不再由目前 UI 讀寫。替代方案「只在前端對 `admin@careapp.local` 硬編碼」無法隨照護對象與授權同步，因此不採用。
+體重入口只由 `patient_daily_care_preferences.show_weight` 控制，以目前被照護者的 `patient_id` 為唯一鍵；設定頁開啟後，體重只在每日照護的頁內區段顯示，不再新增底部主導覽 tab，避免同一筆健康資料在兩個入口分流。這個偏好按病人共用，不會因不同照護者登入而分歧。原本另有一層獨立的「體重功能」病人級開關（`weight_settings` 表），只是在這個顯示偏好之上多包一層永遠同步的鎖、沒有額外效果，因此已移除該開關的 UI 與 App 層狀態；`weight_settings` 資料表仍保留給舊版快取 PWA 用戶端的相容路徑，不再由目前 UI 讀寫。替代方案「只在前端對主要家屬（owner）帳號硬編碼」無法隨照護對象與授權同步，因此不採用。
 
 ## 體溫
 
@@ -267,3 +310,15 @@ CSV 匯出按 patient 產生獨立檔，分頁讀取避免 1,000 筆上限；藥
 當 `visualViewport` 因軟鍵盤縮小超過 150px，App 進入暫時性的 compact input mode：隱藏每日照護頁首、最新量測、輸入方式切換、下方紀錄與底部導覽，只保留三個輸入欄與儲存按鈕。欄位聚焦後延遲 250ms 執行 `scrollIntoView`，等待 iOS 鍵盤 resize 完成，避免立即捲動造成跳動；儲存成功後 blur 目前焦點，讓鍵盤與導覽恢復自然狀態。沒有 `visualViewport` 的瀏覽器維持原本版面，不改動桌面配置。
 
 Dashboard 的今日照護摘要與最新讀值要把 `measured_at`、狀態規則和目前 patient 一起呈現；不要顯示 Supabase、migration 或資料庫名稱作為照護者主要訊息。合規頁、CSV 匯出、帳號刪除與條款／隱私入口屬系統管理，但都要保留在可追溯的公開或設定流程中。
+
+## 語音輸入文字草稿（issue #800）
+
+血壓輸入的選用「語音輸入（文字草稿）」使用瀏覽器 `SpeechRecognition`／`webkitSpeechRecognition`，依目前 UI 語系預選 `id-ID`／`zh-TW`／`en-US`，並可獨立選口述語言。按下「同意並開始口述」才要求收音；開始前明示瀏覽器可能將音訊傳至其辨識服務，提醒不要口述姓名等個資。不宣稱本機／離線辨識，也不由本產品保存音訊、辨識原文或記錄錯誤內容。
+
+只把 final 原文追加至可編輯文字欄位，保留先前手動內容。使用者核對後手動填入收縮壓、舒張壓及心跳，最後沿用原本儲存按鈕、驗證、RLS 與通知。**草稿不是量測紀錄，也不會隨血壓儲存。** 不採用「把 130 80 自動拆成數值」或直接寫入：口音、數字與單位辨識仍可能錯誤，結構化解析屬後續迭代，不在 MVP。
+
+草稿僅存於以 `patient_id`／UI 語系為 key 的元件記憶體；切換病人或 UI 語言、離開血壓面板或開始送出時卸載清空。取消、收起區塊、背景化、手動編輯或改口述語言會取消未完成的收音，保留同一病人的已完成文字；已排程的舊 callback 必須失效。結束口述使用 `stop()` 允許服務回 final；取消與卸載使用 `abort()` 捨棄未完成結果。最長 30 秒 watchdog 避免服務／權限提示沒有回應而無限等待。
+
+不支援、非安全來源、拒絕權限、無聲音、網路或裝置錯誤都顯示三語退路，不鎖定量測欄位或儲存按鈕；不顯示 provider 原始錯誤。語音 API 支援及辨識準確度因瀏覽器與裝置而異，原生 WebView 不保證支援；不新增原生麥克風權限或 SDK。回滾只需移除語音元件入口，沒有 migration、RLS、離線佇列或判讀規則變動。
+
+驗證：`tests/unit/voiceInput.test.ts` 用假辨識器涵蓋 final／interim、追加、取消、手動修正、權限／網路失敗、超時、背景化與卸載；Playwright CLI 在匿名 Demo 驗證三語、手機尺寸、手動儲存、切換病人與面板的延遲結果隔離。不用真人資料或真的啟動麥克風；真機印尼文／中文辨識準確度仍須在 preview／staging 驗收。API 行為依 [MDN SpeechRecognition](https://developer.mozilla.org/en-US/docs/Web/API/SpeechRecognition)、[stop](https://developer.mozilla.org/en-US/docs/Web/API/SpeechRecognition/stop)、[abort](https://developer.mozilla.org/en-US/docs/Web/API/SpeechRecognition/abort)。

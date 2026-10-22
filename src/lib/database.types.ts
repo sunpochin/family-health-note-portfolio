@@ -133,7 +133,7 @@ export type Database = {
           diastolic: number
           id: string
           measured_at: string
-          patient_id: string | null
+          patient_id: string
           pulse: number | null
           recorded_by: string | null
           recorded_by_user_id: string | null
@@ -145,7 +145,7 @@ export type Database = {
           diastolic: number
           id?: string
           measured_at?: string
-          patient_id?: string | null
+          patient_id: string
           pulse?: number | null
           recorded_by?: string | null
           recorded_by_user_id?: string | null
@@ -157,7 +157,7 @@ export type Database = {
           diastolic?: number
           id?: string
           measured_at?: string
-          patient_id?: string | null
+          patient_id?: string
           pulse?: number | null
           recorded_by?: string | null
           recorded_by_user_id?: string | null
@@ -1546,6 +1546,20 @@ export type Database = {
         Args: { p_display_name: string }
         Returns: string
       }
+      apply_medication_plan_batch_change: {
+        Args: {
+          p_action: string
+          p_dose_amount?: number
+          p_effective_at?: string
+          p_expected_plans?: Json
+          p_expect_all_schedules?: boolean
+          p_medication_id: string
+          p_patient_id: string
+          p_plan_ids: string[]
+          p_reason?: string
+        }
+        Returns: number
+      }
       apply_medication_plan_change:
         | {
             Args: {
@@ -1773,7 +1787,10 @@ export type Database = {
       }
       normalize_drug_product_query: { Args: { value: string }; Returns: string }
       record_account_legal_acceptance: {
-        Args: never
+        Args: {
+          p_displayed_terms_version?: string
+          p_displayed_version?: string
+        }
         Returns: {
           authorization_basis: string | null
           consent_type: string | null
@@ -1796,7 +1813,11 @@ export type Database = {
         }
       }
       record_health_data_consent: {
-        Args: { p_authorization_basis?: string; p_consent_type: string }
+        Args: {
+          p_authorization_basis?: string
+          p_consent_type: string
+          p_displayed_version?: string
+        }
         Returns: {
           authorization_basis: string | null
           consent_type: string | null

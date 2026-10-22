@@ -110,7 +110,8 @@ export function NextVisitPage({ patientId, availablePatients, onSubjectSelect, u
       <section className="mt-4 rounded-3xl border border-slate-200 bg-white p-5 shadow-sm" aria-labelledby="next-visit-after-title">
         <div className="flex items-center justify-between gap-2">
           <h2 id="next-visit-after-title" className="text-lg font-black text-slate-900">{text(AFTER_TITLE)}</h2>
-          <button type="button" onClick={onOpenHistory} className="min-h-9 text-sm font-bold text-brand-700 underline decoration-brand-200 underline-offset-4">{text(OPEN_HISTORY)}</button>
+          {/* 觸控目標至少 44px（control-min）：看護單手、半夜操作時 36／40px 容易按錯，與 15 秒原則衝突（#1161）。 */}
+          <button type="button" onClick={onOpenHistory} className="min-h-11 text-sm font-bold text-brand-700 underline decoration-brand-200 underline-offset-4">{text(OPEN_HISTORY)}</button>
         </div>
         <p className="mt-1 text-xs text-slate-500">{text(AFTER_CAPTION)}</p>
         <div className="mt-3">

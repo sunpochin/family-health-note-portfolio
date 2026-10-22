@@ -125,18 +125,19 @@ describe('post_op_strict 收縮壓階梯（目標 110–120）', () => {
 // ---------------------------------------------------------------------------
 
 describe('post_op_strict 舒張壓階梯（警戒線 60）', () => {
-  test('128/53 → 超出目標（判斷方向反轉，本功能最具體的價值證明）', () => {
-    // 現行九級表把 128/53 判成「⚠️ 偏低」（舒張壓 50–54 用 operator: "or" 單獨命中），
-    // 但依醫囑它其實是**超標**。這一筆是單一全域標準套在個別醫囑上最具體的危害。
-    expect(zhLabel(128, 53, GENERAL_ADULT_STANDARD)).toBe('⚠️ 偏低')
-    expect(ruleKeys(128, 53, POST_OP_STRICT_STANDARD)[0]).toBe('off_target')
-    expect(zhLabel(128, 53, POST_OP_STRICT_STANDARD)).toContain('超出目標')
-    // 舒張壓 53 落在 §3.1 階梯的 50–54「偏低」帶，所以兩軸都命中、兩件事都要講。
-    expect(ruleKeys(128, 53, POST_OP_STRICT_STANDARD)).toEqual(['off_target', 'warning_low'])
+  test('127/52 → 超出目標（判斷方向反轉，本功能最具體的價值證明）', () => {
+    // 現行九級表把 127/52 判成「⚠️ 偏低」（舒張壓 50–54 用 operator: "or" 單獨命中），
+    // 但依這份模板它其實是**超標**。這一筆是單一全域標準套在個別醫囑上最具體的危害。
+    // 數值是照區間構造的（收縮壓落在 121–134、舒張壓落在 50–54），不是任何人的量測紀錄。
+    expect(zhLabel(127, 52, GENERAL_ADULT_STANDARD)).toBe('⚠️ 偏低')
+    expect(ruleKeys(127, 52, POST_OP_STRICT_STANDARD)[0]).toBe('off_target')
+    expect(zhLabel(127, 52, POST_OP_STRICT_STANDARD)).toContain('超出目標')
+    // 舒張壓 52 落在階梯的 50–54「偏低」帶，所以兩軸都命中、兩件事都要講。
+    expect(ruleKeys(127, 52, POST_OP_STRICT_STANDARD)).toEqual(['off_target', 'warning_low'])
   })
 
-  test('119/56 → 在目標內 ＋ 舒張壓低於參考值（兩個標籤都要出現）', () => {
-    const evaluation = evaluateReading(119, 56, null, POST_OP_STRICT_STANDARD)
+  test('115/57 → 在目標內 ＋ 舒張壓低於參考值（兩個標籤都要出現）', () => {
+    const evaluation = evaluateReading(115, 57, null, POST_OP_STRICT_STANDARD)
     expect(evaluation.bpRules.map(rule => rule.key)).toEqual(['on_target', 'diastolic_below_ref'])
     expect(evaluation.labels.zh).toContain('在目標內')
     expect(evaluation.labels.zh).toContain('舒張壓低於參考值')
@@ -144,12 +145,12 @@ describe('post_op_strict 舒張壓階梯（警戒線 60）', () => {
     expect(evaluation.labels.id).toContain('Diastolik di bawah nilai rujukan')
     expect(evaluation.labels.en).toContain('On target')
     expect(evaluation.labels.en).toContain('Diastolic below reference')
-    // 顏色取兩軸中較嚴重的那一階：收縮壓達標是綠色，但舒張壓 56 < 60 要看得見。
+    // 顏色取兩軸中較嚴重的那一階：收縮壓達標是綠色，但舒張壓 57 < 60 要看得見。
     expect(evaluation.level).toBe('below-target')
   })
 
-  test('109/56 → 低於目標 ＋ 舒張壓低於參考值', () => {
-    const evaluation = evaluateReading(109, 56, null, POST_OP_STRICT_STANDARD)
+  test('104/58 → 低於目標 ＋ 舒張壓低於參考值', () => {
+    const evaluation = evaluateReading(104, 58, null, POST_OP_STRICT_STANDARD)
     expect(evaluation.bpRules.map(rule => rule.key)).toEqual(['below_target', 'diastolic_below_ref'])
     expect(evaluation.labels.zh).toContain('低於目標')
     expect(evaluation.labels.zh).toContain('舒張壓低於參考值')
@@ -158,8 +159,8 @@ describe('post_op_strict 舒張壓階梯（警戒線 60）', () => {
     expect(evaluation.level).toBe('below-target')
   })
 
-  test('122/62 → 超出目標，舒張壓不標記（62 ≥ 60）', () => {
-    const evaluation = evaluateReading(122, 62, null, POST_OP_STRICT_STANDARD)
+  test('123/61 → 超出目標，舒張壓不標記（61 ≥ 60）', () => {
+    const evaluation = evaluateReading(123, 61, null, POST_OP_STRICT_STANDARD)
     expect(evaluation.bpRules.map(rule => rule.key)).toEqual(['off_target'])
     expect(evaluation.labels.zh).toBe('🔺 超出目標')
     expect(evaluation.level).toBe('off-target')
@@ -173,8 +174,8 @@ describe('post_op_strict 舒張壓階梯（警戒線 60）', () => {
   })
 
   test('舒張壓 <50 與 ≥120 仍命中 floor', () => {
-    expect(getAlertLevel(116, 48, null, POST_OP_STRICT_STANDARD)).toBe('danger-low')
-    expect(getAlertLevel(119, 47, null, POST_OP_STRICT_STANDARD)).toBe('danger-low')
+    expect(getAlertLevel(113, 49, null, POST_OP_STRICT_STANDARD)).toBe('danger-low')
+    expect(getAlertLevel(118, 45, null, POST_OP_STRICT_STANDARD)).toBe('danger-low')
     expect(getAlertLevel(115, 120, null, POST_OP_STRICT_STANDARD)).toBe('danger')
   })
 
@@ -215,30 +216,37 @@ describe('post_op_strict 舒張壓階梯（警戒線 60）', () => {
 })
 
 // ---------------------------------------------------------------------------
-// §3.1 的實際資料對照表
+// 兩軸階梯的邊界案例表（每一格都是照 post_op_strict.json 的區間邊界構造出來的，不是任何人的量測紀錄）
 // ---------------------------------------------------------------------------
 
-describe('post_op_strict — 規劃文件 §3.1 的實際讀數對照', () => {
-  // ⚠️ §3.1「用實際資料驗證」那張表是在舒張壓警戒線改成 60 之前寫的，只更新了 119/56 那一列。
-  // 舒張壓 ≤59 的其餘幾列（111/51、117/53、128/53、136/57…）在表上仍寫「消掉舒張壓噪音」，
-  // 與同一節的舒張壓階梯（50–54 偏低、55–59 低於參考值）互相矛盾。
-  // 這裡以**階梯**為準（它是規範，且標了「實作時不得再自行放寬或收緊」），對照表視為過期，已在 PR 提出。
+describe('post_op_strict — 兩軸階梯的邊界案例', () => {
+  // 為什麼是構造出來的數值：這個測試檔會進公開作品集，血壓序列本身就是健康資料，不能拿真人的讀值當 fixture
+  // （PR #1013 review）。每一列刻意踩在 post_op_strict.json 某個區間的上下界或正中間，
+  // 讓「收縮壓帶 × 舒張壓帶」的每一種組合至少出現一次，並以**階梯**為準（它是規範，且標了
+  // 「實作時不得再自行放寬或收緊」）：舒張壓 50–54 偏低、55–59 低於參考值、60–79 不標記。
   const cases: Array<[number, number, string[], string]> = [
-    [111, 51, ['on_target', 'warning_low'], 'warning-low'],
-    [114, 52, ['on_target', 'warning_low'], 'warning-low'],
-    [117, 53, ['on_target', 'warning_low'], 'warning-low'],
-    [120, 52, ['on_target', 'warning_low'], 'warning-low'],
-    [119, 56, ['on_target', 'diastolic_below_ref'], 'below-target'],
-    [122, 62, ['off_target'], 'off-target'],
-    [122, 66, ['off_target'], 'off-target'],
-    [129, 61, ['off_target'], 'off-target'],
-    [128, 53, ['off_target', 'warning_low'], 'warning-low'],
-    [136, 57, ['tinggi', 'diastolic_below_ref'], 'warning'],
-    [137, 59, ['tinggi', 'diastolic_below_ref'], 'warning'],
-    [108, 54, ['below_target', 'warning_low'], 'warning-low'],
-    [109, 62, ['below_target'], 'below-target'],
-    [116, 48, ['danger_low'], 'danger-low'],
-    [119, 47, ['danger_low'], 'danger-low'],
+    // 收縮壓在目標帶內（110–120），舒張壓落在 50–54：兩軸都要講
+    [110, 52, ['on_target', 'warning_low'], 'warning-low'],
+    [112, 50, ['on_target', 'warning_low'], 'warning-low'],
+    [118, 54, ['on_target', 'warning_low'], 'warning-low'],
+    [120, 50, ['on_target', 'warning_low'], 'warning-low'],
+    // 收縮壓在目標帶內，舒張壓 55–59：在目標內＋低於參考值
+    [115, 57, ['on_target', 'diastolic_below_ref'], 'below-target'],
+    // 收縮壓 121–134 超出目標，舒張壓 60–79 不標記：只剩 off_target
+    [121, 60, ['off_target'], 'off-target'],
+    [126, 79, ['off_target'], 'off-target'],
+    [134, 65, ['off_target'], 'off-target'],
+    // 超出目標＋舒張壓 50–54：判斷方向反轉的那一類（見上方 127/52 專屬測試）
+    [127, 52, ['off_target', 'warning_low'], 'warning-low'],
+    // 收縮壓 135–159 偏高＋舒張壓 55–59
+    [135, 55, ['tinggi', 'diastolic_below_ref'], 'warning'],
+    [140, 58, ['tinggi', 'diastolic_below_ref'], 'warning'],
+    // 收縮壓 100–109 低於目標：單獨、或再疊舒張壓偏低
+    [105, 53, ['below_target', 'warning_low'], 'warning-low'],
+    [100, 64, ['below_target'], 'below-target'],
+    // 舒張壓 < 50 一律 danger_low，收縮壓帶不再另外列出
+    [113, 49, ['danger_low'], 'danger-low'],
+    [118, 45, ['danger_low'], 'danger-low'],
   ]
 
   cases.forEach(([sys, dia, keys, level]) => {
@@ -248,8 +256,8 @@ describe('post_op_strict — 規劃文件 §3.1 的實際讀數對照', () => {
     })
   })
 
-  test('新抓到的三筆：現在是綠色「正常」，換模板後變成超出目標', () => {
-    ;[[122, 62], [122, 66], [129, 61]].forEach(([sys, dia]) => {
+  test('九級表判成綠色「正常」的讀值，換成術後嚴格模板後變成超出目標', () => {
+    ;[[121, 60], [124, 72], [126, 79]].forEach(([sys, dia]) => {
       expect(getAlertLevel(sys, dia, null, GENERAL_ADULT_STANDARD)).toBe('normal')
       expect(getAlertLevel(sys, dia, null, POST_OP_STRICT_STANDARD)).toBe('off-target')
     })
@@ -261,8 +269,8 @@ describe('post_op_strict — 規劃文件 §3.1 的實際讀數對照', () => {
 // ---------------------------------------------------------------------------
 
 describe('R3 general_adult 就是那張凍結的九級表', () => {
-  test('119/56 在 general_adult 下仍是「✅ 正常 (舒張壓偏低點)」', () => {
-    const evaluation = evaluateReading(119, 56, null, GENERAL_ADULT_STANDARD)
+  test('115/57 在 general_adult 下仍是「✅ 正常 (舒張壓偏低點)」', () => {
+    const evaluation = evaluateReading(115, 57, null, GENERAL_ADULT_STANDARD)
     expect(evaluation.bpRule.key).toBe('diastolic_low')
     expect(evaluation.labels.zh).toBe('✅ 正常 (舒張壓偏低點)')
     expect(evaluation.level).toBe('normal')
@@ -273,7 +281,7 @@ describe('R3 general_adult 就是那張凍結的九級表', () => {
   })
 
   test('general_adult 永遠只回一條規則（九級表是單一 first-match 表，不是雙軸）', () => {
-    expect(ruleKeys(119, 56, GENERAL_ADULT_STANDARD)).toHaveLength(1)
+    expect(ruleKeys(115, 57, GENERAL_ADULT_STANDARD)).toHaveLength(1)
     expect(ruleKeys(85, 90, GENERAL_ADULT_STANDARD)).toEqual(['tinggi'])
   })
 
@@ -286,8 +294,8 @@ describe('R3 general_adult 就是那張凍結的九級表', () => {
   })
 
   test('standardKey 會帶回輸出，讓報告印得出「依據哪一份標準」（R5）', () => {
-    expect(evaluateReading(119, 56, null, GENERAL_ADULT_STANDARD).standardKey).toBe('general_adult')
-    expect(evaluateReading(119, 56, null, POST_OP_STRICT_STANDARD).standardKey).toBe('post_op_strict')
+    expect(evaluateReading(115, 57, null, GENERAL_ADULT_STANDARD).standardKey).toBe('general_adult')
+    expect(evaluateReading(115, 57, null, POST_OP_STRICT_STANDARD).standardKey).toBe('post_op_strict')
   })
 })
 

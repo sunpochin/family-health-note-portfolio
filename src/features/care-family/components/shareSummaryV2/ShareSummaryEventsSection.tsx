@@ -13,17 +13,17 @@ export function ShareSummaryEventsSection({ recentEvents, openConcerns }: Pick<P
   const { text } = useI18n()
   return (
     <>
-      <section aria-labelledby="share-v2-events-title" className="rounded-2xl border border-gray-200 p-4 print:break-inside-avoid">
-        <h2 id="share-v2-events-title" className="text-sm font-bold text-gray-800">{text(SHARE_V2_LABELS.events)}</h2>
+      <section aria-labelledby="share-v2-events-title" className="rounded-2xl border border-slate-200 p-4 print:break-inside-avoid">
+        <h2 id="share-v2-events-title" className="text-sm font-bold text-slate-800">{text(SHARE_V2_LABELS.events)}</h2>
         {recentEvents.items.length === 0 ? (
-          <p className="mt-3 text-sm text-gray-500">{text(SHARE_V2_EMPTY_EVENTS)}</p>
+          <p className="mt-3 text-sm text-slate-500">{text(SHARE_V2_EMPTY_EVENTS)}</p>
         ) : (
-          <ul className="mt-2 divide-y divide-gray-100">
+          <ul className="mt-2 divide-y divide-slate-100">
             {recentEvents.items.map((event, index) => {
               const kind = event.visitKind && event.visitKind in visitKindText ? text(visitKindText[event.visitKind as VisitKind]) : event.visitKind
               return (
-                <li key={`${event.occurredAt}-${index}`} className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5 py-1.5 text-sm text-gray-800">
-                  <span className="shrink-0 tabular-nums text-xs text-gray-500">{formatTaipeiDate(event.occurredAt)}</span>
+                <li key={`${event.occurredAt}-${index}`} className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5 py-1.5 text-sm text-slate-800">
+                  <span className="shrink-0 tabular-nums text-xs text-slate-500">{formatTaipeiDate(event.occurredAt)}</span>
                   {event.eventType === 'health_visit' ? (
                     <span>
                       <span className="font-bold">{text(SHARE_V2_LABELS.visit)}</span>
@@ -45,10 +45,10 @@ export function ShareSummaryEventsSection({ recentEvents, openConcerns }: Pick<P
         {recentEvents.truncated && <p className="mt-2 text-xs font-semibold text-amber-700">{text(SHARE_V2_TRUNCATED(recentEvents.items.length))}</p>}
       </section>
 
-      <section aria-labelledby="share-v2-concerns-title" className="rounded-2xl border border-gray-200 p-4 print:break-inside-avoid">
-        <h2 id="share-v2-concerns-title" className="text-sm font-bold text-gray-800">{text(SHARE_V2_LABELS.concerns)}</h2>
+      <section aria-labelledby="share-v2-concerns-title" className="rounded-2xl border border-slate-200 p-4 print:break-inside-avoid">
+        <h2 id="share-v2-concerns-title" className="text-sm font-bold text-slate-800">{text(SHARE_V2_LABELS.concerns)}</h2>
         {/* 只顯示「有幾個」，不顯示「是什麼」（ADR-009 決策六）。 */}
-        <p className="mt-2 text-sm text-gray-800">
+        <p className="mt-2 text-sm text-slate-800">
           {openConcerns.openQuestionCount > 0 ? text(SHARE_V2_OPEN_QUESTIONS(openConcerns.openQuestionCount)) : text(SHARE_V2_NO_OPEN_QUESTIONS)}
         </p>
       </section>

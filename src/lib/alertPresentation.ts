@@ -2,14 +2,17 @@
 檔案用途：把一筆判讀結果換成**全 app 唯一一份**的視覺規格——chip 樣式、左側色條、圖示、
         按鈕底色。issue #898 §4.3 要收斂的四個 class map 全部從這裡取值。
 所在層：src/lib 展示規則層；純資料與純函式，不 import React、不碰 Supabase，可直接單元測試。
-主要關聯：VitalAlertBadge、RecordReport、DashboardChart、InputPage.utils、
+主要關聯：VitalAlertBadge、RecordReport、DashboardChart、DashboardStatsCards、InputPage、ShareSummaryBloodPressureSection、
+        src/components/ui/Icon.tsx（ALERT_ICON 的圖示名稱）、
         docs/product/blood-pressure-standard-templates.md §4.2／§4.3。
 
 為什麼要有這一份：同一組等級原本散在四個檔案各自維護，新增 off-target／below-target 時
 只要漏改一處，同一筆讀數就會「總覽紅、清單綠」。收斂之後每個表都是 Record<AlertTone, …>，
 少一個 tone 直接編譯失敗，不會靜默沿用舊配色。
 */
+import type { IconName } from '../components/ui/Icon'
 import type { AlertLevel, BpRule } from '../types/database/bpStandard'
+import type { LocalizedText } from './i18n'
 
 /**
  * 視覺階（§4.2）。刻意比 AlertLevel 多兩階，因為顏色要分辨的事情比判讀等級多兩件：
@@ -43,7 +46,7 @@ export interface TonedEvaluation {
 
 export function alertTone(evaluation: TonedEvaluation): AlertTone {
   const bpLevel = evaluation.bpRule.webAlertLevel as AlertLevel
-  // hard floor 的最高階單獨一個視覺階；它是唯一會附上行動文字的一級。
+  // hard floor 的最高階單獨一個視覺階；它是唯一標籤自帶行動文字的一級（見檔尾說明）。
   if (evaluation.bpRule.key === 'danger_high') return 'critical'
   // evaluateReading 在血壓未達危險級時會被心跳 >120 推上 'warning'。
   // 這時 level 與血壓自己的等級不一致，紅色的理由不成立，改用心跳自己的階。
@@ -139,12 +142,18 @@ export const ALERT_SOFT_CHIP_CLASS: Record<AlertTone, string> = {
  */
 export const ALERT_BUTTON_CLASS: Record<AlertTone, string> = {
   'on-target': 'bg-brand-700 active:bg-emerald-800',
-  normal: 'bg-green-600 active:bg-green-700',
+  // issue #1153：原本 green-600 白字只有 3.30:1，按鈕字 18px 粗體還差一點才算大字，不能靠例外過關。
+  // green-700 白字 4.95:1（Tailwind v4 實際渲染 #008236，不是 issue 引用的 v3 #15803D）。它與 on-target 的 brand-700（#047857）都是深綠、明度相近，
+  // 但兩者不會出現在同一位病人身上：normal 只來自一般成人九級表，on-target 只來自目標制模板
+  // （tests/unit/alertPresentation.test.ts 鎖住這件事）。真正要分開的「在目標內 vs 正常」靠 chip 的外框／實心。
+  normal: 'bg-green-700 active:bg-green-800',
   'below-target': 'bg-warn-700 active:bg-amber-800',
-  'warning-low': 'bg-orange-600 active:bg-orange-700',
+  // orange-600 白字只有 3.56:1，與 green-600 同一個缺陷（驗收寫的是「送出鈕白字 ≥4.5:1」，不只 normal 一階）；
+  // 改成與 chip 同一個 orange-700（v4 #CA3500，5.22:1）。測試逐階算對比，新加的階也會被檢查。
+  'warning-low': 'bg-orange-700 active:bg-orange-800',
   'danger-low': 'bg-red-600 active:bg-red-700',
   'off-target': 'bg-danger-700 active:bg-red-800',
-  'pulse-warning': 'bg-orange-600 active:bg-orange-700',
+  'pulse-warning': 'bg-orange-700 active:bg-orange-800',
   warning: 'bg-danger-700 active:bg-red-800',
   danger: 'bg-danger-700 active:bg-red-800',
   critical: 'bg-red-800 active:bg-red-900',
@@ -170,28 +179,46 @@ export const ALERT_CARD_CLASS: Record<AlertTone, string> = {
   critical: 'bg-red-100/80 border-red-300',
 }
 
-/** 輸入頁摘要列與報告手機欄位用的短圖示；上／下三角在灰階與紅綠色盲下仍能指出「往哪邊調」。 */
-export const ALERT_ICON: Record<AlertTone, string> = {
-  'on-target': '🎯',
-  normal: '✅',
-  'below-target': '🔻',
-  'warning-low': '⚠️',
-  'danger-low': '🔴',
-  'off-target': '🔺',
-  'pulse-warning': '💓',
-  warning: '⚠️',
-  danger: '⚠️',
-  critical: '🔴',
+/**
+ * chip、輸入頁摘要列與報告手機欄位用的 SVG 圖示名稱（§4.4「chip 一律圖示＋文字」）。
+ *
+ * issue #1153 從 emoji 換成 `<Icon name />`：emoji 在 iOS／Android／Windows 長得不一樣，也無法用 token 控對比。
+ * 一對一沿用舊 emoji 的語意，不藉機重排：上／下箭頭（原 🔺🔻）在灰階與紅綠色盲下仍能指出「往哪邊偏」；
+ * 八角形（原 🔴）只給兩個危險級，與三角驚嘆號（原 ⚠️）在灰階下靠外形分開。
+ * 這裡只存名稱字串，不 import React 元件，本檔維持純資料、可直接單元測試。
+ */
+export const ALERT_ICON: Record<AlertTone, IconName> = {
+  'on-target': 'target',
+  normal: 'check-circle',
+  'below-target': 'arrow-down-circle',
+  'warning-low': 'alert-triangle',
+  'danger-low': 'alert-octagon',
+  'off-target': 'arrow-up-circle',
+  'pulse-warning': 'heart-pulse',
+  warning: 'alert-triangle',
+  danger: 'alert-triangle',
+  critical: 'alert-octagon',
 }
 
+// Extended_Pictographic 涵蓋 🔴⚠✅🟡🎯🔺🔻 等；後面可能跟著 VS16（U+FE0F）與空白，一起吃掉才不會留下孤立的變體選擇符或雙空白。
+const LABEL_EMOJI = /\p{Extended_Pictographic}️?\s*/gu
+
 /**
- * 只有最高階附行動文字（§4.2）。
+ * 把 bp-levels.json／心跳警示標籤裡的 emoji 拿掉，只留文字，給**畫面**用。
  *
- * 每一階都掛一句「請這樣做」會讓照護者整頁都是指示、反而不讀；
- * 其餘各階的建議由 bp-levels.json 的 recommendations 在報告與詳情處提供，不擠進 chip。
+ * 為什麼不直接改 bp-levels.json（issue #1153 的決定）：同一份標籤會經 scripts/sync-bp-rules-to-edge.ts
+ * 同步到 Edge Function，成為 Telegram 推播文字；純文字通道畫不出 SVG，emoji 是那裡唯一的視覺分級。
+ * 改 JSON 等於動血壓警報鏈，還要重新部署 blood-pressure-notifier 並在 staging 實收驗證，
+ * 這張票只處理畫面，所以推播原樣保留，畫面在顯示時剝除並改由 ALERT_ICON 的 SVG 補上圖示。
+ * 文字匯出（recordReport.ts 的 formatRecordStatus）同屬純文字通道，也刻意不剝。
  */
-export const CRITICAL_ACTION_TEXT = {
-  zh: '立即複測',
-  id: 'Ukur ulang segera',
-  en: 'Measure again now',
-} as const
+export function alertLabelText(labels: LocalizedText): LocalizedText {
+  const strip = (value: string) => value.replace(LABEL_EMOJI, '').trim()
+  return { zh: strip(labels.zh), id: strip(labels.id), en: strip(labels.en) }
+}
+
+// 只有最高階附行動文字（§4.2）。行動文字就寫在 bp-levels.json danger_high 的標籤裡
+// （「需立即複測／ukur ulang segera／measure again immediately」），這裡**刻意不再**另存一份常數：
+// 舊版的 CRITICAL_ACTION_TEXT 被 VitalAlertBadge 接在標籤後面，同一句指示顯示兩遍（issue #1096）。
+// 每一階都掛一句「請這樣做」會讓照護者整頁都是指示、反而不讀；
+// 其餘各階的建議由 bp-levels.json 的 recommendations 在報告與詳情處提供，不擠進 chip。

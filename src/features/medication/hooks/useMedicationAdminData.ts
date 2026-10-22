@@ -41,7 +41,7 @@ export function useMedicationAdminData({ patientId, catalogQuery, locale }: Medi
 
   const medicationById = useMemo(() => new Map(medications.map(medication => [medication.id, medication])), [medications])
   const activeAccount = true
-  // 媽媽專用入口由資料庫 RPC 驗證照護權，不能因為這頁刻意不讀 profiles 就誤當成沒有授權帳號。
+  // 病人專用入口由資料庫 RPC 驗證照護權，不能因為這頁刻意不讀 profiles 就誤當成沒有授權帳號。
   const canEditSubject = !loading && !loadFailed
   const personalMedicationIds = useMemo(() => new Set(plans.map(plan => plan.medication_id)), [plans])
   const personalMedications = useMemo(() => medications.filter(medication => personalMedicationIds.has(medication.id)), [medications, personalMedicationIds])

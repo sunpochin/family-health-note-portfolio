@@ -4,7 +4,6 @@
 主要關聯：src/features/vitals/pages/InputPage.utils.ts、careDay 與 blood_pressure_records 表。
 */
 import { describe, expect, mock, test } from 'bun:test'
-import { saveDemoBpRecord } from '../../src/lib/demoStorage'
 
 let queryResult: { data: unknown; error: unknown } = { data: [], error: null }
 
@@ -21,6 +20,13 @@ const supabase = {
 }
 
 mock.module('../../src/lib/supabase', () => ({ supabase }))
+
+let demoModeOn = false
+let demoRecords: Array<{ systolic: number; diastolic: number; pulse: number | null; measured_at: string }> = []
+mock.module('../../src/lib/demoStorage', () => ({
+  isDemoMode: () => demoModeOn,
+  getDemoBpRecords: () => demoRecords,
+}))
 
 const { fetchRecentSummary } = await import('../../src/features/vitals/pages/InputPage.utils')
 const { DEMO_MEILING_PATIENT_ID } = await import('../../src/lib/demoData')
@@ -68,30 +74,22 @@ describe('fetchRecentSummary', () => {
   })
 
   test('in demo mode, reads from local demo records and excludes ones outside the recent window instead of querying Supabase', async () => {
-    const originalWindow = globalThis.window
-    const values = new Map<string, string>()
-    globalThis.window = {
-      location: { pathname: '/demo' },
-      localStorage: {
-        getItem: (k: string) => values.get(k) ?? null,
-        setItem: (k: string, v: string) => values.set(k, v),
-        removeItem: (k: string) => values.delete(k),
-      },
-    } as unknown as Window & typeof globalThis
-
+    demoModeOn = true
     const now = new Date()
     const withinWindow = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 8, 30, 0).toISOString()
     const longAgo = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 30, 8, 30, 0).toISOString()
-    saveDemoBpRecord({ patient_id: DEMO_MEILING_PATIENT_ID, systolic: 118, diastolic: 76, pulse: 68, measured_at: withinWindow })
-    saveDemoBpRecord({ patient_id: DEMO_MEILING_PATIENT_ID, systolic: 150, diastolic: 95, pulse: 80, measured_at: longAgo })
+    demoRecords = [
+      { systolic: 118, diastolic: 76, pulse: 68, measured_at: withinWindow },
+      { systolic: 150, diastolic: 95, pulse: 80, measured_at: longAgo },
+    ]
 
     try {
       const summaries = await fetchRecentSummary(DEMO_MEILING_PATIENT_ID)
       expect(summaries).toHaveLength(1)
       expect(summaries[0].avgSys).toBe(118)
     } finally {
-      if (originalWindow) globalThis.window = originalWindow
-      else delete (globalThis as { window?: unknown }).window
+      demoModeOn = false
+      demoRecords = []
     }
   })
 })

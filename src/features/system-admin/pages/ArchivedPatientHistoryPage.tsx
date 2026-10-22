@@ -27,37 +27,39 @@ export function ArchivedPatientHistoryPage({ patientId, patientName, careRecipie
   const [days, setDays] = useState<TrendPeriodDays>(readTrendPeriod)
 
   return (
-    <section className="min-h-full bg-slate-50 px-5 pt-5 pb-8 text-gray-900">
+    <section className="min-h-full bg-slate-50 px-5 pt-5 pb-8 text-slate-900">
       <button
         type="button"
         onClick={onBack}
-        className="min-h-11 -ml-1 flex items-center gap-1 rounded-lg px-1 text-sm font-bold text-indigo-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-600"
+        className="min-h-11 -ml-1 flex items-center gap-1 rounded-lg px-1 text-sm font-bold text-brand-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-700"
       >
         <span aria-hidden="true">←</span>
         {text({ id: 'Kembali ke Pengaturan', zh: '返回設定', en: 'Back to Settings' })}
       </button>
 
       <header className="mt-2">
-        <p className="text-xs font-bold uppercase tracking-wider text-indigo-700">
+        <p className="text-xs font-bold uppercase tracking-wider text-brand-700">
           {text({ id: 'Riwayat hidup (hanya baca)', zh: '生命歷史（唯讀）', en: 'History of Life (Read Only)' })}
         </p>
-        <h1 className="mt-1 text-2xl font-bold text-gray-900">{patientName}</h1>
+        <h1 className="mt-1 text-2xl font-bold text-slate-900">{patientName}</h1>
         {/* 這裡不提供任何寫入入口；已封存對象只能在這個頁面被閱讀，不能被誤觸產生新紀錄。 */}
-        <p className="mt-1 text-sm text-gray-500">
+        <p className="mt-1 text-sm text-slate-500">
           {text({ id: 'Data ini diarsipkan dan tidak dapat ditambah atau diubah dari sini.', zh: '此對象已封存，這裡無法新增或修改任何紀錄。', en: 'This object has been archived and no records can be added or modified here.' })}
         </p>
       </header>
 
+      {/* 選中的區間鈕底色就是 emerald-700，焦點環若貼著邊框同色，鍵盤使用者看不出焦點在哪；
+          用 ring-offset-2 留一圈空隙，選中與未選中都看得到（SubjectSwitcher 在 #1143 踩過同一個坑）。 */}
       <div className="mt-4 flex flex-wrap gap-2" role="group" aria-label={text({ id: 'Rentang riwayat', zh: '歷史區間', en: 'Historical Sections' })}>
         {TREND_PERIOD_OPTIONS.map(option => (
           <button
             key={option}
             type="button"
             aria-pressed={days === option}
-            className={`min-h-11 rounded-xl border px-3 py-2 text-sm font-semibold transition focus-visible:outline-2 focus-visible:outline-emerald-700 ${
+            className={`min-h-11 rounded-xl border px-3 py-2 text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-700 focus-visible:ring-offset-2 ${
               days === option
                 ? 'border-emerald-700 bg-emerald-700 text-white'
-                : 'border-gray-200 bg-white text-gray-700 active:bg-gray-100'
+                : 'border-slate-200 bg-white text-slate-700 active:bg-slate-100'
             }`}
             onClick={() => { setDays(option); saveTrendPeriod(option) }}
           >

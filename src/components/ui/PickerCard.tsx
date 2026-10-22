@@ -67,13 +67,13 @@ export const PickerCard = forwardRef<HTMLInputElement, PickerCardProps>(function
                 if (/^\d+$/.test(valStr)) onChange(Number(valStr))
               }
             }}
-            className={`min-h-12 w-full rounded-2xl border py-2 text-center text-3xl font-bold outline-none focus:ring-2 focus:ring-blue-500/50 transition-colors ${
+            className={`min-h-12 w-full rounded-2xl border-2 py-2 text-center text-3xl font-bold outline-none focus-visible:ring-2 focus-visible:ring-brand-700 transition-colors ${
               pendingAdvance
-                ? 'border-blue-400 bg-blue-50 animate-pulse'
-                : 'border-slate-200 bg-slate-50'
+                ? 'border-blue-600 bg-blue-50 animate-pulse'
+                : 'border-control-border bg-slate-50'
             } ${accent}`}
           />
-          <span className="text-xs text-gray-500 mt-1">{unit}</span>
+          <span className="text-xs text-slate-500 mt-1">{unit}</span>
         </div>
       </div>
     </div>

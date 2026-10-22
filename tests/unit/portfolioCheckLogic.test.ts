@@ -5,7 +5,12 @@ regex 跳脫變體比對、硬性拒絕檔名判斷。
 主要關聯：scripts/portfolio/checkLogic.ts、scripts/portfolio/check.ts、
 docs/operations/portfolio-pipeline.md 第 3.3、3.4 節。
 */
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+
 import { describe, expect, test } from 'bun:test'
+import { applyReplacements } from '../../scripts/portfolio/build'
 import {
   findForbiddenHit,
   flattenCategories,
@@ -129,6 +134,32 @@ describe('isTextFile', () => {
     expect(isTextFile('bun.lock')).toBe(true)
   })
 
+  test('treats the extensionless license as scannable', () => {
+    // LICENSE 沒有副檔名；仍須替換其中的識別資料，不能只等禁字掃描事後攔截。
+    expect(isTextFile('LICENSE')).toBe(true)
+  })
+
+  test('applies replacements to extensionless text files and leaves binary files untouched', () => {
+    // 為什麼直接測 build 的替換流程：只測判斷函式無法防止 build 日後又繞過它。
+    const tempDir = mkdtempSync(join(tmpdir(), 'portfolio-replacements-'))
+    const licensePath = join(tempDir, 'LICENSE')
+    const binaryPath = join(tempDir, 'logo.png')
+    const binaryBytes = Buffer.from([0, 255, 127, 1])
+
+    try {
+      writeFileSync(licensePath, 'private-marker')
+      writeFileSync(binaryPath, binaryBytes)
+
+      const counts = applyReplacements([licensePath, binaryPath], { 'private-marker': 'masked-marker' })
+
+      expect(readFileSync(licensePath, 'utf8')).toBe('masked-marker')
+      expect(readFileSync(binaryPath)).toEqual(binaryBytes)
+      expect(counts.get('private-marker')).toBe(1)
+    } finally {
+      rmSync(tempDir, { recursive: true, force: true })
+    }
+  })
+
   test('treats known binary extensions as non-text', () => {
     expect(isTextFile('public/og-image.png')).toBe(false)
     expect(isTextFile('public/pwa-512x512.png')).toBe(false)
@@ -157,7 +188,7 @@ describe('findForbiddenHit', () => {
     expect(findForbiddenHit('src/lib/demoData.ts', 'demo.chen@example.test', entries)).toBeNull()
   })
 
-  test('matches a case variant of a forbidden email (real near-miss: admin@careapp.local slipped past a lowercase-only entry)', () => {
+  test('matches a case variant of a forbidden email (real near-miss: a mixed-case variant of a real email slipped past a lowercase-only entry)', () => {
     expect(findForbiddenHit('tests/unit/x.test.ts', "account_email: 'Real.Person@Example.com'", entries)).toBe('emails')
   })
 

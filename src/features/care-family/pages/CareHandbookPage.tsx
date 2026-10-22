@@ -11,6 +11,7 @@
 不呼叫 setActiveSubject／onSubjectSelect，從結構上確保這份交接手冊只會顯示「這一位」病人的藥單，
 不會因為使用者中途切換操作對象而混入或外洩另一位病人的資料。
 */
+import { medicationHoldSummary } from '../../../lib/medication/medicationHold'
 import { useEffect, useMemo, useState } from 'react'
 import { careDateKey } from '../../../lib/careDay'
 import { compareMedicationSlots, medicationSlotText } from '../../../lib/medication/medicationSchedule'
@@ -91,22 +92,22 @@ export function CareHandbookPage({ patientId, patientName, onBack }: {
   const generatedAt = dayjs().tz(REPORT_TIMEZONE).format('YYYY/MM/DD HH:mm')
 
   return (
-    <section className="min-h-full bg-slate-50 px-5 pt-5 pb-8 text-gray-900 care-handbook-container">
+    <section className="min-h-full bg-slate-50 px-5 pt-5 pb-8 text-slate-900 care-handbook-container">
       <button
         type="button"
         onClick={onBack}
-        className="print-hidden -ml-1 flex min-h-11 items-center gap-1 rounded-lg px-1 text-sm font-bold text-indigo-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-600"
+        className="print-hidden -ml-1 flex min-h-11 items-center gap-1 rounded-lg px-1 text-sm font-bold text-brand-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-700"
       >
         <span aria-hidden="true">←</span>
         {text({ id: 'Kembali ke Pengaturan', zh: '返回設定', en: 'Back to Settings' })}
       </button>
 
       <header className="mt-2">
-        <p className="text-xs font-bold uppercase tracking-wider text-indigo-700">
+        <p className="text-xs font-bold uppercase tracking-wider text-brand-700">
           {bilingual({ id: 'Buku Panduan Serah Terima Perawatan', zh: '換看護交接照護手冊', en: 'Caregiver Handover Guide' })}
         </p>
-        <h1 className="mt-1 text-2xl font-bold text-gray-900">{patientName}</h1>
-        <p className="mt-1 text-sm text-gray-500 print-hidden">
+        <h1 className="mt-1 text-2xl font-bold text-slate-900">{patientName}</h1>
+        <p className="mt-1 text-sm text-slate-500 print-hidden">
           {text({ id: 'Isi kolom di bawah lalu cetak. Isian tidak disimpan ke server.', zh: '請在下方欄位填寫後直接列印；輸入內容不會存到伺服器。', en: 'Fill in the fields below and print directly. Input is not saved to the server.' })}
         </p>
         {/* 只在列印時顯示產生時間，畫面上不需要；跟血壓報告的做法一致。 */}
@@ -151,6 +152,8 @@ export function CareHandbookPage({ patientId, patientName, onBack }: {
                       {' / '}
                       {formatDoseAmountLocalized(plan.dose_amount, plan.medication.dosage_form, 'id')}
                       {plan.dose_count > 1 ? ` × ${plan.dose_count}` : ''}
+                      {/* 紙本保留醫囑與生效時間，不用最後血壓推論現在應否服藥。 */}
+                      {plan.holdRule && <p>{bilingual(medicationHoldSummary(plan.holdRule))} · {plan.holdRule.order_date} · {bilingual({ zh: '生效時間（台北）', id: 'Mulai berlaku (Taipei)', en: 'Effective (Taipei)' })} {dayjs(plan.holdRule.effective_at).tz('Asia/Taipei').format('YYYY-MM-DD HH:mm')} · {plan.holdRule.order_note}</p>}
                       {medicationIntakeGuidanceLines(plan).map((line, index) => (
                         <span key={index} className="block pl-3 text-slate-600">· {line}</span>
                       ))}
@@ -172,6 +175,8 @@ export function CareHandbookPage({ patientId, patientName, onBack }: {
                       {' / '}
                       {formatDoseAmountLocalized(plan.dose_amount, plan.medication.dosage_form, 'id')}
                       {plan.dose_count > 1 ? ` × ${plan.dose_count}` : ''}
+                      {/* 紙本保留醫囑與生效時間，不用最後血壓推論現在應否服藥。 */}
+                      {plan.holdRule && <p>{bilingual(medicationHoldSummary(plan.holdRule))} · {plan.holdRule.order_date} · {bilingual({ zh: '生效時間（台北）', id: 'Mulai berlaku (Taipei)', en: 'Effective (Taipei)' })} {dayjs(plan.holdRule.effective_at).tz('Asia/Taipei').format('YYYY-MM-DD HH:mm')} · {plan.holdRule.order_note}</p>}
                       {medicationIntakeGuidanceLines(plan).map((line, index) => (
                         <span key={index} className="block pl-3 text-slate-600">· {line}</span>
                       ))}
@@ -206,7 +211,8 @@ export function CareHandbookPage({ patientId, patientName, onBack }: {
         onChange={setContactsNote}
       />
 
-      <p className="mt-4 text-xs text-slate-400 print-hidden">
+      {/* slate-400 在 slate-50 底只有約 2.5:1，未達 AA；#1145 對照表規定淺灰「文字」改 slate-500（原本就是 slate-400，不是 gray 遷移產物）。 */}
+      <p className="mt-4 text-xs text-slate-500 print-hidden">
         {text({ id: `Buku panduan ini hanya berisi data ${patientName}.`, zh: `此手冊僅包含「${patientName}」一人的資料。`, en: `This handbook contains data for ${patientName} only.` })}
       </p>
       <PrintSourceFooter />
@@ -230,7 +236,7 @@ function ManualNoteSection({ id, title, placeholder, value, onChange }: {
         onChange={e => onChange(e.target.value)}
         placeholder={bilingual(placeholder)}
         rows={3}
-        className="print-hidden mt-2 w-full rounded-xl border border-slate-200 p-2 text-sm text-slate-800"
+        className="print-hidden mt-2 w-full rounded-xl border-2 border-control-border p-2 text-sm text-slate-800"
       />
       {/* 瀏覽器列印 textarea 時常只印出目前捲動到的內容；改用純文字區塊鏡射同一份輸入，確保整段文字都會出現在紙本上。 */}
       <p className="hidden care-handbook-print-only whitespace-pre-wrap text-xs text-slate-800">

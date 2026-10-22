@@ -6,7 +6,8 @@ src/lib/medication/medicationSwallowGuidance.ts、src/lib/medication/medicationI
 */
 import { describe, expect, test } from 'bun:test'
 import { installReactHookHarness, renderHook } from './helpers/reactHookHarness'
-import { textContent } from './helpers/elementTree'
+import { findAll, textContent } from './helpers/elementTree'
+import { Icon } from '../../src/components/ui/Icon'
 import { resolveSwallowGuidance } from '../../src/lib/medication/medicationSwallowGuidance'
 import { detectInstructionConflict } from '../../src/lib/medication/medicationInstructions'
 import type { PatientMedicationInstruction } from '../../src/types/database'
@@ -46,7 +47,9 @@ describe('MedicationIntakeGuidance compact badge', () => {
   test('shows an orange caution badge with text and icon when the official level needs attention', () => {
     const view = renderHook(() => MedicationIntakeGuidance({ guidance: sublingualGuidance, instruction: null, hasConflict: false, compact: true }), { defaultContext: zhContext })
     expect(textContent(view.current)).toContain('服用方式需注意，請查看詳情')
-    expect(textContent(view.current)).toContain('⚠')
+    // 徽章的 ⚠ 已改成 <Icon name="alert-triangle">（issue #1150）：SVG 不會出現在文字裡，所以直接斷言圖示元素；
+    // 「圖示＋文字同時存在、不靠顏色單獨傳遞語意」這條原則仍由這個斷言保護。
+    expect(findAll(view.current, el => el.type === Icon).map(el => el.props.name)).toEqual(['alert-triangle'])
     view.unmount()
   })
 

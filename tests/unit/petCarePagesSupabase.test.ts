@@ -54,7 +54,27 @@ const supabase = {
   },
 }
 
+const demoStorage = {
+  isDemoMode: () => false,
+  readDemoPetAppetiteRecords: () => [],
+  saveDemoPetAppetiteRecord: () => undefined,
+  readDemoPetDigestionRecord: () => null,
+  readDemoPetDigestionRecords: () => [],
+  saveDemoPetDigestionRecord: () => undefined,
+  readDemoPetFluidRecords: () => [],
+  saveDemoPetFluidRecord: () => undefined,
+  readDemoPetGlucoseRecords: () => [],
+  saveDemoPetGlucoseRecord: () => undefined,
+  readDemoPetInsulinRecords: () => [],
+  saveDemoPetInsulinRecord: () => undefined,
+  readDemoPetLiquidIntakeRecord: () => null,
+  readDemoPetLiquidIntakeRecords: () => [],
+  saveDemoPetLiquidIntakeRecord: () => undefined,
+  readDemoWeightRecords: () => [],
+}
+
 mock.module('../../src/lib/supabase', () => ({ supabase }))
+mock.module('../../src/lib/demoStorage', () => demoStorage)
 
 const { PetAppetitePage } = await import('../../src/features/pet-care/pages/PetAppetitePage')
 const { PetDigestionPage } = await import('../../src/features/pet-care/pages/PetDigestionPage')
@@ -95,12 +115,7 @@ function input(node: unknown, placeholder: string) {
   return found
 }
 
-beforeEach(() => {
-  resetResults()
-  if (typeof globalThis.window !== 'undefined') {
-    delete (globalThis as { window?: unknown }).window
-  }
-})
+beforeEach(resetResults)
 
 afterAll(() => {
   // 本檔只 mock module，不改寫 window；保留這個明確結束點讓未來擴充瀏覽器 fixture 時不會遺漏清理。

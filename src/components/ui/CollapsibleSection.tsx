@@ -5,9 +5,11 @@
 */
 import { useId, useState, type ReactNode } from 'react'
 import { useI18n, type LocalizedText } from '../../lib/i18n'
+import { Icon, type IconName } from './Icon'
 
 export function CollapsibleSection({ icon, title, description, defaultOpen = false, children }: {
-  icon: string
+  // 收 IconName 而不是任意字串：emoji 跨平台字型不一、無法用 token 控制顏色（issue #1150），型別層直接擋掉就不會有人再塞 emoji 進來。
+  icon: IconName
   title: LocalizedText
   description: LocalizedText
   defaultOpen?: boolean
@@ -20,27 +22,27 @@ export function CollapsibleSection({ icon, title, description, defaultOpen = fal
   const panelId = useId()
 
   return (
-    <section className="mt-6 overflow-hidden rounded-2xl border border-gray-200 bg-white">
+    <section className="mt-6 overflow-hidden rounded-2xl border border-slate-200 bg-white">
       <button
         type="button"
         onClick={() => setOpen(current => !current)}
         aria-expanded={open}
         aria-controls={panelId}
-        className="flex min-h-16 w-full items-center gap-3 px-4 py-3 text-left active:bg-gray-50"
+        className="flex min-h-16 w-full items-center gap-3 px-4 py-3 text-left active:bg-slate-50"
       >
-        <span aria-hidden="true" className="shrink-0 text-2xl leading-none">{icon}</span>
+        <Icon name={icon} className="h-6 w-6 shrink-0 text-slate-600" />
         <span className="min-w-0 flex-1">
-          <span className="block font-bold text-gray-900">{text(title)}</span>
-          <span className="mt-0.5 block text-xs text-gray-500">{text(description)}</span>
+          <span className="block font-bold text-slate-900">{text(title)}</span>
+          <span className="mt-0.5 block text-xs text-slate-500">{text(description)}</span>
         </span>
         {/* 純裝飾的展開／收合箭頭；狀態已經由按鈕的 aria-expanded 告知讀屏器，這裡不需要重複描述。 */}
-        <svg aria-hidden="true" viewBox="0 0 20 20" fill="currentColor" className={`h-5 w-5 shrink-0 text-gray-400 transition-transform ${open ? 'rotate-180' : ''}`}>
+        <svg aria-hidden="true" viewBox="0 0 20 20" fill="currentColor" className={`h-5 w-5 shrink-0 text-slate-500 transition-transform ${open ? 'rotate-180' : ''}`}>
           <path fillRule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.148l3.71-3.918a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z" clipRule="evenodd" />
         </svg>
       </button>
       {/* 收合時只用 hidden 屬性隱藏，不能整個 unmount：裡面可能正顯示邀請連結／分享連結這類只顯示一次的
           一次性內容（伺服器只存 hash，前端狀態一消失就再也拿不回原始 token），收合／展開必須保留這些狀態。 */}
-      <div id={panelId} hidden={!open} className="border-t border-gray-100 bg-gray-50 px-3 pb-4">
+      <div id={panelId} hidden={!open} className="border-t border-slate-100 bg-slate-50 px-3 pb-4">
         {children}
       </div>
     </section>

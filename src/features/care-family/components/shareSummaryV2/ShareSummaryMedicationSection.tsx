@@ -31,23 +31,23 @@ function MedicationItem({ item }: { item: ShareSummaryV2Medication }) {
     return label ? [text(label)] : []
   })
   return (
-    <li className="py-2 text-sm text-gray-800">
+    <li className="py-2 text-sm text-slate-800">
       <p>
         <span className="font-bold">{primary}</span>
-        {primary !== item.displayName.brand && <span className="ml-1 text-gray-500">{item.displayName.brand}</span>}
-        {strength && <span className="ml-1 text-gray-600">{strength}</span>}
-        <span className="ml-1 text-gray-600">· {formatDoseAmountLocalized(item.doseAmount, item.dosageForm, locale)}{item.doseCount > 1 ? ` × ${item.doseCount}` : ''}</span>
+        {primary !== item.displayName.brand && <span className="ml-1 text-slate-500">{item.displayName.brand}</span>}
+        {strength && <span className="ml-1 text-slate-600">{strength}</span>}
+        <span className="ml-1 text-slate-600">· {formatDoseAmountLocalized(item.doseAmount, item.dosageForm, locale)}{item.doseCount > 1 ? ` × ${item.doseCount}` : ''}</span>
       </p>
-      <p className="text-xs text-gray-500">
+      <p className="text-xs text-slate-500">
         {item.displayName.generic}
         {appearance.length > 0 && ` · ${appearance.join(' · ')}`}
       </p>
-      <p className="text-xs text-gray-500">
+      <p className="text-xs text-slate-500">
         {text(VERIFICATION_STATUS_LABELS[item.verificationStatus])}
         {item.tfdaLicenseNumber && ` · ${text(SHARE_V2_LABELS.licence)} ${item.tfdaLicenseNumber}`}
       </p>
       {instructions.length > 0 && (
-        <p className="text-xs text-gray-600">{text(SHARE_V2_LABELS.howToTake)}：{instructions.join('、')}</p>
+        <p className="text-xs text-slate-600">{text(SHARE_V2_LABELS.howToTake)}：{instructions.join('、')}</p>
       )}
     </li>
   )
@@ -57,24 +57,24 @@ export function ShareSummaryMedicationSection({ medications }: { medications: Pa
   const { text } = useI18n()
   const { scheduled, asNeeded } = groupMedicationsBySlot(medications.items)
   return (
-    <section aria-labelledby="share-v2-med-title" className="rounded-2xl border border-gray-200 p-4 print:break-inside-avoid">
-      <h2 id="share-v2-med-title" className="text-sm font-bold text-gray-800">{text(SHARE_V2_LABELS.medications)}</h2>
+    <section aria-labelledby="share-v2-med-title" className="rounded-2xl border border-slate-200 p-4 print:break-inside-avoid">
+      <h2 id="share-v2-med-title" className="text-sm font-bold text-slate-800">{text(SHARE_V2_LABELS.medications)}</h2>
       {medications.items.length === 0 ? (
-        <p className="mt-3 text-sm text-gray-500">{text(SHARE_V2_EMPTY_MEDICATIONS)}</p>
+        <p className="mt-3 text-sm text-slate-500">{text(SHARE_V2_EMPTY_MEDICATIONS)}</p>
       ) : (
         <div className="mt-2 space-y-3">
           {scheduled.map(group => (
             <div key={group.slot}>
-              <p className="text-xs font-bold text-gray-500">{text(medicationSlotText(group.slot))}</p>
-              <ul className="divide-y divide-gray-100">
+              <p className="text-xs font-bold text-slate-500">{text(medicationSlotText(group.slot))}</p>
+              <ul className="divide-y divide-slate-100">
                 {group.items.map((item, index) => <MedicationItem key={`${group.slot}-${index}`} item={item} />)}
               </ul>
             </div>
           ))}
           {asNeeded.length > 0 && (
             <div>
-              <p className="text-xs font-bold text-gray-500">{text(SHARE_V2_LABELS.asNeeded)}</p>
-              <ul className="divide-y divide-gray-100">
+              <p className="text-xs font-bold text-slate-500">{text(SHARE_V2_LABELS.asNeeded)}</p>
+              <ul className="divide-y divide-slate-100">
                 {asNeeded.map((item, index) => <MedicationItem key={`prn-${index}`} item={item} />)}
               </ul>
             </div>

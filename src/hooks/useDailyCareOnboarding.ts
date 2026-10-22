@@ -26,6 +26,12 @@ export function useDailyCareOnboarding({ activePatientId, isDemoMode, userId, ge
   const [dailyCarePreference, setDailyCarePreference] = useState<DailyCareVisibilityPreference>(DEFAULT_DAILY_CARE_VISIBILITY)
   const [useCustomDailyCareTemplate, setUseCustomDailyCareTemplate] = useState(false)
   const [dailyCareSettingsSaving, setDailyCareSettingsSaving] = useState(false)
+  // 「哪一位病人的顯示偏好已經讀完」（讀取失敗也算讀完，因為畫面此時就是以全部顯示在運作）。
+  // 為什麼要有這個：dailyCarePreference 的初始值是 DEFAULT（全部可見），真正的設定是非同步載入，
+  // 而 dailyCareSettingsSaving 在第一個 commit 還是 false（要等 effect 跑完才變 true），兩者都分不出
+  // 「預設值」與「讀完的結果」。Siri 捷徑（issue #868）冷啟動時要判斷某個模組可不可見，用預設值判斷會先開到
+  // 病人其實已關掉的模組，讀完後又被靜默切走。
+  const [preferenceLoadedPatientId, setPreferenceLoadedPatientId] = useState<string | null>(null)
   const [dailyCareSettingsError, setDailyCareSettingsError] = useState<LocalizedText | null>(null)
   const [onboardingWizardPatientId, setOnboardingWizardPatientId] = useState<string | null>(null)
   const [onboardingWizardError, setOnboardingWizardError] = useState<LocalizedText | null>(null)
@@ -43,6 +49,7 @@ export function useDailyCareOnboarding({ activePatientId, isDemoMode, userId, ge
     setUseCustomDailyCareTemplate(false)
     setDailyCareSettingsError(null)
     setDailyCareSettingsSaving(false)
+    setPreferenceLoadedPatientId(null)
     // 換病人時先收起精靈，等這位病人的偏好讀完再決定要不要跳，避免沿用上一位病人的判斷結果。
     setOnboardingWizardPatientId(null)
     setOnboardingWizardError(null)
@@ -53,6 +60,7 @@ export function useDailyCareOnboarding({ activePatientId, isDemoMode, userId, ge
       const state = readDailyCarePreference(activePatientId)
       setDailyCarePreference(state.preference)
       setUseCustomDailyCareTemplate(state.useCustomTemplate)
+      setPreferenceLoadedPatientId(activePatientId)
       return
     }
     if (!userId) return
@@ -100,7 +108,10 @@ export function useDailyCareOnboarding({ activePatientId, isDemoMode, userId, ge
         }
       })
       .finally(() => {
-        if (!cancelled) setDailyCareSettingsSaving(false)
+        if (cancelled) return
+        setDailyCareSettingsSaving(false)
+        // 放在 finally：then／catch 已經把偏好（或失敗時的預設值）套上去，這一步一定排在它們之後。
+        setPreferenceLoadedPatientId(activePatientId)
       })
 
     return () => { cancelled = true }
@@ -188,6 +199,7 @@ export function useDailyCareOnboarding({ activePatientId, isDemoMode, userId, ge
     setDailyCarePreference,
     useCustomDailyCareTemplate,
     dailyCareSettingsSaving,
+    dailyCarePreferenceLoadedPatientId: preferenceLoadedPatientId,
     dailyCareSettingsError,
     onboardingWizardPatientId,
     setOnboardingWizardPatientId,

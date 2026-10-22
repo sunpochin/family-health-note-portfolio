@@ -19,12 +19,12 @@ const { APP_AUTHOR_URL, APP_CANONICAL_URL, APP_GITHUB_RELEASES_URL, APP_DOCUMENT
 describe('appInfo links and constants', () => {
   test('exports correct author personal website URL', () => {
     // 確保聯絡我連結指向作者個人首頁，供登入頁與條款頁統一使用
-    expect(APP_AUTHOR_URL).toBe('https://portfolio-author.github.io/')
+    expect(APP_AUTHOR_URL).toBe('https://demo-xq7.github.io/')
   })
 
   test('exports canonical URLs properly', () => {
     expect(APP_CANONICAL_URL).toBe('https://demo.careapp.local/')
-    expect(APP_GITHUB_RELEASES_URL).toBe('https://github.com/portfolio-author/jia-jian-log/releases')
+    expect(APP_GITHUB_RELEASES_URL).toBe('https://github.com/demo-xq7/jia-jian-log/releases')
   })
 
   test('keeps visible subtitle and document title bilingual', () => {

@@ -43,5 +43,7 @@ export const TAB_NAV_LABELS = {
 export function TabHeader({ title }: { title: TabHeaderTitle }) {
   const { text } = useI18n()
 
-  return <h1 className="min-w-0 text-2xl font-bold text-gray-900">{text(TAB_TITLES[title])}</h1>
+  // 改用 §4.3 的 page 角色（24px／900）取代手寫 text-2xl font-bold；text-role-page 不帶 line-height，
+  // 補 leading-8 維持原本 text-2xl 的 32px 行高，避免所有分頁頁首被撐高 4px。
+  return <h1 className="min-w-0 text-role-page leading-8 text-slate-900">{text(TAB_TITLES[title])}</h1>
 }

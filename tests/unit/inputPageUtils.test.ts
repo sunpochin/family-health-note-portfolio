@@ -4,8 +4,24 @@
 主要關聯：src/features/vitals/pages/InputPage.utils.ts、dataErrors 與血壓輸入元件。
 */
 import { describe, expect, test } from 'bun:test'
-import { bpAutoAdvance, isFamilyAlertLevelReading, isValidBpInput, L, saveErrorMessage } from '../../src/features/vitals/pages/InputPage.utils'
+import { bpAutoAdvance, isDailyBpLimitError, isFamilyAlertLevelReading, isValidBpInput, L, queuedRejectionText, saveErrorMessage } from '../../src/features/vitals/pages/InputPage.utils'
 import { evaluateReading, GENERAL_ADULT_STANDARD, resolveBpStandard } from '../../src/types/database'
+
+describe('isDailyBpLimitError (issue #1060)', () => {
+  // 上限說明與被擋讀數的等級提示共用這一個判斷；兩邊分歧時畫面會只出現其中一個。
+  test('recognises the trigger exception and agrees with saveErrorMessage', () => {
+    const error = { code: 'P0001', message: 'daily_blood_pressure_limit' }
+    expect(isDailyBpLimitError(error)).toBe(true)
+    expect(saveErrorMessage(error, 'zh')).toContain('上限')
+  })
+
+  test('permission, connection and unrelated errors are not the daily limit', () => {
+    expect(isDailyBpLimitError({ code: '42501', message: 'daily_blood_pressure_limit' })).toBe(false)
+    expect(isDailyBpLimitError({ code: 'TypeError', message: 'daily_blood_pressure_limit' })).toBe(false)
+    expect(isDailyBpLimitError({ code: 'unknown' })).toBe(false)
+    expect(isDailyBpLimitError({ message: 'daily_care_timeline_limit' })).toBe(false)
+  })
+})
 
 describe('saveErrorMessage', () => {
   test('explains permission failures as a re-login action', () => {
@@ -143,5 +159,24 @@ describe('isFamilyAlertLevelReading', () => {
     const offTarget = evaluateReading(125, 70, 72, postOp)
     expect(offTarget.level).toBe('off-target')
     expect(isFamilyAlertLevelReading(offTarget)).toBe(false)
+  })
+})
+
+describe('queuedRejectionText (issue #1125)', () => {
+  // 補送被永久拒絕時狀態列講的話：與 saveErrorMessage 同一套判斷順序，但沒有對應原因時不叫看護「再試一次」。
+  test.each([
+    ['daily limit', { code: 'P0001', message: 'daily_blood_pressure_limit' }, 'daily_blood_pressure_limit'],
+    ['permission', { code: '42501', message: 'permission denied' }, 'permission'],
+    ['anything else', { code: 'PGRST204', message: "Could not find the 'queued_at' column" }, 'fallback'],
+  ])('%s: every locale has the prefix and the matching reason', (_case, error, kind) => {
+    const text = queuedRejectionText(error)
+    expect(new Set([text.id, text.zh, text.en]).size).toBe(3)
+    expect(text.zh.startsWith('有紀錄沒有同步成功：')).toBe(true)
+    if (kind === 'daily_blood_pressure_limit') expect(text.zh).toContain(saveErrorMessage(error, 'zh'))
+    if (kind === 'permission') expect(text.zh).toContain(saveErrorMessage(error, 'zh'))
+    if (kind === 'fallback') {
+      expect(text.zh).toContain('重試也不會成功')
+      expect(text.zh).not.toContain(saveErrorMessage(error, 'zh'))
+    }
   })
 })

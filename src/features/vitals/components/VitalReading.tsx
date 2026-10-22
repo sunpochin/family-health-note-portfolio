@@ -18,13 +18,16 @@ type VitalReadingProps = {
 }
 
 // 所有讀值共用這個元件，讓數字直接帶指標色以節省手機寬度，警示仍由外層 Badge 負責。
+// 單位字與斜線預設 slate-500（白底 4.76:1）；原本的 gray-400 只有 2.54:1，半夜看不清（issue #1152）。
+// 放在淡色警示卡上的呼叫點要自己傳更深的 unitClassName（例：DashboardStatsCards 用 slate-600）；
+// 斜線也吃 unitClassName，否則單位字加深了、斜線卻還停在不及格的對比（#1175 Codex 審查）。
 export function VitalReading({
   systolic,
   diastolic,
   pulse,
   className = '',
   valueClassName = '',
-  unitClassName = 'text-gray-400',
+  unitClassName = 'text-slate-500',
   showUnits = true,
   showPulse = true,
 }: VitalReadingProps) {
@@ -33,7 +36,7 @@ export function VitalReading({
     <span className={`inline-flex flex-wrap items-baseline gap-x-1 tabular-nums ${className}`}>
       <span className={`${VITAL_VALUE_CLASSES.systolic} ${valueClassName}`}><span className="sr-only">{text({ id: 'Sistolik ', zh: '收縮壓 ', en: 'Systolic' })}</span>{systolic}</span>
       {/* 斜線必須讓輔助工具讀到，否則兩個數字會被誤認成沒有關係的相鄰數值。 */}
-      <span className="text-gray-400">/</span>
+      <span className={unitClassName}>/</span>
       <span className={`${VITAL_VALUE_CLASSES.diastolic} ${valueClassName}`}><span className="sr-only">{text({ id: 'Diastolik ', zh: '舒張壓 ', en: 'Diastolic' })}</span>{diastolic}</span>
       {showUnits && <span className={`text-xs font-normal ${unitClassName}`}>mmHg</span>}
       {showPulse && pulse != null && (
@@ -47,7 +50,7 @@ export function VitalReading({
   )
 }
 
-export function VitalValue({ kind, value, unit = 'mmHg', className = '', unitClassName = 'text-gray-400' }: {
+export function VitalValue({ kind, value, unit = 'mmHg', className = '', unitClassName = 'text-slate-500' }: {
   kind: keyof typeof VITAL_VALUE_CLASSES
   value: number | string
   unit?: string
@@ -68,7 +71,7 @@ export function VitalValue({ kind, value, unit = 'mmHg', className = '', unitCla
   )
 }
 
-export function PulseReading({ pulse, className = '', unitClassName = 'text-gray-400' }: { pulse: number | null; className?: string; unitClassName?: string }) {
+export function PulseReading({ pulse, className = '', unitClassName = 'text-slate-500' }: { pulse: number | null; className?: string; unitClassName?: string }) {
   const { text } = useI18n()
   return (
     <span className={`inline-flex items-baseline gap-1 tabular-nums ${VITAL_VALUE_CLASSES.pulse} ${className}`}>

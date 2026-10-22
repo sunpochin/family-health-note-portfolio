@@ -1,11 +1,12 @@
 /*
 檔案用途：提供選擇照護對象並下載完整照護 CSV 的彈出視窗。
 所在層：src/components 互動 UI 層；不直接讀取資料庫，交由 accountExport 服務處理。
-主要關聯：由 App.tsx 與 TenantApp.tsx 的設定入口掛載，呼叫 lib/accountExport.ts 產生個別檔案。
+主要關聯：由 features/system-admin/pages/SettingsPage.tsx 的設定入口掛載，呼叫 lib/accountExport.ts 產生個別檔案。
 */
 import { useEffect, useRef, useState } from 'react'
 import { useI18n, type LocalizedText } from '../../lib/i18n'
 import { downloadAccountCsv } from '../../lib/accountExport'
+import { Icon } from '../ui/Icon'
 
 export interface ExportTarget {
   id: string
@@ -19,6 +20,7 @@ interface ExportCsvModalProps {
   targets: ExportTarget[]
 }
 
+// 為什麼補足 44px：手機上的獨立操作要留出足夠點擊面，降低漏點與誤觸。
 export function ExportCsvModal({ isOpen, onClose, targets }: ExportCsvModalProps) {
   const { text } = useI18n()
   const [selectedId, setSelectedId] = useState<string>(targets[0]?.id ?? 'all')
@@ -111,24 +113,26 @@ export function ExportCsvModal({ isOpen, onClose, targets }: ExportCsvModalProps
     }
   }
 
+  // 主色從 blue-600 改成 brand-700：blue-600（#2563EB）與舒張壓識別色同值，「同一個顏色兩種意思」在照護情境是辨識風險（design doc §4.1）；
+  // 遮罩色與 useConfirm／PwaUpdatePrompt 一致用 slate-950/55，不加 backdrop-blur（§4.4 flat）。
   return (
     <div
       ref={dialogRef}
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-xs"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/55 p-4"
       role="dialog"
       aria-modal="true"
       aria-labelledby="export-csv-title"
       aria-describedby="export-csv-description"
     >
-      <div className="w-full max-w-sm rounded-3xl bg-white p-6 shadow-xl text-gray-900 border border-gray-100">
-        <div className="flex items-center gap-3 text-blue-600">
-          <span className="text-2xl" aria-hidden="true">📥</span>
+      <div className="w-full max-w-sm rounded-3xl bg-white p-6 shadow-xl text-slate-900 border border-slate-100">
+        <div className="flex items-center gap-3 text-brand-700">
+          <Icon name="download" className="h-6 w-6 shrink-0" />
           <h2 id="export-csv-title" className="text-lg font-black tracking-tight">
             {text({ id: 'Ekspor Data CSV', zh: '匯出 CSV 資料', en: 'Export CSV data' })}
           </h2>
         </div>
 
-        <p id="export-csv-description" className="mt-2 text-xs text-gray-600 leading-relaxed">
+        <p id="export-csv-description" className="mt-2 text-xs text-slate-600 leading-relaxed">
           {text({
             id: 'Pilih anggota keluarga untuk mengunduh riwayat tekanan darah, obat, dan perawatan lengkap:',
             zh: '請選擇要匯出的家庭成員；檔案會包含完整血壓、用藥與照護大事記：', en: 'Select a family member to download complete blood pressure, medication, and care history:'
@@ -147,11 +151,11 @@ export function ExportCsvModal({ isOpen, onClose, targets }: ExportCsvModalProps
                   aria-checked={active}
                   onClick={() => setSelectedId(target.id)}
                   className={`flex w-full items-center justify-between rounded-xl border p-3 text-left transition ${
-                    active ? 'border-blue-500 bg-blue-50/60 font-bold text-blue-950' : 'border-gray-200 bg-white text-gray-700'
+                    active ? 'border-brand-700 bg-brand-50 font-bold text-slate-900' : 'border-slate-200 bg-white text-slate-700'
                   }`}
                 >
                   <span className="text-sm">{text(target.label)}</span>
-                  <span className={active ? 'text-blue-600 font-bold' : 'text-gray-300'}>
+                  <span className={active ? 'text-brand-700 font-bold' : 'text-slate-300'}>
                     {active ? '●' : '○'}
                   </span>
                 </button>
@@ -171,7 +175,7 @@ export function ExportCsvModal({ isOpen, onClose, targets }: ExportCsvModalProps
               type="button"
               disabled={isExporting}
               onClick={onClose}
-              className="flex-1 rounded-xl border border-gray-300 bg-white px-3 py-2.5 text-xs font-bold text-gray-700 transition active:bg-gray-100 disabled:opacity-50"
+              className="flex-1 rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-xs font-bold text-slate-700 transition active:bg-slate-100 disabled:opacity-50 min-h-11"
             >
               {text({ id: 'Batal', zh: '取消', en: 'Cancel' })}
             </button>
@@ -179,7 +183,7 @@ export function ExportCsvModal({ isOpen, onClose, targets }: ExportCsvModalProps
             <button
               type="submit"
               disabled={isExporting}
-              className="flex-1 rounded-xl bg-blue-600 px-3 py-2.5 text-xs font-bold text-white shadow-sm transition active:bg-blue-700 disabled:opacity-50"
+              className="flex-1 rounded-xl bg-brand-700 px-3 py-2.5 text-xs font-bold text-white shadow-sm transition active:bg-emerald-800 disabled:opacity-50 min-h-11"
             >
               {isExporting
                 ? text({ id: 'Mengunduh…', zh: '下載中…', en: 'Downloading…' })

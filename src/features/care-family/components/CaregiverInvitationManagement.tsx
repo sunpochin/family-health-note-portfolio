@@ -166,45 +166,50 @@ export function CaregiverInvitationManagement({ isDemoMode }: { isDemoMode: bool
 
   if (isDemoMode || loading || patients.length === 0) return null
 
+  // 色彩（#1145、設計文件 §4.1）：邀請區是「主要區塊」那一層，所以底用 brand-50、框用 brand-200；
+  // token 裡沒有 brand-100，舊紫藍色系裡最淺的那一階框線與分隔線一律併入 brand-200，不要為了「淺一點」再新增色階。
+  // 面板內的標題與說明文字刻意用 slate-800／900 而不是 brand，確保在淡綠底上對比 ≥4.5:1；
+  // brand-700 只留給連結與主按鈕（按下 emerald-800），這樣「綠色＝可以按」的語意才一致。
   return (
-    <section className="mt-6 rounded-2xl border border-indigo-100 bg-indigo-50/50 p-4">
+    <section className="mt-6 rounded-2xl border border-brand-200 bg-brand-50/50 p-4">
       {confirmDialog}
       <div className="flex items-center justify-between">
-        <h2 className="font-bold text-gray-900">{text({ id: 'Undang keluarga untuk merawat', zh: '邀請家人一起照護', en: 'Invite family to help with care' })}</h2>
+        <h2 className="font-bold text-slate-900">{text({ id: 'Undang keluarga untuk merawat', zh: '邀請家人一起照護', en: 'Invite family to help with care' })}</h2>
         {/* 提供直接連到教學頁的入口，方便管理者了解邀請與權限機制 */}
         <a
           href="/guides/family-invitations"
-          className="text-xs font-semibold text-indigo-700 hover:text-indigo-900 hover:underline flex items-center gap-0.5"
+          className="inline-flex min-h-11 items-center text-xs font-semibold text-brand-700 hover:text-emerald-900 hover:underline gap-0.5"
         >
           <span>{text({ id: 'Panduan', zh: '操作教學', en: 'Guide' })}</span>
           <span aria-hidden="true">↗</span>
         </a>
       </div>
-      <p className="mt-1 text-sm text-gray-600">
+      <p className="mt-1 text-sm text-slate-600">
         {text({ id: 'Pilih satu pasien, email Google penerima, dan izin yang diperlukan. Penerima dapat melihat undangan setelah masuk; Anda tetap mengonfirmasi sebelum akses dibuka.', zh: '選一位病人、對方的 Google Email 與需要的權限。對方登入後會看到邀請；仍須由你確認後才會開通權限。', en: 'Choose a patient, the recipient’s Google email, and the needed permissions. The recipient can see the invitation after signing in; you still approve before access opens.' })}
       </p>
 
+      {/* 病人與權限選擇會決定誰能讀寫資料，因此這個流程的每個操作入口都保留 44px。 */}
       <form onSubmit={handleCreate} className="mt-4 space-y-3 rounded-xl bg-white p-3">
-        <label className="block text-xs font-bold text-gray-700">
+        <label className="block text-xs font-bold text-slate-700">
           {text({ id: 'Pasien yang dirawat', zh: '要照護的病人', en: 'Patient to care for' })}
-          <select required value={selectedPatientId} onChange={event => setSelectedPatientId(event.target.value)} className="mt-1 w-full rounded-xl border border-gray-300 px-3 py-2 text-sm">
+          <select required value={selectedPatientId} onChange={event => setSelectedPatientId(event.target.value)} className="mt-1 min-h-11 w-full rounded-xl border-2 border-control-border px-3 py-2 text-sm">
             {patients.map(patient => <option key={patient.patient_id} value={patient.patient_id}>{patient.display_name}</option>)}
           </select>
         </label>
-        <label className="block text-xs font-bold text-gray-700">
+        <label className="block text-xs font-bold text-slate-700">
           {text({ id: 'Email Google penerima', zh: '受邀者 Google Email', en: 'Recipient Google email' })}
-          <input required type="email" value={invitedEmail} onChange={event => setInvitedEmail(event.target.value)} placeholder="contoh@gmail.com" className="mt-1 w-full rounded-xl border border-gray-300 px-3 py-2 text-sm" />
+          <input required type="email" value={invitedEmail} onChange={event => setInvitedEmail(event.target.value)} placeholder="contoh@gmail.com" className="mt-1 min-h-11 w-full rounded-xl border-2 border-control-border px-3 py-2 text-sm" />
         </label>
-        <label className="flex items-center gap-2 text-sm text-gray-700">
+        <label className="flex min-h-11 items-center gap-2 text-sm text-slate-700">
           <input type="checkbox" checked={canRecord} onChange={event => setCanRecord(event.target.checked)} />
           {text({ id: 'Boleh mencatat tekanan darah, suhu, dan obat', zh: '可記錄血壓、體溫與服藥', en: 'Can record blood pressure, temperature, and medication' })}
         </label>
-        <label className="flex items-center gap-2 text-sm text-gray-700">
+        <label className="flex min-h-11 items-center gap-2 text-sm text-slate-700">
           <input type="checkbox" checked={canManageMedication} onChange={event => setCanManageMedication(event.target.checked)} />
           {text({ id: 'Boleh mengubah rencana obat', zh: '可調整藥單（獨立權限，預設關閉）', en: 'Can change the medication plan (separate permission, off by default)' })}
         </label>
-        <p className="text-xs text-gray-500">{text({ id: 'Akses lihat data diberikan setelah Anda mengonfirmasi, tetapi izin catat dan obat tetap terpisah.', zh: '你確認後才會開通查看資料；記錄與藥單權限彼此分開。', en: 'View access starts after you approve, while recording and medication permissions remain separate.' })}</p>
-        <button type="submit" disabled={saving} className="w-full rounded-xl bg-indigo-700 px-3 py-2 text-sm font-bold text-white disabled:opacity-60">
+        <p className="text-xs text-slate-500">{text({ id: 'Akses lihat data diberikan setelah Anda mengonfirmasi, tetapi izin catat dan obat tetap terpisah.', zh: '你確認後才會開通查看資料；記錄與藥單權限彼此分開。', en: 'View access starts after you approve, while recording and medication permissions remain separate.' })}</p>
+        <button type="submit" disabled={saving} className="min-h-11 w-full rounded-xl bg-brand-700 active:bg-emerald-800 px-3 py-2 text-sm font-bold text-white disabled:opacity-60">
           {saving ? text({ id: 'Mengirim…', zh: '送出中…', en: 'Sending…' }) : text({ id: 'Kirim undangan', zh: '送出邀請', en: 'Send invitation' })}
         </button>
       </form>
@@ -218,40 +223,42 @@ export function CaregiverInvitationManagement({ isDemoMode }: { isDemoMode: bool
               ? text({ id: `Email belum dikonfigurasi. Kirim tautan ini secara manual ke ${createdInvite.invitedEmail}.`, zh: `尚未設定寄信服務，請手動把連結傳給 ${createdInvite.invitedEmail}。`, en: `Email delivery is not configured. Send this link manually to ${createdInvite.invitedEmail}.` })
               : text({ id: `Email gagal dikirim. Kirim tautan ini secara manual ke ${createdInvite.invitedEmail}.`, zh: `邀請 email 寄送失敗，請手動把連結傳給 ${createdInvite.invitedEmail}。`, en: `Email delivery failed. Send this link manually to ${createdInvite.invitedEmail}.` })}</p>
           <p className="mt-1 text-xs text-amber-800">{text({ id: 'Berlaku hingga', zh: '有效至', en: 'Valid until' })} {formatDate(createdInvite.expiresAt, locale)}</p>
-          <input readOnly value={createdInvite.url} onFocus={event => event.currentTarget.select()} aria-label={text({ id: 'Tautan undangan', zh: '邀請連結', en: 'Invitation link' })} className="mt-2 w-full rounded-lg border border-amber-300 bg-white px-2 py-2 text-xs text-gray-700" />
+          <input readOnly value={createdInvite.url} onFocus={event => event.currentTarget.select()} aria-label={text({ id: 'Tautan undangan', zh: '邀請連結', en: 'Invitation link' })} className="mt-2 w-full rounded-lg border-2 border-control-border bg-white px-2 py-2 text-xs text-slate-700" />
+          {/* 分享邀請連結會移轉資料入口，兩個分享按鈕都要有 44px 點擊區。 */}
           <div className="mt-2 grid grid-cols-2 gap-2">
-            <button type="button" onClick={() => shareInvite(createdInvite.url)} className="rounded-lg bg-indigo-700 px-2 py-2 text-xs font-bold text-white">{text({ id: 'Bagikan', zh: '系統分享', en: 'Share' })}</button>
-            <button type="button" onClick={() => void copyInvite(createdInvite.url)} className="rounded-lg bg-white px-2 py-2 text-xs font-bold text-indigo-700">{text({ id: 'Salin tautan', zh: '複製連結', en: 'Copy link' })}</button>
+            <button type="button" onClick={() => shareInvite(createdInvite.url)} className="min-h-11 rounded-lg bg-brand-700 active:bg-emerald-800 px-2 py-2 text-xs font-bold text-white">{text({ id: 'Bagikan', zh: '系統分享', en: 'Share' })}</button>
+            <button type="button" onClick={() => void copyInvite(createdInvite.url)} className="min-h-11 rounded-lg bg-white px-2 py-2 text-xs font-bold text-brand-700">{text({ id: 'Salin tautan', zh: '複製連結', en: 'Copy link' })}</button>
           </div>
         </div>
       )}
 
-      <div className="mt-4 border-t border-indigo-100 pt-3">
-        <h3 className="text-sm font-bold text-gray-800">{text({ id: 'Status undangan', zh: '邀請狀態', en: 'Invitation status' })}</h3>
+      <div className="mt-4 border-t border-brand-200 pt-3">
+        <h3 className="text-sm font-bold text-slate-800">{text({ id: 'Status undangan', zh: '邀請狀態', en: 'Invitation status' })}</h3>
         <ul className="mt-2 space-y-2">
           {invitations.map(invitation => (
-            <li key={invitation.invitationId} className="rounded-xl bg-white p-3 text-xs text-gray-700">
+            <li key={invitation.invitationId} className="rounded-xl bg-white p-3 text-xs text-slate-700">
               <div className="flex items-start justify-between gap-2">
                 <div>
                   <p className="font-bold">{invitation.patientDisplayName}</p>
                   <p className="mt-0.5">{text(invitationStatusText(invitation))}{invitation.requestedEmail || invitation.invitedEmail ? ` · ${invitation.requestedEmail || invitation.invitedEmail}` : ''}</p>
-                  <p className="mt-0.5 text-gray-500">{text({ id: 'Berlaku hingga', zh: '有效至', en: 'Valid until' })} {formatDate(invitation.expiresAt, locale)}</p>
-                  <p className="mt-0.5 text-gray-500">{text({ id: 'Izin: lihat', zh: '權限：查看', en: 'Permissions: view' })}{invitation.canRecord ? text({ id: '、catat', zh: '、記錄', en: ', record' }) : ''}{invitation.canManageMedication ? text({ id: '、obat', zh: '、藥單', en: ', medication' }) : ''}</p>
+                  <p className="mt-0.5 text-slate-500">{text({ id: 'Berlaku hingga', zh: '有效至', en: 'Valid until' })} {formatDate(invitation.expiresAt, locale)}</p>
+                  <p className="mt-0.5 text-slate-500">{text({ id: 'Izin: lihat', zh: '權限：查看', en: 'Permissions: view' })}{invitation.canRecord ? text({ id: '、catat', zh: '、記錄', en: ', record' }) : ''}{invitation.canManageMedication ? text({ id: '、obat', zh: '、藥單', en: ', medication' }) : ''}</p>
                 </div>
-                <span className="shrink-0 rounded-full bg-gray-100 px-2 py-1 font-semibold">{text(invitationStatusText(invitation))}</span>
+                <span className="shrink-0 rounded-full bg-slate-100 px-2 py-1 font-semibold">{text(invitationStatusText(invitation))}</span>
               </div>
+              {/* 加入與撤銷都會改變病人資料的可見權限，維持 44px 方便準確操作。 */}
               <div className="mt-2 flex flex-wrap gap-2">
-                {invitation.status === 'requested' && <button type="button" disabled={saving} onClick={() => void handleApprove(invitation.invitationId)} className="rounded-lg bg-green-700 px-2 py-1.5 font-bold text-white disabled:opacity-60">{text({ id: 'Konfirmasi akun', zh: '確認帳號並加入', en: 'Approve account and add' })}</button>}
-                {(invitation.status === 'pending' || invitation.status === 'requested') && <button type="button" disabled={saving} onClick={() => void handleRevokeInvitation(invitation.invitationId)} className="rounded-lg border border-red-200 px-2 py-1.5 font-bold text-red-600 disabled:opacity-60">{text({ id: 'Cabut undangan', zh: '撤銷邀請', en: 'Revoke invitation' })}</button>}
-                {invitation.status === 'accepted' && invitation.accessActive && invitation.requestedEmail && <button type="button" disabled={saving} onClick={() => void handleRevokeAccess(invitation)} className="rounded-lg border border-red-200 px-2 py-1.5 font-bold text-red-600 disabled:opacity-60">{text({ id: 'Cabut akses pasien', zh: '撤銷此病人權限', en: 'Revoke patient access' })}</button>}
+                {invitation.status === 'requested' && <button type="button" disabled={saving} onClick={() => void handleApprove(invitation.invitationId)} className="min-h-11 rounded-lg bg-green-700 px-2 py-1.5 font-bold text-white disabled:opacity-60">{text({ id: 'Konfirmasi akun', zh: '確認帳號並加入', en: 'Approve account and add' })}</button>}
+                {(invitation.status === 'pending' || invitation.status === 'requested') && <button type="button" disabled={saving} onClick={() => void handleRevokeInvitation(invitation.invitationId)} className="min-h-11 rounded-lg border border-red-200 px-2 py-1.5 font-bold text-red-600 disabled:opacity-60">{text({ id: 'Cabut undangan', zh: '撤銷邀請', en: 'Revoke invitation' })}</button>}
+                {invitation.status === 'accepted' && invitation.accessActive && invitation.requestedEmail && <button type="button" disabled={saving} onClick={() => void handleRevokeAccess(invitation)} className="min-h-11 rounded-lg border border-red-200 px-2 py-1.5 font-bold text-red-600 disabled:opacity-60">{text({ id: 'Cabut akses pasien', zh: '撤銷此病人權限', en: 'Revoke patient access' })}</button>}
               </div>
             </li>
           ))}
         </ul>
-        {invitations.length === 0 && <p className="mt-2 text-xs text-gray-500">{text({ id: 'Belum ada undangan.', zh: '目前沒有邀請。', en: 'No invitations yet.' })}</p>}
+        {invitations.length === 0 && <p className="mt-2 text-xs text-slate-500">{text({ id: 'Belum ada undangan.', zh: '目前沒有邀請。', en: 'No invitations yet.' })}</p>}
       </div>
 
-      {message && <p role="status" className="mt-3 text-xs font-semibold text-gray-700">{message}</p>}
+      {message && <p role="status" className="mt-3 text-xs font-semibold text-slate-700">{message}</p>}
     </section>
   )
 }

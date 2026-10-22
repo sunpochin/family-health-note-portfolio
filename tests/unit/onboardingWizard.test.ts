@@ -41,6 +41,16 @@ describe('onboarding wizard recommendations', () => {
     expect(recommendedOnboardingModuleIds('human', 'delegatedCaregiver')).not.toContain('dementiaCare')
   })
 
+  test('never pre-checks the experimental record-only modules (issue #656)', () => {
+    // 失智照護與術後體液平衡目前只有紀錄、沒有趨勢與門診報表；精靈第三題預設不勾，
+    // 避免新使用者第一天就被引導去鍵入一個「記了也沒有回饋」的欄位。
+    for (const recorder of ['self', 'delegatedCaregiver'] as const) {
+      const recommended = recommendedOnboardingModuleIds('human', recorder)
+      expect(recommended).not.toContain('dementiaCare')
+      expect(recommended).not.toContain('fluidBalance')
+    }
+  })
+
   test('narrows to essential items when care is delegated to a hired caregiver', () => {
     const recommended = recommendedOnboardingModuleIds('human', 'delegatedCaregiver')
     expect(recommended.sort()).toEqual(['bloodPressure', 'medication', 'nutrition', 'weight'].sort())

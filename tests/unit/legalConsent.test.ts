@@ -9,13 +9,16 @@ type QueryResponse = { data?: unknown; error?: unknown }
 let rpcResponsesByFn: Record<string, QueryResponse | (() => QueryResponse)> = {}
 let legalConsentsSelectResponse: QueryResponse | (() => QueryResponse) = { data: null, error: null }
 let legalConsentsSelectCallCount = 0
+let legalConsentsSelectedColumns: string | undefined
 let rpcCallCount: Record<string, number> = {}
+let rpcCallArgs: Record<string, unknown[]> = {}
 
 const mockSupabase = {
   from(table: string) {
     if (table === 'legal_consents') {
       return {
-        select() {
+        select(columns?: string) {
+          legalConsentsSelectedColumns = columns
           return {
             maybeSingle() {
               legalConsentsSelectCallCount += 1
@@ -28,7 +31,8 @@ const mockSupabase = {
     }
     throw new Error(`unexpected table: ${table}`)
   },
-  rpc(fnName: string) {
+  rpc(fnName: string, args?: unknown) {
+    rpcCallArgs[fnName] = [...(rpcCallArgs[fnName] ?? []), args]
     rpcCallCount[fnName] = (rpcCallCount[fnName] ?? 0) + 1
     const configured = rpcResponsesByFn[fnName]
     const response = typeof configured === 'function' ? configured() : (configured ?? { data: null, error: null })
@@ -38,7 +42,7 @@ const mockSupabase = {
 
 mock.module('../../src/lib/supabase', () => ({ supabase: mockSupabase }))
 
-const { loadLegalConsentWithRetry, readLegalConsent, recordAccountLegalAcceptance, recordHealthDataConsent } = await import('../../src/lib/legalConsent')
+const { CURRENT_HEALTH_CONSENT_VERSION, CURRENT_PRIVACY_POLICY_VERSION, CURRENT_TERMS_VERSION, loadLegalConsentWithRetry, readLegalConsent, recordAccountLegalAcceptance, recordHealthDataConsent } = await import('../../src/lib/legalConsent')
 
 describe('legalConsent read/write and retry-on-transient-failure', () => {
   beforeEach(() => {
@@ -46,11 +50,14 @@ describe('legalConsent read/write and retry-on-transient-failure', () => {
     legalConsentsSelectResponse = { data: null, error: null }
     legalConsentsSelectCallCount = 0
     rpcCallCount = {}
+    rpcCallArgs = {}
   })
 
   test('readLegalConsent returns the row when present and throws on query error', async () => {
-    legalConsentsSelectResponse = { data: { privacy_policy_version: '2026-09-06', health_consent_version: '2026-07-30', consent_type: 'self' }, error: null }
-    expect(await readLegalConsent()).toEqual({ privacy_policy_version: '2026-09-06', health_consent_version: '2026-07-30', consent_type: 'self' })
+    legalConsentsSelectResponse = { data: { privacy_policy_version: '2026-09-06', health_consent_version: '2026-07-30', consent_type: 'self', terms_version: '2026-08-26' }, error: null }
+    expect(await readLegalConsent()).toEqual({ privacy_policy_version: '2026-09-06', health_consent_version: '2026-07-30', consent_type: 'self', terms_version: '2026-08-26' })
+    // #1124：隱私更新畫面靠 terms_version 決定要不要顯示條款變動摘要；沒讀這個欄位，每個人都會被當成「條款過期」。
+    expect(legalConsentsSelectedColumns?.split(',').map(column => column.trim())).toContain('terms_version')
 
     legalConsentsSelectResponse = { data: null, error: new Error('network blip') }
     await expect(readLegalConsent()).rejects.toThrow('network blip')
@@ -62,6 +69,22 @@ describe('legalConsent read/write and retry-on-transient-failure', () => {
 
     rpcResponsesByFn = { record_health_data_consent: { data: null, error: new Error('rpc down') } }
     await expect(recordHealthDataConsent('self')).rejects.toThrow('rpc down')
+  })
+
+  test('both writers send the version this client displays, never leaving it to the server (issue #925, #1124)', async () => {
+    await recordAccountLegalAcceptance()
+    // 條款版本也要送（#1124）：漏送時伺服器記成凍結的舊基準，同意紀錄又分不出使用者看的是哪一版條款。
+    expect(rpcCallArgs.record_account_legal_acceptance).toEqual([{
+      p_displayed_version: CURRENT_PRIVACY_POLICY_VERSION,
+      p_displayed_terms_version: CURRENT_TERMS_VERSION,
+    }])
+
+    await recordHealthDataConsent('authorized_representative', '  daughter  ')
+    expect(rpcCallArgs.record_health_data_consent).toEqual([{
+      p_consent_type: 'authorized_representative',
+      p_authorization_basis: 'daughter',
+      p_displayed_version: CURRENT_HEALTH_CONSENT_VERSION,
+    }])
   })
 
   test('loadLegalConsentWithRetry returns the already-consented row on the first try without retrying', async () => {

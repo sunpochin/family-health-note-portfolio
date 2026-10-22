@@ -172,34 +172,35 @@ export function BpStandardSettingsPanel({ patientId, isDemoMode, canManageMedica
   const fieldsDisabled = isDemoMode || readOnly || busy
 
   return (
-    <section className="mt-6 rounded-2xl border border-gray-200 bg-white p-4" aria-labelledby="bp-standard-settings-title">
-      <h2 id="bp-standard-settings-title" className="font-bold text-gray-900">{text(TITLE)}</h2>
-      <p className="mt-1 text-sm text-gray-500">{text(HELP)}</p>
+    <section className="mt-6 rounded-2xl border border-slate-200 bg-white p-4" aria-labelledby="bp-standard-settings-title">
+      <h2 id="bp-standard-settings-title" className="font-bold text-slate-900">{text(TITLE)}</h2>
+      <p className="mt-1 text-sm text-slate-500">{text(HELP)}</p>
 
-      {isDemoMode && <p className="mt-3 rounded-xl bg-gray-100 px-3 py-2 text-xs text-gray-600">{text(DEMO_NOTICE)}</p>}
-      {readOnly && !loading && <p className="mt-3 rounded-xl bg-gray-100 px-3 py-2 text-xs text-gray-600">{text(READ_ONLY_NOTICE)}</p>}
+      {isDemoMode && <p className="mt-3 rounded-xl bg-slate-100 px-3 py-2 text-xs text-slate-600">{text(DEMO_NOTICE)}</p>}
+      {readOnly && !loading && <p className="mt-3 rounded-xl bg-slate-100 px-3 py-2 text-xs text-slate-600">{text(READ_ONLY_NOTICE)}</p>}
 
-      {!isDemoMode && loading && <p className="mt-3 text-sm text-gray-500">{text({ id: 'Memuat…', zh: '載入中…', en: 'Loading…' })}</p>}
+      {!isDemoMode && loading && <p className="mt-3 text-sm text-slate-500">{text({ id: 'Memuat…', zh: '載入中…', en: 'Loading…' })}</p>}
 
       {!isDemoMode && !loading && loadError != null && (
         <p role="alert" className="mt-3 rounded-xl bg-red-50 px-3 py-2 text-xs font-semibold text-red-700">
           {text(READ_FAILED)}
-          <button type="button" onClick={() => evaluator.reload()} className="ml-2 underline">{text(RETRY)}</button>
+          {/* 重新載入標準才能恢復病人專屬的血壓判讀，重試入口需保留 44px 觸控高度。 */}
+          <button type="button" onClick={() => evaluator.reload()} className="ml-2 inline-flex min-h-11 items-center underline">{text(RETRY)}</button>
         </p>
       )}
 
       {!loading && loadError == null && (
         <>
-          <dl className="mt-3 space-y-1 rounded-xl bg-gray-50 px-3 py-2 text-xs">
+          <dl className="mt-3 space-y-1 rounded-xl bg-slate-50 px-3 py-2 text-xs">
             <div className="flex flex-wrap gap-x-2">
-              <dt className="font-bold text-gray-600">{text(CURRENT_LABEL)}:</dt>
-              <dd className="font-semibold text-gray-900">{active ? text(describeInterval(active)) : text(NOT_CONFIGURED)}</dd>
+              <dt className="font-bold text-slate-600">{text(CURRENT_LABEL)}:</dt>
+              <dd className="font-semibold text-slate-900">{active ? text(describeInterval(active)) : text(NOT_CONFIGURED)}</dd>
             </div>
             {/* 排程中的區間一定要說出來，否則使用者排了「下次回診起改用新目標」卻在畫面上看不到，會以為沒存到。 */}
             {scheduled.map(interval => (
               <div key={interval.id} className="flex flex-wrap gap-x-2">
-                <dt className="font-bold text-gray-600">{text(SCHEDULED_LABEL)}:</dt>
-                <dd className="text-gray-700">
+                <dt className="font-bold text-slate-600">{text(SCHEDULED_LABEL)}:</dt>
+                <dd className="text-slate-700">
                   {text(describeInterval(interval))} · {new Date(interval.effectiveFrom).toLocaleDateString()}
                 </dd>
               </div>
@@ -212,7 +213,7 @@ export function BpStandardSettingsPanel({ patientId, isDemoMode, canManageMedica
               {BP_STANDARD_KEYS.map(key => {
                 const standard = resolveBpStandard(key, key === 'custom' ? bounds : undefined)
                 return (
-                  <label key={key} className="flex min-h-11 items-start gap-3 rounded-xl border border-gray-200 px-3 py-2">
+                  <label key={key} className="flex min-h-11 items-start gap-3 rounded-xl border border-slate-200 px-3 py-2">
                     <input
                       type="radio"
                       name="bp-standard"
@@ -222,8 +223,8 @@ export function BpStandardSettingsPanel({ patientId, isDemoMode, canManageMedica
                       className="mt-1 h-4 w-4 shrink-0"
                     />
                     <span className="min-w-0">
-                      <span className="block text-sm font-bold text-gray-900">{text(standard.names)}</span>
-                      <span className="block text-xs text-gray-500">{text(standard.descriptions)}</span>
+                      <span className="block text-sm font-bold text-slate-900">{text(standard.names)}</span>
+                      <span className="block text-xs text-slate-500">{text(standard.descriptions)}</span>
                     </span>
                   </label>
                 )
@@ -234,13 +235,13 @@ export function BpStandardSettingsPanel({ patientId, isDemoMode, canManageMedica
               <div className="mt-3 grid grid-cols-2 gap-3">
                 {BOUND_ORDER.map(field => (
                   <label key={field} className="flex flex-col gap-1">
-                    <span className="text-xs font-semibold text-gray-600">{text(BOUND_LABELS[field])}</span>
+                    <span className="text-xs font-semibold text-slate-600">{text(BOUND_LABELS[field])}</span>
                     <input
                       type="number"
                       inputMode="numeric"
                       value={String(bounds[field])}
                       onChange={e => setBounds(previous => ({ ...previous, [field]: e.target.valueAsNumber }))}
-                      className="min-h-11 rounded-xl border border-gray-300 px-3 py-2 text-sm"
+                      className="min-h-11 rounded-xl border-2 border-control-border px-3 py-2 text-sm"
                     />
                   </label>
                 ))}
@@ -252,17 +253,17 @@ export function BpStandardSettingsPanel({ patientId, isDemoMode, canManageMedica
             )}
 
             <label className="mt-3 flex flex-col gap-1">
-              <span className="text-xs font-semibold text-gray-600">{text(NOTE_LABEL)}</span>
+              <span className="text-xs font-semibold text-slate-600">{text(NOTE_LABEL)}</span>
               <input
                 type="text"
                 value={note}
                 maxLength={200}
                 onChange={e => setNote(e.target.value)}
-                className="min-h-11 rounded-xl border border-gray-300 px-3 py-2 text-sm"
+                className="min-h-11 rounded-xl border-2 border-control-border px-3 py-2 text-sm"
               />
             </label>
 
-            <p className="mt-3 rounded-xl bg-gray-50 px-3 py-2 text-xs text-gray-600">{text(EFFECTIVE_NOTICE)}</p>
+            <p className="mt-3 rounded-xl bg-slate-50 px-3 py-2 text-xs text-slate-600">{text(EFFECTIVE_NOTICE)}</p>
 
             <button
               type="button"

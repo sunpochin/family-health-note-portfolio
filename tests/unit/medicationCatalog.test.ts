@@ -14,9 +14,9 @@ const medications = [
 
 describe('medication catalog search', () => {
   test('normalizes full-width characters and common milligram spellings without discarding doses', () => {
-    expect(normalizeMedicationQuery(' ＬＡＴＲＩＧＩＮＥ　５０毫克 ')).toBe('latrigine 50mg')
-    expect(normalizeMedicationQuery('Latrigine-50 milligrams')).toBe('latrigine-50 mg')
-    expect(normalizeMedicationQuery('Latrigine 50milligrams')).toBe('latrigine 50mg')
+    expect(normalizeMedicationQuery(' ＮＯＲＶＡＳＣ　５毫克 ')).toBe('norvasc 5mg')
+    expect(normalizeMedicationQuery('Norvasc-5 milligrams')).toBe('norvasc-5 mg')
+    expect(normalizeMedicationQuery('Norvasc 5milligrams')).toBe('norvasc 5mg')
   })
 
   test('matches a partial name and applies the optional specialty filter', () => {

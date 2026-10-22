@@ -8,7 +8,7 @@
 import { supabase } from './supabase'
 import { isDemoPatientId } from './demoData'
 
-export type NotificationIncidentAlertKind = 'sending_stale' | 'delivery_unknown' | 'pending_overdue' | 'failed_terminal'
+export type NotificationIncidentAlertKind = 'sending_stale' | 'delivery_unknown' | 'pending_overdue' | 'failed_terminal' | 'enqueue_failed'
 
 // 刻意只取指標與狀態欄位：incident 列本來就不含訊息內容、數值或收件人，前端也不去 JOIN 回源表——
 // 橫幅文字只說「有一則通知可能沒有送到」，不需要、也不該知道是哪一筆血壓。
@@ -37,7 +37,8 @@ type IncidentClient = {
   rpc: (name: 'acknowledge_notification_delivery_incident', args: { p_incident_id: string; p_claim_generation: number }) => PromiseLike<{ data: unknown; error: unknown }>
 }
 
-const ALERT_KINDS: ReadonlySet<string> = new Set<NotificationIncidentAlertKind>(['sending_stale', 'delivery_unknown', 'pending_overdue', 'failed_terminal'])
+// 漏排還沒有 delivery 列，但已由 DB 驗證失敗來源的病人；不可因為是新種類就在轉接層安靜丟掉。
+const ALERT_KINDS: ReadonlySet<string> = new Set<NotificationIncidentAlertKind>(['sending_stale', 'delivery_unknown', 'pending_overdue', 'failed_terminal', 'enqueue_failed'])
 
 // 查詢失敗一律 throw（Fail loudly）：呼叫端要顯示「無法確認通知狀態」，不得把讀不到講成「沒有告警」（#887 同類錯誤）。
 // 查詢明確以 patient_id 分區（AGENTS.md § 3.5）；RLS 另一層再擋住沒有 care_access 的病人。

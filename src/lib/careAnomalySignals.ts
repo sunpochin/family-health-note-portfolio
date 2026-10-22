@@ -13,7 +13,8 @@
 
 為什麼都不算「今天要做」：北極星設計鐵律第 3 條——只有需要「現在行動」的事才推播，觀察級只記錄。
 這裡產生的都是觀察級信號，呼叫端（useCareAnomalySignals）一律不得標成 dueToday，也不得接上
-LINE／Telegram 等主動推播管道（那條線只保留給 appscript 的血壓危險值警報鏈）。
+LINE／Telegram 等主動推播管道（那些管道只給已有明確用途、家屬訂閱過的通知，例如 blood-pressure-notifier
+的血壓通知；舊 appscript 的 LINE 警報鏈已於 2026-10-06 決定退役）。
 */
 import dayjs from 'dayjs'
 import utc from 'dayjs/plugin/utc'
@@ -97,12 +98,15 @@ export function detectMissedMedicationSignal(
   thresholdDays: number,
   hasScheduledMedication: boolean,
   planEffectiveSinceCareDate: string | null = null,
+  heldCareDates: ReadonlySet<string> = new Set(),
 ): MissedMedicationSignal | null {
   if (!hasScheduledMedication) return null
 
   let streak = 0
   for (let index = doseCounts.length - 2; index >= 0; index -= 1) {
     if (planEffectiveSinceCareDate && doseCounts[index].date < planEffectiveSinceCareDate) break
+    // 呼叫端只傳入所有現役固定藥都被完整涵蓋的日期；單顆藥暫停不能遮蔽其他藥未回報。
+    if (heldCareDates.has(doseCounts[index].date)) break
     if ((doseCounts[index].value ?? 0) > 0) break
     streak += 1
   }

@@ -51,10 +51,10 @@ describe('createMessagingLinkUrl', () => {
   const originalBotUsername = import.meta.env.VITE_TELEGRAM_BOT_USERNAME
 
   test('builds a t.me deep link from the raw token for telegram', async () => {
-    import.meta.env.VITE_TELEGRAM_BOT_USERNAME = 'jia_jian_log_bot'
+    import.meta.env.VITE_TELEGRAM_BOT_USERNAME = 'example_bot'
     const rpc = async () => ({ data: 'a'.repeat(48), error: null })
     const url = await createMessagingLinkUrl('telegram', rpc)
-    expect(url).toBe(`https://t.me/jia_jian_log_bot?start=${'a'.repeat(48)}`)
+    expect(url).toBe(`https://t.me/example_bot?start=${'a'.repeat(48)}`)
     import.meta.env.VITE_TELEGRAM_BOT_USERNAME = originalBotUsername
   })
 
@@ -62,6 +62,26 @@ describe('createMessagingLinkUrl', () => {
     import.meta.env.VITE_TELEGRAM_BOT_USERNAME = ''
     const rpc = async () => ({ data: 'a'.repeat(48), error: null })
     expect(createMessagingLinkUrl('telegram', rpc)).rejects.toThrow('VITE_TELEGRAM_BOT_USERNAME')
+    import.meta.env.VITE_TELEGRAM_BOT_USERNAME = originalBotUsername
+  })
+
+  // 回歸：BotFather 顯示的 bot 帶 @，照抄貼進環境變數不能組出 t.me/@bot 這種顯示「此用戶不存在」的連結。
+  test('builds the same telegram link whether VITE_TELEGRAM_BOT_USERNAME is pasted with or without the leading @', async () => {
+    const rpc = async () => ({ data: 'a'.repeat(48), error: null })
+    import.meta.env.VITE_TELEGRAM_BOT_USERNAME = '@example_bot'
+    const withAt = await createMessagingLinkUrl('telegram', rpc)
+    import.meta.env.VITE_TELEGRAM_BOT_USERNAME = '  example_bot \n'
+    const withoutAt = await createMessagingLinkUrl('telegram', rpc)
+    import.meta.env.VITE_TELEGRAM_BOT_USERNAME = originalBotUsername
+    expect(withAt).toBe(withoutAt)
+    expect(withAt).toBe(`https://t.me/example_bot?start=${'a'.repeat(48)}`)
+    expect(withAt).not.toContain('@')
+  })
+
+  test('treats a bare @ as not configured instead of building a link to an empty bot username', async () => {
+    import.meta.env.VITE_TELEGRAM_BOT_USERNAME = '@'
+    const rpc = async () => ({ data: 'a'.repeat(48), error: null })
+    await expect(createMessagingLinkUrl('telegram', rpc)).rejects.toThrow('VITE_TELEGRAM_BOT_USERNAME')
     import.meta.env.VITE_TELEGRAM_BOT_USERNAME = originalBotUsername
   })
 

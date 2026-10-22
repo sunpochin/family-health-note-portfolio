@@ -3,7 +3,7 @@
 所在層：tests/unit；以最小 hook 執行環境呼叫元件函式，不啟動瀏覽器。
 主要關聯：src/features/vitals/components/DailyBloodPressureRecords.tsx、blood_pressure_records RLS 與 demoStorage。
 */
-import { afterEach, beforeEach, describe, expect, mock, test } from 'bun:test'
+import { beforeEach, describe, expect, mock, test } from 'bun:test'
 import { installReactHookHarness, renderHook } from './helpers/reactHookHarness'
 import { fire, findAll, findButton, findInput, textContent } from './helpers/elementTree'
 import type { BpRecord } from '../../src/types/database'
@@ -45,19 +45,13 @@ const demo = {
 }
 
 const actualDemoStorage = await import('../../src/lib/demoStorage')
-const actualGetDemoBpRecordsCreatedBetween = actualDemoStorage.getDemoBpRecordsCreatedBetween
 // 保留其餘匯出：其他模組仍會從同一個 demoStorage 取用展示資料 helper。
 mock.module('../../src/lib/demoStorage', () => ({
   ...actualDemoStorage,
-  // 繁體中文註解：Bun 的 mock.module 在同一行程跨測試檔全域生效，若 demo.isDemoMode 為 false 時固定回傳 false，
-  // 會破壞後續測試檔依賴 window.location.pathname === '/demo' 的展示模式判定。
-  isDemoMode: () => demo.isDemoMode || (typeof window !== 'undefined' && window.location?.pathname === '/demo'),
-  getDemoBpRecordsCreatedBetween: (...args: Parameters<typeof actualDemoStorage.getDemoBpRecordsCreatedBetween>) =>
-    (demo.isDemoMode ? demo.records : actualGetDemoBpRecordsCreatedBetween(...args)),
-  updateDemoBpRecord: (...args: Parameters<typeof actualDemoStorage.updateDemoBpRecord>) =>
-    (demo.isDemoMode ? demo.updateOk : actualDemoStorage.updateDemoBpRecord(...args)),
-  deleteDemoBpRecord: (...args: Parameters<typeof actualDemoStorage.deleteDemoBpRecord>) =>
-    (demo.isDemoMode ? demo.deleteOk : actualDemoStorage.deleteDemoBpRecord(...args)),
+  isDemoMode: () => demo.isDemoMode,
+  getDemoBpRecordsCreatedBetween: () => demo.records,
+  updateDemoBpRecord: () => demo.updateOk,
+  deleteDemoBpRecord: () => demo.deleteOk,
 }))
 
 const { DailyBloodPressureRecords } = await import('../../src/features/vitals/components/DailyBloodPressureRecords')
@@ -98,15 +92,6 @@ beforeEach(() => {
   selectResult = { data: [], error: null }
   writeResult = { data: null, error: null }
   writeIsPending = false
-  demo.isDemoMode = false
-  demo.records = []
-  demo.updateOk = true
-  demo.deleteOk = true
-})
-
-afterEach(() => {
-  // 繁體中文註解：最後一個測試為 demo mode，若無 afterEach 重置，會導致 Bun 在同一行程跑下一個測試檔時
-  // isDemoMode() 永遠殘留 true，使正式資料庫測試被污染。
   demo.isDemoMode = false
   demo.records = []
   demo.updateOk = true

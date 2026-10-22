@@ -62,7 +62,7 @@ export function MedicationViewTabs({ activeView, onSelect, canManage }: {
             aria-controls={`medication-view-${tab.id}-panel`}
             onClick={() => onSelect(tab.id)}
             onKeyDown={handleKeyDown}
-            className={`min-h-11 min-w-0 overflow-hidden text-ellipsis rounded-xl px-1 text-xs font-bold whitespace-nowrap transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-600 sm:px-2 sm:text-sm ${selected ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-600 hover:bg-white/60'}`}
+            className={`min-h-11 min-w-0 overflow-hidden text-ellipsis rounded-xl px-1 text-xs font-bold whitespace-nowrap transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-700 sm:px-2 sm:text-sm ${selected ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-600 hover:bg-white/60'}`}
           >
             {text(tab.label)}
           </button>

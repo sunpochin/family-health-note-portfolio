@@ -103,7 +103,7 @@ describe('medication admin adapters', () => {
     responses.push({ data: [{ id: 'plan-1' }], error: null }, { data: [{ id: 'med-1' }], error: null }, { data: [{ id: 'change-1' }], error: null })
     await expect(readMedicationAdminData('patient-1')).resolves.toEqual({
       // 沒有病人層覆蓋（issue #759）時，讀回的每筆藥品都會被標成 appearance_source: 'shared'。
-      plans: [{ id: 'plan-1' }], medications: [{ id: 'med-1', appearance_source: 'shared' }], changes: [{ id: 'change-1' }],
+      plans: [{ id: 'plan-1', holdRule: null }], medications: [{ id: 'med-1', appearance_source: 'shared' }], changes: [{ id: 'change-1' }],
     })
     // 官方關聯若沒在 adapter 的明確 select 中，migration 雖已回填，前端仍會把它丟掉。
     expect(calls.find(call => call.table === 'medications' && call.method === 'select')?.args[0]).toContain('drug_product_id')
@@ -141,28 +141,50 @@ describe('structured medication dose adapters', () => {
       { data: [plan.medication], error: null },
       // 第三個查詢：服用方式 B 層紀錄，這裡沒有任何一顆藥被交代過吃法，回傳空陣列。
       { data: [], error: null },
-      // 第四個查詢：病人層外觀覆蓋（issue #759），這裡沒有任何一顆藥被這位病人覆蓋過，回傳空陣列。
+      // 條件醫囑不存在也必須明確讀取，否則無法區分無條件與讀取失敗。
+      { data: [], error: null },
+      // 第五個查詢：病人層外觀覆蓋（issue #759），這裡沒有任何一顆藥被這位病人覆蓋過，回傳空陣列。
       { data: [], error: null },
       { data: [log], error: null },
     )
 
     await expect(readMedicationDay('patient-1', '2026-07-17')).resolves.toEqual({
-      plans: [{ ...plan, instruction: null, medication: { ...plan.medication, appearance_source: 'shared' } }],
+      plans: [{ ...plan, instruction: null, holdRule: null, holdContext: null, medication: { ...plan.medication, appearance_source: 'shared' } }],
       logs: [log], prnEvents: [], prnAssessments: [],
     })
   })
 
+  test('fails closed when rules or confirmation cannot be read', async () => {
+    const failure = new Error('hold rule unavailable')
+    responses.push({ data: [plan] }, { data: [plan.medication] }, { data: [] }, { error: failure })
+    await expect(readMedicationDay('patient-1', '2026-07-17')).rejects.toBe(failure)
+    responses.length = 0
+    responses.push({ data: [plan] }, { data: [plan.medication] }, { data: [] }, { data: [{ id: 'future-rule', medication_id: 'med-1' }] })
+    rpcResponse = { error: failure }
+    await expect(readMedicationDay('patient-1', '2026-07-17')).rejects.toBe(failure)
+    expect(calls.find(call => call.method === 'medication_hold_context')?.args[0]).toEqual({ p_patient_id: 'patient-1', p_medication_id: 'med-1' })
+  })
+
+  test('uses the current server rule instead of a future version for display', async () => {
+    // 最新登錄不代表已生效；畫面與寫入確認必須用同一個 current rule。
+    responses.push({ data: [plan] }, { data: [plan.medication] }, { data: [] }, { data: [{ id: 'future-rule', medication_id: 'med-1' }] }, { data: [] }, { data: [] })
+    rpcResponse = { data: { rule: { id: 'current-rule' }, state: 'needs_reading' } }
+    const day = await readMedicationDay('patient-1', '2026-07-17')
+    expect(day.plans[0].holdRule?.id).toBe('current-rule')
+    expect(day.plans[0].holdContext?.state).toBe('needs_reading')
+  })
+
   test('returns the saved dose, reads a concurrent duplicate, and propagates failures', async () => {
     responses.push({ data: log, error: null })
-    await expect(saveMedicationDose(plan, '2026-07-17', 1, 'portfolio-author@example.com')).resolves.toEqual(log)
-    expect(calls.find(call => call.table === 'medication_intake_logs' && call.method === 'insert')?.args[0]).toMatchObject({ account_email: 'portfolio-author@example.com', patient_id: 'patient-1' })
+    await expect(saveMedicationDose(plan, '2026-07-17', 1, 'Owner@example.com')).resolves.toEqual(log)
+    expect(calls.find(call => call.table === 'medication_intake_logs' && call.method === 'insert')?.args[0]).toMatchObject({ account_email: 'owner@example.com', patient_id: 'patient-1' })
 
     responses.push({ data: null, error: { code: '23505' } }, { data: log, error: null })
-    await expect(saveMedicationDose(plan, '2026-07-17', 1, 'portfolio-author@example.com')).resolves.toEqual(log)
+    await expect(saveMedicationDose(plan, '2026-07-17', 1, 'Owner@example.com')).resolves.toEqual(log)
 
     const failure = new Error('write failed')
     responses.push({ data: null, error: failure })
-    await expect(saveMedicationDose(plan, '2026-07-17', 1, 'portfolio-author@example.com')).rejects.toBe(failure)
+    await expect(saveMedicationDose(plan, '2026-07-17', 1, 'Owner@example.com')).rejects.toBe(failure)
   })
 
   test('clears only the selected subject, plan, date, and dose', async () => {
@@ -199,7 +221,7 @@ describe('today medication adapters', () => {
 })
 
 describe('recent blood-pressure summary', () => {
-  const motherPatientId = '44a81824-fbc3-48af-9841-1401a9167073'
+  const patientId = '12121212-1212-4121-a121-121212121212'
 
   test('averages each Taipei date and session while keeping the newest groups', async () => {
     // 資料庫以最新量測優先回傳；測試也必須維持相同順序，才能防止摘要誤取舊時間。
@@ -208,14 +230,14 @@ describe('recent blood-pressure summary', () => {
       { systolic: 120, diastolic: 80, pulse: 70, measured_at: '2026-07-17T00:00:00.000Z' },
     ], error: null })
 
-    await expect(fetchRecentSummary(motherPatientId)).resolves.toEqual([{
+    await expect(fetchRecentSummary(patientId)).resolves.toEqual([{
       dateStr: '7/17', timeStr: '08:05', session: 'pagi', avgSys: 125, avgDia: 85, avgPul: 70,
     }])
-    expect(calls.filter(call => call.method === 'eq').map(call => call.args)).toContainEqual(['patient_id', motherPatientId])
+    expect(calls.filter(call => call.method === 'eq').map(call => call.args)).toContainEqual(['patient_id', patientId])
   })
 
   test('returns an empty summary without attempting to average missing records', async () => {
     responses.push({ data: [], error: null })
-    await expect(fetchRecentSummary(motherPatientId)).resolves.toEqual([])
+    await expect(fetchRecentSummary(patientId)).resolves.toEqual([])
   })
 })

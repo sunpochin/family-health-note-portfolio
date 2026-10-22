@@ -10,7 +10,7 @@ import type { CareTimelineEntry } from './careTimeline'
 
 export const DEMO_MEILING_PATIENT_ID = '55555555-5555-4555-a555-555555555555'
 export const DEMO_CHEN_PATIENT_ID = '66666666-6666-4666-a666-666666666666'
-// 李阿姨是永遠存在於 /demo 的驗證用對象，藥單直接對照真實使用者媽媽的服藥清單（品項與外觀，非真實個資），
+// 李阿姨是永遠存在於 /demo 的驗證用對象，帶著一份憑空組出來的示範藥單（見 getFallbackDemoLeeMedicationCatalog 的說明），
 // 讓「四個服藥分頁」「藥名紅色醒目」「英文優先顯示」這些畫面規則每次都能在 staging 立即驗證，不受真實 Supabase 資料異動影響。
 export const DEMO_LEE_PATIENT_ID = '44444444-4444-4444-a444-444444444444'
 // 與 lib/auth.ts 的同名常數保持相同 UUID 值；這裡獨立宣告是為了不讓純資料層反過來 import 驗證層。
@@ -66,58 +66,84 @@ export function getFallbackDemoBpRecords(days: number, patientId: string = DEMO_
       continue
     }
 
-    // 王美玲 (Demo 1) 故事歷程
+    // 王美玲 (Demo 1) 故事歷程——整條曲線是為了展示「換藥後下降、舒張壓過低、漏藥回升、突發高壓二測、
+    // 回到穩定」這幾個畫面規則而構造的，數值都是依判讀區間挑出來的，不對應任何真實使用者的紀錄
+    // （2026-09 逐檔複查與 PR #1013 review：demo 故事跟示範藥單一樣，只能放憑空構造的資料）。
     // 每個情節分支都會完整指定早晚讀值；不先放無效預設值可避免 lint 誤判與維護誤解。
     let sysM: number, diaM: number, pulseM: number
     let sysE: number, diaE: number, pulseE: number
 
     if (day >= 75) {
-      sysM = getFluctuation(162, day, 1, 6)
-      diaM = getFluctuation(98, day, 1, 4)
-      pulseM = getFluctuation(86, day, 1, 4)
+      sysM = getFluctuation(158, day, 1, 6)
+      diaM = getFluctuation(94, day, 1, 4)
+      pulseM = getFluctuation(84, day, 1, 4)
 
-      sysE = getFluctuation(158, day, 2, 5)
-      diaE = getFluctuation(95, day, 2, 4)
-      pulseE = getFluctuation(84, day, 2, 3)
+      sysE = getFluctuation(154, day, 2, 5)
+      diaE = getFluctuation(91, day, 2, 4)
+      pulseE = getFluctuation(82, day, 2, 3)
     } else if (day >= 68) {
       const progress = (75 - day) / 7
-      sysM = Math.round(162 - progress * 32 + (Math.sin(day) * 3))
-      diaM = Math.round(98 - progress * 24 + (Math.cos(day) * 2))
-      pulseM = 80 - Math.round(progress * 8)
+      sysM = Math.round(158 - progress * 34 + (Math.sin(day) * 3))
+      diaM = Math.round(94 - progress * 22 + (Math.cos(day) * 2))
+      pulseM = 80 - Math.round(progress * 6)
       sysE = sysM - 4
       diaE = diaM - 3
       pulseE = pulseM - 2
+    } else if (day === 66) {
+      // 大事記「起身頭暈與舒張壓偏低」引用的就是這天早上的讀值；寫死，讓時間軸跟血壓圖對得上
+      // （tests/unit/demoData.test.ts 會逐筆核對被引用的讀值）。
+      sysM = 104; diaM = 52; pulseM = 74
+      sysE = 101; diaE = 53; pulseE = 70
     } else if (day >= 64) {
-      sysM = getFluctuation(108, day, 1, 4)
-      diaM = getFluctuation(48, day, 1, 3)
-      pulseM = getFluctuation(71, day, 1, 3)
-      sysE = getFluctuation(105, day, 2, 4)
-      diaE = getFluctuation(50, day, 2, 3)
-      pulseE = getFluctuation(69, day, 2, 3)
+      // 舒張壓只在 50–55 之間擺動：這段故事要示範的是「偏低但還沒到危險」的區間，不能偶然掉到 50 以下。
+      sysM = getFluctuation(104, day, 1, 4)
+      diaM = getFluctuation(52, day, 1, 1)
+      pulseM = getFluctuation(72, day, 1, 3)
+      sysE = getFluctuation(102, day, 2, 4)
+      diaE = getFluctuation(53, day, 2, 1)
+      pulseE = getFluctuation(70, day, 2, 3)
     } else if (day === 45) {
-      sysM = 122; diaM = 76; pulseM = 70
-      sysE = 146; diaE = 92; pulseE = 84
+      // 漏服早上降壓藥那天：早上仍正常，晚上 20:30 的 142/90 才是大事記引用的那筆。
+      sysM = 126; diaM = 80; pulseM = 72
+      sysE = 142; diaE = 90; pulseE = 82
     } else if (day === 15) {
-      sysM = 124; diaM = 78; pulseM = 71
-      const firstMeasuredIso = new Date(`${isoPrefix}T20:00:00+08:00`).toISOString()
+      sysM = 121; diaM = 75; pulseM = 70
+      // 突發極高血壓與複測。處置照 src/config/blood-pressure-spec.json 的 danger_high 規則（休息 1–5 分鐘重測；
+      // 若持續，立刻就醫或聯絡醫師）：20:25 首測 → 20:30 複測仍高 → 立刻聯絡門診。20:40 的第三筆只是等回電時的
+      // 追蹤紀錄，不是任何規則要求的重測——158/92 落在 tinggi 區間，該區間刻意不給建議，「10 分鐘內重測」是
+      // cukup_tinggi（≥160 或 ≥100）才有的指示。示範故事不能示範一個跟 app 自己的判讀規則相反或張冠李戴的 SOP
+      // （PR #1013 review）。
+      const firstMeasuredIso = new Date(`${isoPrefix}T20:25:00+08:00`).toISOString()
       records.push({
         id: `demo-bp-meiling-${day}-e1`,
         patient_id: DEMO_MEILING_PATIENT_ID,
-        systolic: 220,
-        diastolic: 110,
-        pulse: 104,
+        systolic: 196,
+        diastolic: 104,
+        pulse: 98,
         measured_at: firstMeasuredIso,
         created_at: firstMeasuredIso,
         recorded_by: 'caregiver@example.com',
         source: 'manual',
       })
-      sysE = 162; diaE = 94; pulseE = 84
+      sysE = 158; diaE = 92; pulseE = 86
+      const thirdMeasuredIso = new Date(`${isoPrefix}T20:40:00+08:00`).toISOString()
+      records.push({
+        id: `demo-bp-meiling-${day}-e2`,
+        patient_id: DEMO_MEILING_PATIENT_ID,
+        systolic: 152,
+        diastolic: 90,
+        pulse: 84,
+        measured_at: thirdMeasuredIso,
+        created_at: thirdMeasuredIso,
+        recorded_by: 'caregiver@example.com',
+        source: 'manual',
+      })
     } else {
-      sysM = getFluctuation(123, day, 1, 5)
-      diaM = getFluctuation(77, day, 1, 4)
+      sysM = getFluctuation(121, day, 1, 5)
+      diaM = getFluctuation(75, day, 1, 4)
       pulseM = getFluctuation(70, day, 1, 3)
-      sysE = getFluctuation(120, day, 2, 4)
-      diaE = getFluctuation(75, day, 2, 3)
+      sysE = getFluctuation(119, day, 2, 4)
+      diaE = getFluctuation(74, day, 2, 3)
       pulseE = getFluctuation(68, day, 2, 3)
     }
 
@@ -192,7 +218,7 @@ const mockMedication = (
   brand_name: name,
   brand_name_zh: zh,
   brand_name_id: idName,
-  // 部分商品名（例如 Lipitor、Bokey）跟成分學名不同；沒指定學名時才回退用商品名，避免破壞既有呼叫端行為。
+  // 部分商品名（例如 Crestor、Norvasc）跟成分學名不同；沒指定學名時才回退用商品名，避免破壞既有呼叫端行為。
   generic_name: genericName ?? name,
   strength_mg: strengthMg,
   strength_label: strengthLabel,
@@ -210,50 +236,58 @@ const mockMedication = (
 })
 
 export function getFallbackDemoLeeMedicationCatalog(): MedicationCatalog[] {
-  // 這七項是使用者媽媽實際在用的藥（品項與外觀對照 staging 驗證截圖），放進永遠存在的「李阿姨」demo 對象，
-  // 讓四個服藥分頁與藥名顯示規則不必依賴登入帳號的真實 Supabase 資料就能反覆驗證。
+  // 這七項是一份「憑空組出來」的示範藥單：為了讓四個服藥分頁與藥名顯示規則不必依賴登入帳號的真實 Supabase 資料
+  // 就能反覆驗證，刻意挑了台灣長輩門診常見、但彼此組合起來不對應任何一位真實使用者的藥品。
+  // 為什麼不是「拿真實藥單當 demo」：這個檔案會進公開作品集，藥單＋劑量＋時段組合本身就足以辨識一個人的
+  // 治療內容（2026-09 逐檔複查與 PR #1013 review 抓到）。之後改動只能在這份虛構清單上加減，不得回填真實處方。
+  // 每一項的角色（讓各個畫面規則都有東西可測）：
+  //   - 一顆腸溶錠帶 official_dosage_form_text → 服用方式 A 層 swallow_whole 徽章
+  //   - 一顆膜衣錠帶藥師 B 層交代（見 getFallbackDemoLeePatientMedicationInstructions）
+  //   - 一顆一天兩個時段 → 「同一顆藥出現在兩個時段」的排法
+  //   - 一顆學名／商品未確認、沒有 ATC → 「未驗證藥品」的顯示規則
+  //   - 其餘補成早餐後六項、晚餐前兩項，讓手機版「先展開第一個時段」有足夠卡片可看
   return [
     // atc_code 皆為公開可查證的 WHO ATC 分類碼（依成分學名對照，非猜測）：
-    // Aspirin→B01AC06、Ticagrelor→B01AC24、Amlodipine+Valsartan→C09DB01、
-    // Atorvastatin→C10AA05、Nebivolol→C07AB12。
-    // official_dosage_form_text 是服用方式 A 層 demo：伯基本來就是腸溶微粒膠囊（品名已寫明「腸溶」），
-    // 填官方原文讓 resolveSwallowGuidance() 命中 swallow_whole，不必真實 Supabase 資料就能驗證 A 層徽章。
-    { ...mockMedication('demo-med-lee-bokey-100', 'Bokey', '伯基腸溶微粒膠囊 100毫克', 'Bokey 100mg', 100, '100mg', 'orange', 'capsule', 'Aspirin', 'capsule', 'B01AC06'), official_dosage_form_text: '腸溶微粒膠囊' },
-    mockMedication('demo-med-lee-brilinta-90', 'BRILINTA', '百無凝膜衣錠 90毫克', 'BRILINTA 90mg', 90, '90mg', null, 'round', 'Ticagrelor', 'tablet', 'B01AC24'),
-    mockMedication('demo-med-lee-exforge-5-160', 'Exforge', '易安穩膜衣錠 5/160毫克', 'Exforge 5/160mg', 165, '5/160mg', 'yellow', 'oval', 'Amlodipine + Valsartan', 'tablet', 'C09DB01'),
-    mockMedication('demo-med-lee-lipitor-40', 'Lipitor', '立普妥膜衣錠 40毫克', 'Lipitor 40mg', 40, '40mg', 'white', 'round', 'Atorvastatin', 'tablet', 'C10AA05'),
-    mockMedication('demo-med-lee-nebilet-5', 'Nebilet', '耐比洛錠 5毫克', 'Nebilet 5mg', 5, '5mg', 'white', 'round', 'Nebivolol', 'tablet', 'C07AB12'),
-    mockMedication('demo-med-lee-calcium-vitd-302', 'Calcium plus + Vitamin D biomedicine', 'Calcium plus + Vitamin D biomedicine 302毫克', 'Calcium plus + Vitamin D biomedicine 302mg', 302, '302mg', 'pink', 'other', 'Calcium plus + Vitamin D biomedicine', 'tablet', 'A12AX'),
-    // Diphenidol 學名／商品未確認，沒有查證過的官方連結，不硬套分類碼。
-    mockMedication('demo-med-lee-diphenidol-25', 'Diphenidol', '敵芬尼朵（學名／商品未確認）', 'Diphenidol 25mg', 25, '25mg', 'white', 'round', 'Diphenidol'),
+    // Pantoprazole→A02BC02、Amlodipine→C08CA01、Bisoprolol→C07AB07、Rosuvastatin→C10AA07、
+    // Valsartan→C09CA03、Calcium+Vitamin D→A12AX。
+    // official_dosage_form_text 是服用方式 A 層 demo：腸溶錠品名已寫明「腸溶」，填官方原文讓
+    // resolveSwallowGuidance() 命中 swallow_whole，不必真實 Supabase 資料就能驗證 A 層徽章。
+    { ...mockMedication('demo-med-lee-pantoloc-40', 'Pantoloc', '保衛康治潰樂腸溶錠 40毫克', 'Pantoloc 40mg', 40, '40mg', 'yellow', 'oval', 'Pantoprazole', 'tablet', 'A02BC02'), official_dosage_form_text: '腸溶錠' },
+    mockMedication('demo-med-lee-norvasc-5', 'Norvasc', '脈優錠 5毫克', 'Norvasc 5mg', 5, '5mg', 'white', 'other', 'Amlodipine', 'tablet', 'C08CA01'),
+    mockMedication('demo-med-lee-concor-5', 'Concor', '康肯膜衣錠 5毫克', 'Concor 5mg', 5, '5mg', 'yellow', 'other', 'Bisoprolol', 'tablet', 'C07AB07'),
+    mockMedication('demo-med-lee-crestor-10', 'Crestor', '冠脂妥膜衣錠 10毫克', 'Crestor 10mg', 10, '10mg', 'pink', 'round', 'Rosuvastatin', 'tablet', 'C10AA07'),
+    mockMedication('demo-med-lee-diovan-80', 'Diovan', '得安穩膜衣錠 80毫克', 'Diovan 80mg', 80, '80mg', 'pink', 'oval', 'Valsartan', 'tablet', 'C09CA03'),
+    mockMedication('demo-med-lee-caltrate-600', 'Caltrate', '挺立鈣加維生素D錠 600毫克', 'Caltrate 600mg', 600, '600mg', 'white', 'oval', 'Calcium carbonate + Vitamin D3', 'tablet', 'A12AX'),
+    // 氧化鎂學名／商品未確認，沒有查證過的官方連結，不硬套分類碼——示範「未驗證藥品」的顯示規則。
+    mockMedication('demo-med-lee-magnesium-oxide-250', 'Magnesium oxide', '氧化鎂錠（學名／商品未確認）', 'Magnesium oxide 250mg', 250, '250mg', 'white', 'round', 'Magnesium oxide'),
   ]
 }
 
 export function getFallbackDemoLeeMedicationPlans(): MedicationPlan[] {
-  // 早餐後與晚餐前對照截圖裡的兩個時段；鈣加維生素 D 一天兩次，跟真實藥單常見的分次補鈣習慣一致。
+  // 早餐後與晚餐前兩個時段；鈣加維生素 D 一天兩次，示範「同一顆藥一天多個時段」的排法（分次補鈣是常見用法）。
   const plan = (id: string, medicationId: string, slot: string, order: number, doseAmount = 1): MedicationPlan => ({
     id, account_email: 'demo.lee@example.test', patient_id: DEMO_LEE_PATIENT_ID,
     medication_id: medicationId, schedule_slot: slot, as_needed: false, dose_amount: doseAmount, dose_count: 1,
     display_order: order, active: true, created_at: DEMO_FALLBACK_BASE_DATE,
   })
   return [
-    plan('demo-plan-lee-bokey', 'demo-med-lee-bokey-100', 'after_breakfast', 1),
-    plan('demo-plan-lee-brilinta', 'demo-med-lee-brilinta-90', 'after_breakfast', 2),
-    plan('demo-plan-lee-lipitor', 'demo-med-lee-lipitor-40', 'after_breakfast', 3),
-    plan('demo-plan-lee-nebilet', 'demo-med-lee-nebilet-5', 'after_breakfast', 4),
-    plan('demo-plan-lee-diphenidol', 'demo-med-lee-diphenidol-25', 'after_breakfast', 5),
-    plan('demo-plan-lee-calcium-am', 'demo-med-lee-calcium-vitd-302', 'after_breakfast', 6),
-    plan('demo-plan-lee-exforge', 'demo-med-lee-exforge-5-160', 'before_dinner', 7, 1),
-    plan('demo-plan-lee-calcium-pm', 'demo-med-lee-calcium-vitd-302', 'before_dinner', 8),
+    plan('demo-plan-lee-pantoloc', 'demo-med-lee-pantoloc-40', 'after_breakfast', 1),
+    plan('demo-plan-lee-norvasc', 'demo-med-lee-norvasc-5', 'after_breakfast', 2),
+    plan('demo-plan-lee-concor', 'demo-med-lee-concor-5', 'after_breakfast', 3, 0.5),
+    plan('demo-plan-lee-crestor', 'demo-med-lee-crestor-10', 'after_breakfast', 4),
+    plan('demo-plan-lee-magnesium-oxide', 'demo-med-lee-magnesium-oxide-250', 'after_breakfast', 5),
+    plan('demo-plan-lee-caltrate-am', 'demo-med-lee-caltrate-600', 'after_breakfast', 6),
+    plan('demo-plan-lee-diovan', 'demo-med-lee-diovan-80', 'before_dinner', 7, 1),
+    plan('demo-plan-lee-caltrate-pm', 'demo-med-lee-caltrate-600', 'before_dinner', 8),
   ]
 }
 
-// 服用方式 B 層 demo：立普妥（膜衣錠，官方劑型沒有任何 A 層關鍵字，屬於 unknown）藥師交代過可以磨粉配水，
+// 服用方式 B 層 demo：冠脂妥（膜衣錠，官方劑型沒有任何 A 層關鍵字，屬於 unknown）藥師交代過可以磨粉配水，
 // 讓 staging 不必真實紀錄就能驗證詳情視窗與交接手冊同時顯示來源、交代日期與備註。
 export function getFallbackDemoLeePatientMedicationInstructions(): PatientMedicationInstruction[] {
   return [{
     patient_id: DEMO_LEE_PATIENT_ID,
-    medication_id: 'demo-med-lee-lipitor-40',
+    medication_id: 'demo-med-lee-crestor-10',
     instruction_codes: ['crush_ok', 'with_food'],
     instruction_note: '吞不下的時候才磨粉配溫水',
     source: 'pharmacist',
@@ -268,14 +302,15 @@ export function getFallbackDemoMedicationCatalog(): MedicationCatalog[] {
   return [
     // 複方藥仍需數字欄位供舊資料契約排序，但畫面一律優先顯示已核對的 5/80mg 原始標示，不能把兩個成分相加成誤導性的 85 mg。
     // atc_code：Amlodipine+Valsartan→C09DB01、Metformin→A10BA02、Bisoprolol→C07AB07、
-    // Furosemide→C03CA01、Atenolol→C07AB03（皆為公開查證的 WHO ATC 分類碼）。Isormol 學名
+    // Furosemide→C03CA01、Nifedipine→C08CA05（皆為公開查證的 WHO ATC 分類碼）。Imdur 學名
     // Isosorbide mononitrate 屬硝酸鹽類，對照表未收錄該分類，維持不顯示標籤。
+    // 王美玲的故事藥單跟她的血壓曲線一樣是構造出來的（見 getFallbackDemoBpRecords 的說明）。
     mockMedication('demo-med-exforge-5-80', 'Exforge', '易安穩膜衣錠 5/80毫克', 'Exforge 5/80mg', 85, '5/80mg', 'yellow', undefined, undefined, 'tablet', 'C09DB01'),
-    mockMedication('demo-med-isormol-5', 'Isormol', '伊索莫持續錠 5毫克', 'Isormol 5mg', 5, '5mg', 'white'),
+    mockMedication('demo-med-imdur-30', 'Imdur', '伊姆多持續性藥效錠 30毫克', 'Imdur 30mg', 30, '30mg', 'white'),
     mockMedication('demo-med-metformin-500', 'Glucophage', '庫魯化膜衣錠 500毫克', 'Glucophage 500mg', 500, '500mg', 'white', 'oval', undefined, 'tablet', 'A10BA02'),
     mockMedication('demo-med-concor-5', 'Concor', '康肯膜衣錠 5毫克', 'Concor 5mg', 5, '5mg', 'yellow', undefined, 'Bisoprolol', 'tablet', 'C07AB07'),
     mockMedication('demo-med-lasix-40', 'Lasix', '來喜適錠 40毫克', 'Lasix 40mg', 40, '40mg', 'white', undefined, 'Furosemide', 'tablet', 'C03CA01'),
-    mockMedication('demo-med-legacy-bp-25', 'Atenolol', '壓樂適錠 25毫克', 'Atenolol 25mg', 25, '25mg', 'pink', undefined, undefined, 'tablet', 'C07AB03'),
+    mockMedication('demo-med-legacy-bp-30', 'Adalat OROS', '恆脈循持續性藥效錠 30毫克', 'Adalat OROS 30mg', 30, '30mg', 'pink', undefined, 'Nifedipine', 'tablet', 'C08CA05'),
   ]
 }
 
@@ -298,13 +333,13 @@ export function getFallbackDemoMedicationPlans(): MedicationPlan[] {
       display_order: 3, active: true, created_at: DEMO_FALLBACK_BASE_DATE,
     },
     {
-      id: 'demo-plan-isormol-meiling', account_email: 'demo.meiling@example.test', patient_id: DEMO_MEILING_PATIENT_ID,
-      medication_id: 'demo-med-isormol-5', schedule_slot: 'before_bed', as_needed: false, dose_amount: 1, dose_count: 1,
+      id: 'demo-plan-imdur-meiling', account_email: 'demo.meiling@example.test', patient_id: DEMO_MEILING_PATIENT_ID,
+      medication_id: 'demo-med-imdur-30', schedule_slot: 'before_bed', as_needed: false, dose_amount: 1, dose_count: 1,
       display_order: 4, active: false, created_at: DEMO_FALLBACK_BASE_DATE,
     },
     {
       id: 'demo-plan-legacy-meiling', account_email: 'demo.meiling@example.test', patient_id: DEMO_MEILING_PATIENT_ID,
-      medication_id: 'demo-med-legacy-bp-25', schedule_slot: 'morning', as_needed: false, dose_amount: 1, dose_count: 1,
+      medication_id: 'demo-med-legacy-bp-30', schedule_slot: 'morning', as_needed: false, dose_amount: 1, dose_count: 1,
       display_order: 5, active: false, created_at: DEMO_FALLBACK_BASE_DATE,
     },
     {
@@ -331,16 +366,16 @@ export function getFallbackDemoMedicationHistory(): MedicationPlanChangeLogView[
       patient_id: DEMO_MEILING_PATIENT_ID,
       action: 'deactivate',
       plan_id: 'demo-plan-legacy',
-      medication_id: 'demo-med-legacy-bp-25',
-      medication: mockMedication('demo-med-legacy-bp-25', 'Atenolol', '壓樂適錠 25毫克', 'Atenolol 25mg'),
+      medication_id: 'demo-med-legacy-bp-30',
+      medication: mockMedication('demo-med-legacy-bp-30', 'Adalat OROS', '恆脈循持續性藥效錠 30毫克', 'Adalat OROS 30mg'),
       schedule_slot: 'morning',
       dose_amount: 1,
       dose_count: 1,
       as_needed: false,
-      reason: '門診診斷：舊型降壓藥血壓控制未達標 (162/98 mmHg)，遵醫囑停用並更換處方。',
+      reason: '門診診斷：單方降壓藥兩週平均約 155/92 mmHg 未達標，遵醫囑停用並更換為複方處方。',
       actor_email: 'owner@example.com',
-      before_snapshot: { plan_id: 'demo-plan-legacy', medication_id: 'demo-med-legacy-bp-25', schedule_slot: 'morning', dose_amount: 1, dose_count: 1, as_needed: false, active: true, brand_name: 'Atenolol', brand_name_zh: '壓樂適錠 25毫克', dosage_form: 'tablet' },
-      after_snapshot: { plan_id: 'demo-plan-legacy', medication_id: 'demo-med-legacy-bp-25', schedule_slot: 'morning', dose_amount: 1, dose_count: 1, as_needed: false, active: false, brand_name: 'Atenolol', brand_name_zh: '壓樂適錠 25毫克', dosage_form: 'tablet' },
+      before_snapshot: { plan_id: 'demo-plan-legacy', medication_id: 'demo-med-legacy-bp-30', schedule_slot: 'morning', dose_amount: 1, dose_count: 1, as_needed: false, active: true, brand_name: 'Adalat OROS', brand_name_zh: '恆脈循持續性藥效錠 30毫克', dosage_form: 'tablet' },
+      after_snapshot: { plan_id: 'demo-plan-legacy', medication_id: 'demo-med-legacy-bp-30', schedule_slot: 'morning', dose_amount: 1, dose_count: 1, as_needed: false, active: false, brand_name: 'Adalat OROS', brand_name_zh: '恆脈循持續性藥效錠 30毫克', dosage_form: 'tablet' },
       recorded_at: dateAgoIso(75), effective_at: dateAgoIso(75),
       created_at: dateAgoIso(75),
     },
@@ -355,7 +390,7 @@ export function getFallbackDemoMedicationHistory(): MedicationPlanChangeLogView[
       dose_amount: 0.5,
       dose_count: 1,
       as_needed: false,
-      reason: '門診開立：開始使用易安穩 Exforge 5/80mg 每日早晨 0.5 錠，密切觀察前三日下降趨勢。',
+      reason: '門診開立：改用複方易安穩 Exforge 5/80mg 每日早晨 0.5 錠，先觀察一週早晚讀值再決定是否調整。',
       actor_email: 'owner@example.com',
       before_snapshot: {},
       after_snapshot: { plan_id: 'demo-plan-exforge', medication_id: 'demo-med-exforge-5-80', schedule_slot: 'morning', dose_amount: 0.5, dose_count: 1, as_needed: false, active: true, brand_name: 'Exforge', brand_name_zh: '易安穩膜衣錠 5/80毫克', dosage_form: 'tablet' },
@@ -366,17 +401,17 @@ export function getFallbackDemoMedicationHistory(): MedicationPlanChangeLogView[
       id: 'demo-log-3',
       patient_id: DEMO_MEILING_PATIENT_ID,
       action: 'deactivate',
-      plan_id: 'demo-plan-isormol',
-      medication_id: 'demo-med-isormol-5',
-      medication: mockMedication('demo-med-isormol-5', 'Isormol', '伊索莫持續錠 5毫克', 'Isormol 5mg'),
+      plan_id: 'demo-plan-imdur',
+      medication_id: 'demo-med-imdur-30',
+      medication: mockMedication('demo-med-imdur-30', 'Imdur', '伊姆多持續性藥效錠 30毫克', 'Imdur 30mg'),
       schedule_slot: 'before_bed',
       dose_amount: 1,
       dose_count: 1,
       as_needed: false,
-      reason: '緊急醫囑停用：因出現姿勢性頭暈且連三日舒張壓下降至 48-52 mmHg，主治醫師指示停用硝酸鹽類 Isormol。',
+      reason: '醫囑停用：起身頭暈且早晚舒張壓連兩日落在 50-54 mmHg，主治醫師指示先停用睡前的硝酸鹽類 Imdur。',
       actor_email: 'caregiver@example.com',
-      before_snapshot: { plan_id: 'demo-plan-isormol', medication_id: 'demo-med-isormol-5', schedule_slot: 'before_bed', dose_amount: 1, dose_count: 1, as_needed: false, active: true, brand_name: 'Isormol', brand_name_zh: '伊索莫持續錠 5毫克', dosage_form: 'tablet' },
-      after_snapshot: { plan_id: 'demo-plan-isormol', medication_id: 'demo-med-isormol-5', schedule_slot: 'before_bed', dose_amount: 1, dose_count: 1, as_needed: false, active: false, brand_name: 'Isormol', brand_name_zh: '伊索莫持續錠 5毫克', dosage_form: 'tablet' },
+      before_snapshot: { plan_id: 'demo-plan-imdur', medication_id: 'demo-med-imdur-30', schedule_slot: 'before_bed', dose_amount: 1, dose_count: 1, as_needed: false, active: true, brand_name: 'Imdur', brand_name_zh: '伊姆多持續性藥效錠 30毫克', dosage_form: 'tablet' },
+      after_snapshot: { plan_id: 'demo-plan-imdur', medication_id: 'demo-med-imdur-30', schedule_slot: 'before_bed', dose_amount: 1, dose_count: 1, as_needed: false, active: false, brand_name: 'Imdur', brand_name_zh: '伊姆多持續性藥效錠 30毫克', dosage_form: 'tablet' },
       recorded_at: dateAgoIso(64), effective_at: dateAgoIso(64),
       created_at: dateAgoIso(64),
     },
@@ -391,7 +426,7 @@ export function getFallbackDemoMedicationHistory(): MedicationPlanChangeLogView[
       dose_amount: 0.5,
       dose_count: 1,
       as_needed: false,
-      reason: '門診加開：微調心律，早晨加開 Concor 5mg 半錠以輔助心率穩定 (70-75 bpm)。',
+      reason: '門診加開：回診時靜息心率 88-92 bpm 偏快，早晨加開 Concor 5mg 半錠輔助心率穩定。',
       actor_email: 'owner@example.com',
       before_snapshot: {},
       after_snapshot: { plan_id: 'demo-plan-concor', medication_id: 'demo-med-concor-5', schedule_slot: 'morning', dose_amount: 0.5, dose_count: 1, as_needed: false, active: true, brand_name: 'Concor', brand_name_zh: '康肯膜衣錠 5毫克', dosage_form: 'tablet' },
@@ -405,13 +440,17 @@ export function getFallbackDemoCareTimeline(): CareTimelineEntry[] {
   const baseNow = new Date(DEMO_FALLBACK_BASE_DATE)
   const dateAgoIso = (daysAgo: number) => new Date(baseNow.getTime() - daysAgo * 86400000).toISOString()
 
+  // 這條時間軸是為了讓軌跡頁、交接手冊與就診前摘要有「換藥→低血壓→漏藥→突發高壓→穩定」每一種事件可看而寫的
+  // 劇本，事件、數值與日期都是構造出來的，不轉述任何真實照護紀錄（PR #1013 review）；改動時只能在劇本上加減。
+  // 敘述裡引用的單筆讀值必須真的出現在 getFallbackDemoBpRecords 同一天的資料裡（單元測試會核對），
+  // 平均值則是依那段區間的產生器參數估的約數；血壓處置的間隔照 blood-pressure-spec.json 的規則寫。
   return [
     {
       id: 'demo-timeline-1',
       patient_id: DEMO_MEILING_PATIENT_ID,
       event_type: 'doctor_instruction',
-      title: '門診處方微調與降壓藥升級',
-      details: '血壓連三週為 162/98 mmHg 偏高。主治醫師建議停用舊藥 Atenolol，改開易安穩 Exforge 5/80mg 每日早晨 0.5 錠，交代看護 caregiver 每日記錄雙時段讀值。',
+      title: '門診換成複方降壓藥',
+      details: '兩週早晚平均約 155/92 mmHg 未達標。主治醫師停用單方 Adalat OROS，改開複方易安穩 Exforge 5/80mg 每日早晨 0.5 錠，請看護早晚各量一次並記錄一週。',
       occurred_at: dateAgoIso(75),
       reassess_on: null,
       created_by: 'owner@example.com',
@@ -422,12 +461,12 @@ export function getFallbackDemoCareTimeline(): CareTimelineEntry[] {
       id: 'demo-timeline-2',
       patient_id: DEMO_MEILING_PATIENT_ID,
       event_type: 'symptom_observation',
-      title: '舒張壓偏低與姿勢性頭暈記錄',
-      details: '看護 caregiver 筆記：媽媽早上起床反映頭眩暈、下床站立不穩，當量血壓 108/48 mmHg（舒張壓低於 50 mmHg）。已協助躺平休息，並致電門診護理師報備。',
-      occurred_at: dateAgoIso(65),
+      title: '起身頭暈與舒張壓偏低',
+      details: '看護筆記：美玲阿姨早餐後起身時頭暈，坐下休息五分鐘後量到早上的 104/52 mmHg（舒張壓落在偏低區間）。已請她繼續坐著休息，並致電門診護理師報備。',
+      occurred_at: dateAgoIso(66),
       reassess_on: null,
       created_by: 'caregiver@example.com',
-      created_at: dateAgoIso(65),
+      created_at: dateAgoIso(66),
       medication_plan_id: null,
     },
     {
@@ -438,8 +477,8 @@ export function getFallbackDemoCareTimeline(): CareTimelineEntry[] {
       // 誤判成 MedicationChangeTrajectoryEvent 而在讀取 .medication 時壞掉（issue #735 發現）。
       // 內容本質是醫師指示，改用 doctor_instruction 才符合 docs/features/care-timeline.md 的既有規則。
       event_type: 'doctor_instruction',
-      title: '門診急診通告：停用 Isormol 血管擴張劑',
-      details: '醫師評估頭暈與低舒張壓後，指示立即停用晚間 Isormol 5mg，避免血管擴張過度。停藥後兩日舒張壓即回升至 74 mmHg，頭暈症狀消失。',
+      title: '醫師指示：先停用睡前 Imdur',
+      details: '醫師看過頭暈與早晚舒張壓 50-55 mmHg 的紀錄後，指示先停用睡前的 Imdur 30mg，其餘藥物照舊。停藥後兩天舒張壓回到 70 mmHg 上下，起身不再頭暈。',
       occurred_at: dateAgoIso(64),
       reassess_on: null,
       created_by: 'owner@example.com',
@@ -450,8 +489,8 @@ export function getFallbackDemoCareTimeline(): CareTimelineEntry[] {
       id: 'demo-timeline-4',
       patient_id: DEMO_MEILING_PATIENT_ID,
       event_type: 'milestone',
-      title: '晚藥漏服與隔日補點收提醒',
-      details: '當晚因家中活動忘記服用晚間降壓與血糖藥，系統標記今日晚藥未確認。隔日早晨補點收並提醒每日鬧鐘。',
+      title: '早上降壓藥漏服，晚間血壓略高',
+      details: '當天家裡有客人，早上的 Exforge 忘了吃，系統標記早藥未確認；晚上 20:30 量到 142/90 mmHg 略高。已在系統補記這次漏服，並把早上的提醒提早到 07:30。',
       occurred_at: dateAgoIso(45),
       reassess_on: null,
       created_by: 'caregiver@example.com',
@@ -462,8 +501,8 @@ export function getFallbackDemoCareTimeline(): CareTimelineEntry[] {
       id: 'demo-timeline-5',
       patient_id: DEMO_MEILING_PATIENT_ID,
       event_type: 'milestone',
-      title: '門診定期追蹤與加開 Concor 安定心率',
-      details: '心臟科門診複診，血壓維持 122/78 mmHg 良好。因平均心率 86 bpm 微快，醫師加開 Concor 康肯 5mg 每日早晨 0.5 錠。',
+      title: '回診：血壓達標，加開 Concor 穩定心率',
+      details: '心臟科回診，近兩週早晚平均約 122/76 mmHg 達標。靜息心率 88-92 bpm 偏快，醫師加開 Concor 康肯 5mg 每日早晨 0.5 錠，四週後回診看心率。',
       occurred_at: dateAgoIso(30),
       reassess_on: null,
       created_by: 'owner@example.com',
@@ -474,8 +513,8 @@ export function getFallbackDemoCareTimeline(): CareTimelineEntry[] {
       id: 'demo-timeline-6',
       patient_id: DEMO_MEILING_PATIENT_ID,
       event_type: 'symptom_observation',
-      title: '突發高血壓 220/110 mmHg 處置與 15 分鐘二測',
-      details: '晚間 20:00 測得 220/110 mmHg。看護 caregiver 按照照護 SOP 讓媽媽靜臥 15 分鐘，於 20:15 進行二次複測，讀值降至 162/96 mmHg，無言語不清或肢體無力。已傳送 LINE 通知台中家屬備查。',
+      title: '突發高血壓 196/104 mmHg：複測仍高，立即聯絡門診',
+      details: '晚間 20:25 測得 196/104 mmHg，系統判為極高血壓、要求立即重測。看護讓美玲阿姨坐下休息 5 分鐘，20:30 複測 158/92 mmHg 仍高，沒有口齒不清、單側無力或胸痛，依提示立刻打電話給門診護理師，並用 LINE 通知外地家屬；等回電期間 20:40 再量一次 152/90 mmHg 作追蹤。護理師確認今早的降壓藥已點收後，指示今晚照常服藥、隔天早上回報讀值。',
       occurred_at: dateAgoIso(15),
       reassess_on: null,
       created_by: 'caregiver@example.com',
@@ -487,7 +526,7 @@ export function getFallbackDemoCareTimeline(): CareTimelineEntry[] {
       patient_id: DEMO_MEILING_PATIENT_ID,
       event_type: 'symptom_observation',
       title: '輕微感冒症狀與心衰竭體重水腫監測',
-      details: '媽媽出現鼻塞與輕微咳嗽，體重由 58.1 kg 略升至 59.4 kg。看護密切觀察是否為下肢水腫或心衰竭積水，拍照記錄小腿凹陷程度方便家屬遠端判斷，經補充溫水與三日後體重已回復 58.2 kg、腫脹消退。',
+      details: '美玲阿姨鼻塞、輕微咳嗽兩天，體重從 60.2 kg 升到 61.5 kg。看護留意是否為下肢水腫，拍照記錄小腿按壓後的凹陷方便家屬遠端判斷；三天後體重回到 60.4 kg，腫脹消退。',
       occurred_at: dateAgoIso(8),
       reassess_on: null,
       created_by: 'caregiver@example.com',
@@ -501,7 +540,7 @@ export function getFallbackDemoCareTimeline(): CareTimelineEntry[] {
       patient_id: DEMO_MEILING_PATIENT_ID,
       event_type: 'doctor_instruction',
       title: '90 天照護綜合門診評估',
-      details: '主治醫師參閱全三個月血壓趨勢圖表與服藥遵從率，稱讚照護品質優良，血壓控制良好（平均 122/77 mmHg），開立未來 3 個月慢性病連續處方箋。',
+      details: '主治醫師看過三個月的血壓趨勢圖與服藥點收率，血壓控制穩定（近月平均約 122/76 mmHg），開立未來 3 個月慢性病連續處方箋。',
       occurred_at: dateAgoIso(1),
       reassess_on: null,
       created_by: 'owner@example.com',

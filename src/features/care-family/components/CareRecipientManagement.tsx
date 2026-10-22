@@ -13,6 +13,8 @@ import { MengniDogMark } from '../../../components/system/MengniDogMark'
 import { MengniCatMark } from '../../../components/system/MengniCatMark'
 import { MengniRabbitMark } from '../../../components/system/MengniRabbitMark'
 import { PickleBirdMark } from '../../../components/system/PickleBirdMark'
+import { Icon } from '../../../components/ui/Icon'
+import { useCareRecipientCapacity } from '../hooks/useCareRecipientCapacity'
 
 // RPC 用純英文 RAISE EXCEPTION 訊息（PostgREST 直接轉傳），這裡對照已知情境給雙語說明；
 // 未列出的訊息維持原本的通用重試文字，避免顯示未經檢視的資料庫原始錯誤。
@@ -35,7 +37,8 @@ function PetTypeMark({ type }: { type: ManagedPet['care_recipient_type'] }) {
   if (type === 'bird') return <PickleBirdMark className="h-6 w-7 shrink-0" />
   // 兔子是既有資料的相容類型；新增表單不再提供它，但歷史清單仍要能辨識。
   if (type === 'rabbit') return <MengniRabbitMark className="h-6 w-7 shrink-0" />
-  return <span aria-hidden="true">🐾</span>
+  // 沒有專屬插畫的類型（other 等）退回泛用爪印 SVG，跟其他插畫同一個 24×28 視覺框。
+  return <Icon name="paw" className="h-6 w-7 shrink-0 text-slate-500" />
 }
 
 function patientInvitationStatusText(status: HouseholdPatientInvitation['status'], text: (value: LocalizedText) => string): string {
@@ -45,6 +48,7 @@ function patientInvitationStatusText(status: HouseholdPatientInvitation['status'
   return text({ id: 'Dicabut', zh: '已撤銷', en: 'Revoked' })
 }
 
+// 為什麼補足 44px：手機上的獨立操作要留出足夠點擊面，降低漏點與誤觸。
 export function CareRecipientManagement({ onCreated, onArchived, onViewArchived, availablePatients, isDemoMode }: { onCreated: (patientId: string) => Promise<void>; onArchived: () => Promise<void>; onViewArchived: (pet: ManagedPet) => void; availablePatients: PatientIdentity[]; isDemoMode: boolean }) {
   const { text, locale } = useI18n()
   const { confirm, dialog: confirmDialog } = useConfirm()
@@ -68,6 +72,9 @@ export function CareRecipientManagement({ onCreated, onArchived, onViewArchived,
   const [createdPatientInvite, setCreatedPatientInvite] = useState<{ url: string; expiresAt: string; invitedEmail: string; emailStatus: 'sent' | 'not_configured' | 'failed' } | null>(null)
   const canManagePets = role === 'owner' || role === 'caregiver'
   const canAddPeople = role === 'owner'
+  // 兩個 RPC 的家庭選擇規則不同，名額必須分開讀，不能用畫面上可見的病人數量猜測。
+  const petCapacity = useCareRecipientCapacity(false, !isDemoMode && canManagePets, availablePatients)
+  const inviteCapacity = useCareRecipientCapacity(true, !isDemoMode && canAddPeople, patientInvitations)
   const accessibleActivePets = useMemo(() => availablePatients.flatMap(patient => {
     if (patient.archivedAt || patient.careRecipientType === 'human') return []
     return [{ patient_id: patient.patientId, display_name: patient.displayName, care_recipient_type: patient.careRecipientType }]
@@ -109,6 +116,7 @@ export function CareRecipientManagement({ onCreated, onArchived, onViewArchived,
     setSaving(true)
     setMessage('')
     try {
+      await petCapacity.check()
       const patientId = await addHouseholdPatient(name, recipientType)
       await onCreated(patientId)
       await reloadPets()
@@ -117,7 +125,7 @@ export function CareRecipientManagement({ onCreated, onArchived, onViewArchived,
       setMessage(text({ id: 'Penerima perawatan ditambahkan dan dipilih.', zh: '已新增並切換到這位照護對象。' ,en: 'Added and switched to this caregiver.' }))
     } catch (cause) {
       console.error('[care recipient creation error]', cause)
-      setMessage(text({ id: 'Tidak dapat menambah penerima perawatan. Coba lagi.', zh: '暫時無法新增照護對象，請再試一次。' ,en: 'There was an error adding the subject of care, please try again.' }))
+      setMessage(text(await petCapacity.describeError(cause) ?? { id: 'Tidak dapat menambah penerima perawatan. Coba lagi.', zh: '暫時無法新增照護對象，請再試一次。' ,en: 'There was an error adding the subject of care, please try again.' }))
     } finally {
       setSaving(false)
     }
@@ -130,6 +138,7 @@ export function CareRecipientManagement({ onCreated, onArchived, onViewArchived,
     setInviteSaving(true)
     setInviteMessage('')
     try {
+      await inviteCapacity.check()
       // 人類資料先建立待接受邀請，不先寫 care_access；接受者未確認前，建立者也不能讀寫這位病人的健康資料。
       const created = await createHouseholdPatientInvitationWithEmail(inviteName, invitedEmail, authorizationBasis)
       setCreatedPatientInvite({ url: buildPatientInvitationUrl(window.location.origin, created.token), expiresAt: created.expiresAt, invitedEmail: created.invitedEmail ?? invitedEmail.trim().toLowerCase(), emailStatus: created.emailStatus ?? 'not_configured' })
@@ -147,7 +156,7 @@ export function CareRecipientManagement({ onCreated, onArchived, onViewArchived,
           : { id: 'Undangan dibuat, tetapi email gagal dikirim. Gunakan tautan di bawah untuk berbagi manual.', zh: '已建立邀請，但 email 寄送失敗；請用下方連結手動分享。', en: 'Invitation created, but email delivery failed. Use the link below to share it manually.' }))
     } catch (cause) {
       console.error('[patient invitation creation error]', cause)
-      setInviteMessage(text(describeInviteError(cause) ?? { id: 'Tidak dapat membuat undangan. Coba lagi.', zh: '暫時無法建立邀請，請再試一次。' ,en: "Could not create invitation. Try again." }))
+      setInviteMessage(text(await inviteCapacity.describeError(cause) ?? describeInviteError(cause) ?? { id: 'Tidak dapat membuat undangan. Coba lagi.', zh: '暫時無法建立邀請，請再試一次。' ,en: "Could not create invitation. Try again." }))
     } finally {
       setInviteSaving(false)
     }
@@ -212,16 +221,16 @@ export function CareRecipientManagement({ onCreated, onArchived, onViewArchived,
     }
   }
 
-  if (isDemoMode) return <section className="mt-6 rounded-2xl border border-indigo-100 bg-indigo-50 p-4" aria-labelledby="care-recipient-heading">
-    <h2 id="care-recipient-heading" className="font-bold text-indigo-950">{text({ id: 'Zon demo: pengelolaan keluarga', zh: '展示模式：家庭管理' ,en: 'Demo mode: Family management' })}</h2>
-    <p className="mt-1 text-sm leading-6 text-indigo-900">{text({ id: 'Mode demo hanya menampilkan data fiktif. Penambahan orang, pengarsipan hewan, dan undangan keluarga tersedia setelah masuk secara resmi.', zh: '展示模式只顯示虛構資料；新增人員、封存寵物與家庭邀請，請在正式登入後使用。' ,en: 'Demo mode shows only fictional data. Adding people, archiving pets, and family invitations are available after you sign in.' })}</p>
+  if (isDemoMode) return <section className="mt-6 rounded-2xl border border-brand-200 bg-brand-50 p-4" aria-labelledby="care-recipient-heading">
+    <h2 id="care-recipient-heading" className="font-bold text-slate-900">{text({ id: 'Zon demo: pengelolaan keluarga', zh: '展示模式：家庭管理' ,en: 'Demo mode: Family management' })}</h2>
+    <p className="mt-1 text-sm leading-6 text-slate-800">{text({ id: 'Mode demo hanya menampilkan data fiktif. Penambahan orang, pengarsipan hewan, dan undangan keluarga tersedia setelah masuk secara resmi.', zh: '展示模式只顯示虛構資料；新增人員、封存寵物與家庭邀請，請在正式登入後使用。' ,en: 'Demo mode shows only fictional data. Adding people, archiving pets, and family invitations are available after you sign in.' })}</p>
   </section>
 
-  if (role === null) return <section className="mt-6 rounded-2xl border border-indigo-100 bg-indigo-50 p-4" aria-labelledby="care-recipient-heading">
-    <h2 id="care-recipient-heading" className="font-bold text-indigo-950">{text({ id: 'Tambah hewan', zh: '新增寵物' ,en: 'Add a pet' })}</h2>
+  if (role === null) return <section className="mt-6 rounded-2xl border border-brand-200 bg-brand-50 p-4" aria-labelledby="care-recipient-heading">
+    <h2 id="care-recipient-heading" className="font-bold text-slate-900">{text({ id: 'Tambah hewan', zh: '新增寵物' ,en: 'Add a pet' })}</h2>
     {roleError
-      ? <><p className="mt-1 text-sm text-indigo-900">{text({ id: 'Izin pengelolaan belum dapat dibaca. Coba lagi.', zh: '暫時無法讀取管理權限，請再試一次。' ,en: 'Error reading administrative permissions, please try again.' })}</p><button type="button" onClick={() => void reloadSetup()} className="mt-3 rounded-lg border border-indigo-300 px-3 py-2 text-sm font-bold text-indigo-800">{text({ id: 'Coba lagi', zh: '重試' ,en: 'Try again' })}</button></>
-      : <p className="mt-1 text-sm text-indigo-900">{text({ id: 'Memeriksa izin pengelolaan…', zh: '正在確認管理權限…' ,en: 'Confirming management permissions...' })}</p>}
+      ? <><p className="mt-1 text-sm text-slate-800">{text({ id: 'Izin pengelolaan belum dapat dibaca. Coba lagi.', zh: '暫時無法讀取管理權限，請再試一次。' ,en: 'Error reading administrative permissions, please try again.' })}</p><button type="button" onClick={() => void reloadSetup()} className="mt-3 rounded-lg border border-brand-200 bg-white px-3 py-2 text-sm font-bold text-brand-700 min-h-11">{text({ id: 'Coba lagi', zh: '重試' ,en: 'Try again' })}</button></>
+      : <p className="mt-1 text-sm text-slate-800">{text({ id: 'Memeriksa izin pengelolaan…', zh: '正在確認管理權限…' ,en: 'Confirming management permissions...' })}</p>}
   </section>
 
   return <>
@@ -233,7 +242,7 @@ export function CareRecipientManagement({ onCreated, onArchived, onViewArchived,
       {/* 提供直接連到教學頁的入口，方便管理者了解被照顧者邀請機制 */}
       <a
         href="/guides/family-invitations"
-        className="text-xs font-semibold text-emerald-800 hover:text-emerald-950 hover:underline flex items-center gap-0.5"
+        className="text-xs font-semibold text-emerald-800 hover:text-emerald-950 hover:underline flex items-center gap-0.5 min-h-11"
       >
         <span>{text({ id: 'Panduan', zh: '操作教學', en: 'Guide' })}</span>
         <span aria-hidden="true">↗</span>
@@ -241,14 +250,15 @@ export function CareRecipientManagement({ onCreated, onArchived, onViewArchived,
     </div>
     <p className="mt-1 text-sm text-emerald-900">{text({ id: 'Tambahkan orang yang dirawat dengan Google Email miliknya sendiri. Ia harus masuk dan menerima undangan sebelum siapa pun dapat mencatat datanya.', zh: '用被照顧者本人的 Google Email 建立邀請；對方必須自己登入並接受後，任何人才能開始記錄其健康資料。' ,en: 'Add a patient using their own Google email. They must sign in and accept the invitation before anyone can record their health data.' })}</p>
     <form onSubmit={submitInvite} className="mt-4 space-y-3">
-      <label className="block text-sm font-bold text-gray-800">{text({ id: 'Nama', zh: '名稱' ,en: 'Name' })}
-        <input required maxLength={100} value={inviteName} onChange={event => setInviteName(event.target.value)} placeholder={text({ id: 'Contoh: Ibu', zh: '例如：媽媽' ,en: 'Example: Mom' })} className="mt-1 w-full rounded-xl border border-gray-300 bg-white px-3 py-2.5" />
+      {inviteCapacity.notice && <p role="status" className="text-sm text-emerald-900">{text(inviteCapacity.notice)}</p>}
+      <label className="block text-sm font-bold text-slate-800">{text({ id: 'Nama', zh: '名稱' ,en: 'Name' })}
+        <input required maxLength={100} value={inviteName} onChange={event => setInviteName(event.target.value)} placeholder={text({ id: 'Contoh: Ibu', zh: '例如：媽媽' ,en: 'Example: Mom' })} className="mt-1 w-full rounded-xl border-2 border-control-border bg-white px-3 py-2.5" />
       </label>
-      <label className="block text-sm font-bold text-gray-800">{text({ id: 'Google Email orang yang dirawat', zh: '被照顧者 Google Email', en: 'Care recipient’s Google Email' })}
-        <input required type="email" value={invitedEmail} onChange={event => setInvitedEmail(event.target.value)} placeholder="contoh@gmail.com" className="mt-1 w-full rounded-xl border border-gray-300 bg-white px-3 py-2.5" />
+      <label className="block text-sm font-bold text-slate-800">{text({ id: 'Google Email orang yang dirawat', zh: '被照顧者 Google Email', en: 'Care recipient’s Google Email' })}
+        <input required type="email" value={invitedEmail} onChange={event => setInvitedEmail(event.target.value)} placeholder="contoh@gmail.com" className="mt-1 w-full rounded-xl border-2 border-control-border bg-white px-3 py-2.5" />
       </label>
-      <label className="block text-sm font-bold text-gray-800">{text({ id: 'Dasar kewenangan', zh: '授權依據', en: 'Authorized By' })}
-        <input required maxLength={200} value={authorizationBasis} onChange={event => setAuthorizationBasis(event.target.value)} placeholder={text({ id: 'Contoh: anak, dengan persetujuan ibu', zh: '例如：子女，經母親同意', en: 'Ex: Child, with mother’s consent' })} className="mt-1 w-full rounded-xl border border-gray-300 bg-white px-3 py-2.5" />
+      <label className="block text-sm font-bold text-slate-800">{text({ id: 'Dasar kewenangan', zh: '授權依據', en: 'Authorized By' })}
+        <input required maxLength={200} value={authorizationBasis} onChange={event => setAuthorizationBasis(event.target.value)} placeholder={text({ id: 'Contoh: anak, dengan persetujuan ibu', zh: '例如：子女，經母親同意', en: 'Ex: Child, with mother’s consent' })} className="mt-1 w-full rounded-xl border-2 border-control-border bg-white px-3 py-2.5" />
       </label>
       {inviteMessage && <p role="status" className="text-sm text-emerald-900">{inviteMessage}</p>}
       <button type="submit" disabled={inviteSaving} className="w-full rounded-xl bg-emerald-700 px-4 py-3 text-sm font-bold text-white disabled:opacity-60">{text({ id: 'Kirim undangan', zh: '送出邀請', en: 'Send invitation' })}</button>
@@ -257,43 +267,46 @@ export function CareRecipientManagement({ onCreated, onArchived, onViewArchived,
       <p className="text-sm font-bold text-emerald-950">{text({ id: 'Tautan undangan siap dibagikan', zh: '邀請連結已準備好，可分享給對方', en: 'Invitation link ready to share' })}</p>
       <p className="mt-1 text-xs text-emerald-900">{createdPatientInvite.emailStatus === 'sent' ? text({ id: `Email dikirim ke ${createdPatientInvite.invitedEmail}.`, zh: `Email 已寄到 ${createdPatientInvite.invitedEmail}。`, en: `Email sent to ${createdPatientInvite.invitedEmail}.` }) : text({ id: `Kirim tautan ini secara manual ke ${createdPatientInvite.invitedEmail}.`, zh: `請手動把連結傳給 ${createdPatientInvite.invitedEmail}。`, en: `Send this link manually to ${createdPatientInvite.invitedEmail}.` })}</p>
       <p className="mt-1 text-xs leading-5 text-emerald-900">{text({ id: 'Tautan ini hanya ditampilkan sekali. Tetap gunakan akun Google yang diundang.', zh: '這個連結只在此顯示一次；對方仍必須使用受邀的 Google 帳號。', en: 'This link is shown only once. The recipient must use the invited Google account.' })}</p>
-      <input readOnly value={createdPatientInvite.url} aria-label={text({ id: 'Tautan undangan pasien', zh: '被照顧者邀請連結', en: 'Patient invitation link' })} className="mt-2 w-full rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-2 text-xs text-emerald-950" />
+      <input readOnly value={createdPatientInvite.url} aria-label={text({ id: 'Tautan undangan pasien', zh: '被照顧者邀請連結', en: 'Patient invitation link' })} className="mt-2 w-full rounded-lg border-2 border-control-border bg-emerald-50 px-2.5 py-2 text-xs text-emerald-950" />
       <div className="mt-2 grid grid-cols-2 gap-2">
-        <button type="button" onClick={() => sharePatientInvite(createdPatientInvite.url)} className="rounded-lg bg-emerald-700 px-3 py-2 text-xs font-bold text-white">{text({ id: 'Bagikan', zh: '系統分享', en: 'Share' })}</button>
-        <button type="button" onClick={() => void copyPatientInvite(createdPatientInvite.url)} className="rounded-lg border border-emerald-300 px-3 py-2 text-xs font-bold text-emerald-800">{text({ id: 'Salin tautan', zh: '複製連結', en: 'Copy link' })}</button>
+        <button type="button" onClick={() => sharePatientInvite(createdPatientInvite.url)} className="rounded-lg bg-emerald-700 px-3 py-2 text-xs font-bold text-white min-h-11">{text({ id: 'Bagikan', zh: '系統分享', en: 'Share' })}</button>
+        <button type="button" onClick={() => void copyPatientInvite(createdPatientInvite.url)} className="rounded-lg border border-emerald-300 px-3 py-2 text-xs font-bold text-emerald-800 min-h-11">{text({ id: 'Salin tautan', zh: '複製連結', en: 'Copy link' })}</button>
       </div>
       <p className="mt-2 text-xs text-emerald-900">{text({ id: `Berlaku sampai ${new Date(createdPatientInvite.expiresAt).toLocaleString('id-ID')}.`, zh: `有效期限：${new Date(createdPatientInvite.expiresAt).toLocaleString('zh-TW')}。`, en: `Valid until ${new Date(createdPatientInvite.expiresAt).toLocaleString('en-US')}.` })}</p>
     </div>}
     {patientInvitations.length > 0 && <div className="mt-4 border-t border-emerald-200 pt-4">
       <h3 className="text-sm font-bold text-emerald-950">{text({ id: 'Undangan pasien yang dibuat', zh: '已建立的被照顧者邀請', en: 'Patient invitations created' })}</h3>
+      {/* 撤銷邀請會讓連結失效；拉高按鈕可降低照護者誤按的機會。 */}
       <ul className="mt-2 space-y-2">{patientInvitations.map(invitation => <li key={invitation.invitation_id} className="flex items-start justify-between gap-3 rounded-xl border border-emerald-100 bg-white p-3 text-sm">
-        <div className="min-w-0"><p className="truncate font-semibold text-gray-800">{invitation.display_name}</p><p className="truncate text-xs text-gray-600">{invitation.invited_email}</p><p className="mt-1 text-xs text-emerald-900">{patientInvitationStatusText(invitation.status, text)}</p></div>
-        {invitation.status === 'pending' && <button type="button" onClick={() => void revokePatientInvite(invitation.invitation_id)} className="shrink-0 rounded-lg border border-red-200 px-2.5 py-1 text-xs font-bold text-red-700">{text({ id: 'Cabut', zh: '撤銷', en: 'Revoke' })}</button>}
+        <div className="min-w-0"><p className="truncate font-semibold text-slate-800">{invitation.display_name}</p><p className="truncate text-xs text-slate-600">{invitation.invited_email}</p><p className="mt-1 text-xs text-emerald-900">{patientInvitationStatusText(invitation.status, text)}</p></div>
+        {invitation.status === 'pending' && <button type="button" onClick={() => void revokePatientInvite(invitation.invitation_id)} className="min-h-11 shrink-0 rounded-lg border border-red-200 px-2.5 py-1 text-xs font-bold text-red-700">{text({ id: 'Cabut', zh: '撤銷', en: 'Revoke' })}</button>}
       </li>)}</ul>
       <p className="mt-2 text-xs text-emerald-900">{text({ id: 'Undangan yang dicabut tidak dapat diterima.', zh: '已撤銷的邀請不能再被接受。', en: 'A revoked invitation cannot be accepted.' })}</p>
     </div>}
   </section>}
 
-  <section className="mt-6 rounded-2xl border border-indigo-100 bg-indigo-50 p-4" aria-labelledby="care-recipient-heading">
-    <h2 id="care-recipient-heading" className="font-bold text-indigo-950">{text({ id: 'Tambah hewan', zh: '新增寵物', en: 'Add a pet' })}</h2>
-    <p className="mt-1 text-sm text-indigo-900">{text(canManagePets ? { id: 'Pemilik dan pengasuh dapat menambah atau menghapus hewan dari perawatan harian bersama. Riwayat hidup tetap disimpan.', zh: '家庭管理者與照護者可共同新增或從日常照護移除寵物；生命歷史會保留。', en: 'Family managers and caregivers can add or remove pets together from routine care; life history is preserved.' } : { id: 'Anda adalah anggota hanya-lihat: Anda dapat melihat hewan dan riwayatnya, tetapi tidak dapat menambah atau menghapusnya dari perawatan harian.', zh: '你是僅檢視成員：可查看寵物與生命歷史，但不能新增或從日常照護移除。', en: 'You’re a view-only member: You can view pets and life history, but you can’t add or remove them from routine care.' })}</p>
+  <section className="mt-6 rounded-2xl border border-brand-200 bg-brand-50 p-4" aria-labelledby="care-recipient-heading">
+    <h2 id="care-recipient-heading" className="font-bold text-slate-900">{text({ id: 'Tambah hewan', zh: '新增寵物', en: 'Add a pet' })}</h2>
+    <p className="mt-1 text-sm text-slate-800">{text(canManagePets ? { id: 'Pemilik dan pengasuh dapat menambah atau menghapus hewan dari perawatan harian bersama. Riwayat hidup tetap disimpan.', zh: '家庭管理者與照護者可共同新增或從日常照護移除寵物；生命歷史會保留。', en: 'Family managers and caregivers can add or remove pets together from routine care; life history is preserved.' } : { id: 'Anda adalah anggota hanya-lihat: Anda dapat melihat hewan dan riwayatnya, tetapi tidak dapat menambah atau menghapusnya dari perawatan harian.', zh: '你是僅檢視成員：可查看寵物與生命歷史，但不能新增或從日常照護移除。', en: 'You’re a view-only member: You can view pets and life history, but you can’t add or remove them from routine care.' })}</p>
     {canManagePets && <form onSubmit={submit} className="mt-4 space-y-3">
-      <label className="block text-sm font-bold text-gray-800">{text({ id: 'Nama', zh: '名稱', en: 'Name' })}
-        <input required maxLength={100} value={name} onChange={event => setName(event.target.value)} placeholder={text({ id: 'Contoh: Whiskers', zh: '例如：小乖', en: 'e.g., Whiskers' })} className="mt-1 w-full rounded-xl border border-gray-300 bg-white px-3 py-2.5" />
+      {petCapacity.notice && <p role="status" className="text-sm text-slate-800">{text(petCapacity.notice)}</p>}
+      <label className="block text-sm font-bold text-slate-800">{text({ id: 'Nama', zh: '名稱', en: 'Name' })}
+        <input required maxLength={100} value={name} onChange={event => setName(event.target.value)} placeholder={text({ id: 'Contoh: Whiskers', zh: '例如：小乖', en: 'e.g., Whiskers' })} className="mt-1 w-full rounded-xl border-2 border-control-border bg-white px-3 py-2.5" />
       </label>
       <RecipientTypeMenu value={recipientType} open={typeMenuOpen} onToggle={() => setTypeMenuOpen(open => !open)} onChange={type => { setRecipientType(type); setTypeMenuOpen(false) }} text={text} />
-      {recipientType === 'other' && <p className="text-xs leading-5 text-indigo-900">{text({ id: 'Bedakan hewan lain melalui namanya, misalnya kura-kura atau reptil.', zh: '請用名稱區分其他動物，例如：烏龜或爬蟲類。', en: 'Distinguish other animals by name, e.g., turtle or reptile.' })}</p>}
-      {message && <p role="status" className="text-sm text-indigo-900">{message}</p>}
-      <button type="submit" disabled={saving} className="w-full rounded-xl bg-indigo-700 px-4 py-3 text-sm font-bold text-white disabled:opacity-60">{text({ id: 'Tambah penerima perawatan', zh: '新增照護對象', en: 'Add a care recipient' })}</button>
+      {recipientType === 'other' && <p className="text-xs leading-5 text-slate-800">{text({ id: 'Bedakan hewan lain melalui namanya, misalnya kura-kura atau reptil.', zh: '請用名稱區分其他動物，例如：烏龜或爬蟲類。', en: 'Distinguish other animals by name, e.g., turtle or reptile.' })}</p>}
+      {message && <p role="status" className="text-sm text-slate-800">{message}</p>}
+      <button type="submit" disabled={saving} className="w-full rounded-xl bg-brand-700 active:bg-emerald-800 px-4 py-3 text-sm font-bold text-white disabled:opacity-60">{text({ id: 'Tambah penerima perawatan', zh: '新增照護對象', en: 'Add a care recipient' })}</button>
     </form>}
-    {pets.length > 0 && <div className="mt-5 border-t border-indigo-100 pt-4">
-      <h3 className="text-sm font-bold text-indigo-950">{text({ id: 'Hewan yang dirawat', zh: '目前照護的寵物', en: 'Pets currently under care' })}</h3>
-      <ul className="mt-2 space-y-2">{pets.map(pet => <li key={pet.patient_id} className="flex items-center justify-between gap-3 rounded-xl bg-white p-3 text-sm"><span className="inline-flex min-w-0 items-center gap-2"><PetTypeMark type={pet.care_recipient_type} /><span className="truncate">{pet.display_name}</span></span>{canManagePets && <button type="button" disabled={saving} onClick={() => void removePet(pet)} className="rounded-lg border border-red-200 px-2.5 py-1 text-xs font-bold text-red-700 disabled:opacity-60">{text({ id: 'Hapus', zh: '移除' ,en: 'Delete' })}</button>}</li>)}</ul>
-      <p className="mt-2 text-xs text-indigo-900">{text({ id: 'Menghapus dari perawatan harian menghentikan catatan baru, tetapi riwayat hidup tetap tersimpan.', zh: '從日常照護移除後不能再新增紀錄，但生命歷史會保留。' ,en: 'Records cannot be added after removal from routine care, but life history is preserved.' })}</p>
+    {pets.length > 0 && <div className="mt-5 border-t border-brand-200 pt-4">
+      <h3 className="text-sm font-bold text-slate-900">{text({ id: 'Hewan yang dirawat', zh: '目前照護的寵物', en: 'Pets currently under care' })}</h3>
+      {/* 移除寵物會停止新增照護紀錄；按鈕需有完整 44px 高度，避免誤觸。 */}
+      <ul className="mt-2 space-y-2">{pets.map(pet => <li key={pet.patient_id} className="flex items-center justify-between gap-3 rounded-xl bg-white p-3 text-sm"><span className="inline-flex min-w-0 items-center gap-2"><PetTypeMark type={pet.care_recipient_type} /><span className="truncate">{pet.display_name}</span></span>{canManagePets && <button type="button" disabled={saving} onClick={() => void removePet(pet)} className="min-h-11 rounded-lg border border-red-200 px-2.5 py-1 text-xs font-bold text-red-700 disabled:opacity-60">{text({ id: 'Hapus', zh: '移除' ,en: 'Delete' })}</button>}</li>)}</ul>
+      <p className="mt-2 text-xs text-slate-800">{text({ id: 'Menghapus dari perawatan harian menghentikan catatan baru, tetapi riwayat hidup tetap tersimpan.', zh: '從日常照護移除後不能再新增紀錄，但生命歷史會保留。' ,en: 'Records cannot be added after removal from routine care, but life history is preserved.' })}</p>
     </div>}
-    {archivedPets.length > 0 && <div className="mt-5 border-t border-indigo-100 pt-4">
-      <h3 className="text-sm font-bold text-indigo-950">{text({ id: 'Hewan yang diarsipkan', zh: '已封存的寵物' ,en: 'Archived pets' })}</h3>
-      <ul className="mt-2 space-y-2">{archivedPets.map(pet => <li key={pet.patient_id} className="flex items-center justify-between gap-3 rounded-xl border border-dashed border-indigo-200 bg-white/70 p-3 text-sm"><span className="inline-flex min-w-0 items-center gap-2"><PetTypeMark type={pet.care_recipient_type} /><span className="truncate">{pet.display_name}</span></span><button type="button" onClick={() => onViewArchived(pet)} className="rounded-lg border border-indigo-300 px-2.5 py-1 text-xs font-bold text-indigo-800">{text({ id: 'Lihat riwayat hidup', zh: '查看生命歷史' ,en: 'View life history' })}</button></li>)}</ul>
+    {archivedPets.length > 0 && <div className="mt-5 border-t border-brand-200 pt-4">
+      <h3 className="text-sm font-bold text-slate-900">{text({ id: 'Hewan yang diarsipkan', zh: '已封存的寵物' ,en: 'Archived pets' })}</h3>
+      <ul className="mt-2 space-y-2">{archivedPets.map(pet => <li key={pet.patient_id} className="flex items-center justify-between gap-3 rounded-xl border border-dashed border-brand-200 bg-white/70 p-3 text-sm"><span className="inline-flex min-w-0 items-center gap-2"><PetTypeMark type={pet.care_recipient_type} /><span className="truncate">{pet.display_name}</span></span><button type="button" onClick={() => onViewArchived(pet)} className="rounded-lg border border-brand-200 px-2.5 py-1 text-xs font-bold text-brand-700 min-h-11">{text({ id: 'Lihat riwayat hidup', zh: '查看生命歷史' ,en: 'View life history' })}</button></li>)}</ul>
     </div>}
   </section>
   </>
@@ -309,13 +322,13 @@ function RecipientTypeMenu({ value, open, onToggle, onChange, text }: { value: C
   const selected = options.find(option => option.type === value) ?? options[0]
 
   return <div className="relative">
-    <p className="text-sm font-bold text-gray-800">{text({ id: 'Jenis', zh: '類型' ,en: 'Type' })}</p>
+    <p className="text-sm font-bold text-slate-800">{text({ id: 'Jenis', zh: '類型' ,en: 'Type' })}</p>
     {/* 保留單列 menu 的簡潔操作，同時避開原生 select 對 SVG 圖示的限制，讓狗選項確實使用猛膩黑狗。 */}
-    <button type="button" aria-haspopup="listbox" aria-expanded={open} onClick={onToggle} className="mt-1 flex min-h-11 w-full items-center justify-between rounded-xl border border-gray-300 bg-white px-3 py-2.5 text-left text-sm font-semibold text-gray-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-600">
-      <span className="inline-flex items-center gap-2">{selected.icon}{selected.label}</span><span aria-hidden="true" className="text-gray-500">⌄</span>
+    <button type="button" aria-haspopup="listbox" aria-expanded={open} onClick={onToggle} className="mt-1 flex min-h-11 w-full items-center justify-between rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-left text-sm font-semibold text-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-700">
+      <span className="inline-flex items-center gap-2">{selected.icon}{selected.label}</span><span aria-hidden="true" className="text-slate-500">⌄</span>
     </button>
-    {open && <div role="listbox" aria-label={text({ id: 'Jenis penerima perawatan', zh: '照護對象類型' ,en: 'Care recipient type' })} onKeyDown={event => { if (event.key === 'Escape') onToggle() }} className="absolute z-20 mt-1 w-full overflow-hidden rounded-xl border border-indigo-200 bg-white py-1 shadow-lg">
-      {options.map(option => <button key={option.type} type="button" role="option" aria-selected={value === option.type} onClick={() => onChange(option.type)} className={`flex min-h-11 w-full items-center gap-2 px-3 py-2.5 text-left text-sm font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-indigo-600 ${value === option.type ? 'bg-indigo-50 text-indigo-950' : 'text-gray-700 hover:bg-gray-50'}`}>{option.icon}{option.label}</button>)}
+    {open && <div role="listbox" aria-label={text({ id: 'Jenis penerima perawatan', zh: '照護對象類型' ,en: 'Care recipient type' })} onKeyDown={event => { if (event.key === 'Escape') onToggle() }} className="absolute z-20 mt-1 w-full overflow-hidden rounded-xl border border-brand-200 bg-white py-1 shadow-lg">
+      {options.map(option => <button key={option.type} type="button" role="option" aria-selected={value === option.type} onClick={() => onChange(option.type)} className={`flex min-h-11 w-full items-center gap-2 px-3 py-2.5 text-left text-sm font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand-700 ${value === option.type ? 'bg-brand-50 text-slate-900' : 'text-slate-700 hover:bg-slate-50'}`}>{option.icon}{option.label}</button>)}
     </div>}
   </div>
 }
@@ -327,6 +340,6 @@ function RecipientTypeIcon({ type }: { type: CareRecipientType }) {
   if (type === 'bird') return <PickleBirdMark className="h-5 w-6 shrink-0" />
   // 保留舊兔子資料的呈現，不讓改版後的歷史清單退回沒有辨識度的爪印。
   if (type === 'rabbit') return <MengniRabbitMark className="h-5 w-6 shrink-0" />
-  const emoji = type === 'human' ? '👤' : '🐾'
-  return <span aria-hidden="true" className="inline-flex h-5 w-6 shrink-0 items-center justify-center text-xl leading-none">{emoji}</span>
+  // 人用 user、其餘用爪印；外層維持原本 h-5 w-6 的視覺框，清單與選項的對齊不變。
+  return <span className="inline-flex h-5 w-6 shrink-0 items-center justify-center text-slate-600"><Icon name={type === 'human' ? 'user' : 'paw'} className="h-5 w-5" /></span>
 }

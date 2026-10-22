@@ -265,7 +265,7 @@ export function TemperaturePage({ patientId, patientName, userEmail, embedded = 
               value={temperature}
               onChange={event => handleTemperatureInputChange(event.target.value)}
               onKeyDown={event => { if (event.key === 'Enter') void save() }}
-              className="min-h-16 min-w-0 flex-1 rounded-2xl border-2 border-orange-200 bg-orange-50 px-4 text-center text-4xl font-black tabular-nums text-orange-800 outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-300"
+              className="min-h-16 min-w-0 flex-1 rounded-2xl border-2 border-control-border bg-orange-50 px-4 text-center text-4xl font-black tabular-nums text-orange-800 outline-none focus-visible:border-brand-700 focus-visible:ring-2 focus-visible:ring-brand-700"
               aria-describedby={temperatureInputError ? 'temperature-range-hint temperature-input-error' : 'temperature-range-hint'}
               aria-invalid={temperatureInputError}
             />
@@ -276,7 +276,7 @@ export function TemperaturePage({ patientId, patientName, userEmail, embedded = 
 
           <fieldset className="mt-4">
             <label htmlFor="temperature-site" className="text-sm font-bold text-slate-700">{text({ id: 'Lokasi pengukuran', zh: '測量部位' ,en: 'Measurement site' })}</label>
-            <select id="temperature-site" value={site} onChange={event => setSite(event.target.value as TemperatureSite)} className="mt-2 w-full min-h-11 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-bold text-slate-700 outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-300">
+            <select id="temperature-site" value={site} onChange={event => setSite(event.target.value as TemperatureSite)} className="mt-2 w-full min-h-11 rounded-xl border-2 border-control-border bg-slate-50 px-3 py-2 text-sm font-bold text-slate-700 outline-none focus-visible:border-brand-700 focus-visible:ring-2 focus-visible:ring-brand-700">
               {TEMPERATURE_SITES.map(option => <option key={option} value={option}>{text(TEMPERATURE_SITE_LABELS[option])}</option>)}
             </select>
           </fieldset>
@@ -284,15 +284,15 @@ export function TemperaturePage({ patientId, patientName, userEmail, embedded = 
 
           <fieldset className="mt-4">
             <label htmlFor="temperature-context" className="text-sm font-bold text-slate-700">{text({ id: 'Konteks', zh: '量測情境' ,en: 'Context' })}</label>
-            <select id="temperature-context" value={context} onChange={event => setContext(event.target.value as TemperatureContext)} className="mt-2 w-full min-h-11 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-bold text-slate-700 outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-300">
+            <select id="temperature-context" value={context} onChange={event => setContext(event.target.value as TemperatureContext)} className="mt-2 w-full min-h-11 rounded-xl border-2 border-control-border bg-slate-50 px-3 py-2 text-sm font-bold text-slate-700 outline-none focus-visible:border-brand-700 focus-visible:ring-2 focus-visible:ring-brand-700">
               {TEMPERATURE_CONTEXTS.map(option => <option key={option} value={option}>{text(TEMPERATURE_CONTEXT_LABELS[option])}</option>)}
             </select>
           </fieldset>
 
           <label htmlFor="temperature-notes" className="mt-4 block text-sm font-bold text-slate-700">{text({ id: 'Catatan (opsional)', zh: '備註（可不填）' ,en: 'Notes (optional)' })}</label>
-          <textarea id="temperature-notes" value={notes} maxLength={240} onChange={event => setNotes(event.target.value)} rows={2} className="mt-1 w-full resize-none rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-300" />
+          <textarea id="temperature-notes" value={notes} maxLength={240} onChange={event => setNotes(event.target.value)} rows={2} className="mt-1 w-full resize-none rounded-xl border-2 border-control-border bg-slate-50 p-3 text-sm outline-none focus-visible:border-brand-700 focus-visible:ring-2 focus-visible:ring-brand-700" />
 
-          <button type="button" onClick={() => void save()} disabled={!canSubmit} className={`mt-4 min-h-14 w-full rounded-2xl px-4 py-3 text-lg font-black text-white transition focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-orange-300 disabled:opacity-50 ${selectedStatus && temperatureStatusTone(selectedStatus) === 'danger' ? 'bg-red-600' : selectedStatus && temperatureStatusTone(selectedStatus) === 'warning' ? 'bg-orange-600' : 'bg-indigo-700'}`}>
+          <button type="button" onClick={() => void save()} disabled={!canSubmit} className={`mt-4 min-h-14 w-full rounded-2xl px-4 py-3 text-lg font-black text-white transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-700 focus-visible:ring-offset-2 disabled:opacity-50 ${selectedStatus && temperatureStatusTone(selectedStatus) === 'danger' ? 'bg-red-600' : selectedStatus && temperatureStatusTone(selectedStatus) === 'warning' ? 'bg-orange-600' : 'bg-brand-700'}`}>
             {status === 'saving' ? text({ id: 'Menyimpan…', zh: '儲存中…' ,en: 'Saving...' }) : text({ id: 'Simpan suhu', zh: '儲存體溫' ,en: 'Save temperature' })}
           </button>
           {status !== 'idle' && message && <p role={status === 'err' ? 'alert' : 'status'} aria-live={status === 'err' ? 'assertive' : 'polite'} className={`mt-2 text-center text-sm font-bold ${status === 'err' ? 'text-red-700' : 'text-emerald-700'}`}>{message}</p>}
@@ -322,7 +322,7 @@ export function TemperaturePage({ patientId, patientName, userEmail, embedded = 
           <ol className="mt-3 space-y-2">
             {todayRecords.map(record => {
               const recordStatus = getTemperatureStatus(record.temperature_c)
-              if (editingId === record.id && draft) return <li key={record.id} className="rounded-2xl border border-indigo-200 bg-indigo-50 p-3">
+              if (editingId === record.id && draft) return <li key={record.id} className="rounded-2xl border border-brand-200 bg-brand-50 p-3">
                 <div className="grid grid-cols-[1fr_auto] items-center gap-2">
                   <input
                     aria-label={text({ id: 'Suhu tubuh', zh: '體溫' ,en: 'Body temperature' })}
@@ -332,7 +332,7 @@ export function TemperaturePage({ patientId, patientName, userEmail, embedded = 
                     max={45}
                     value={Number.isNaN(draft.temperature_c) ? '' : draft.temperature_c}
                     onChange={event => handleDraftTemperatureInputChange(event.target.value)}
-                    className="min-h-11 min-w-0 rounded-xl border border-slate-300 bg-white px-3 text-center text-xl font-black"
+                    className="min-h-11 min-w-0 rounded-xl border-2 border-control-border bg-white px-3 text-center text-xl font-black"
                     aria-describedby={temperatureEditInputError ? `temperature-edit-input-error-${record.id}` : undefined}
                     aria-invalid={temperatureEditInputError}
                   />
@@ -343,20 +343,20 @@ export function TemperaturePage({ patientId, patientName, userEmail, embedded = 
                 <div className="mt-2 grid grid-cols-2 gap-2">
                   <div>
                     <label htmlFor={`edit-site-${record.id}`} className="text-xs font-bold text-slate-600">{text({ id: 'Lokasi', zh: '部位' ,en: 'Site' })}</label>
-                    <select id={`edit-site-${record.id}`} value={draft.measurement_site} onChange={event => setDraft({ ...draft, measurement_site: event.target.value as TemperatureSite })} className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-2 py-1 text-xs font-bold text-slate-700">
+                    <select id={`edit-site-${record.id}`} value={draft.measurement_site} onChange={event => setDraft({ ...draft, measurement_site: event.target.value as TemperatureSite })} className="mt-1 w-full rounded-lg border-2 border-control-border bg-white px-2 py-1 text-xs font-bold text-slate-700">
                       {TEMPERATURE_SITES.map(option => <option key={option} value={option}>{text(TEMPERATURE_SITE_LABELS[option])}</option>)}
                     </select>
                   </div>
                   <div>
                     <label htmlFor={`edit-context-${record.id}`} className="text-xs font-bold text-slate-600">{text({ id: 'Konteks', zh: '情境' ,en: "Context" })}</label>
-                    <select id={`edit-context-${record.id}`} value={draft.context} onChange={event => setDraft({ ...draft, context: event.target.value as TemperatureContext })} className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-2 py-1 text-xs font-bold text-slate-700">
+                    <select id={`edit-context-${record.id}`} value={draft.context} onChange={event => setDraft({ ...draft, context: event.target.value as TemperatureContext })} className="mt-1 w-full rounded-lg border-2 border-control-border bg-white px-2 py-1 text-xs font-bold text-slate-700">
                       {TEMPERATURE_CONTEXTS.map(option => <option key={option} value={option}>{text(TEMPERATURE_CONTEXT_LABELS[option])}</option>)}
                     </select>
                   </div>
                 </div>
-                <div className="mt-2 flex gap-2"><button type="button" onClick={() => void saveEdit(record)} className="min-h-11 rounded-xl bg-indigo-700 px-3 text-xs font-bold text-white">{text({ id: 'Simpan perubahan', zh: '儲存修改' ,en: 'Save Changes' })}</button><button type="button" onClick={() => { setEditingId(null); setDraft(null); setTemperatureEditInputError(false) }} className="min-h-11 rounded-xl border border-slate-300 bg-white px-3 text-xs font-bold text-slate-700">{text({ id: 'Batal', zh: '取消' ,en: 'Cancel' })}</button></div>
+                <div className="mt-2 flex gap-2"><button type="button" onClick={() => void saveEdit(record)} className="min-h-11 rounded-xl bg-brand-700 px-3 text-xs font-bold text-white">{text({ id: 'Simpan perubahan', zh: '儲存修改' ,en: 'Save Changes' })}</button><button type="button" onClick={() => { setEditingId(null); setDraft(null); setTemperatureEditInputError(false) }} className="min-h-11 rounded-xl border border-slate-300 bg-white px-3 text-xs font-bold text-slate-700">{text({ id: 'Batal', zh: '取消' ,en: 'Cancel' })}</button></div>
               </li>
-              return <li key={record.id} className="rounded-2xl bg-slate-50 p-3"><div className="flex flex-wrap items-center justify-between gap-2"><div><time className="text-xs text-slate-500">{dayjs(record.measured_at).tz(TZ).format('MM/DD HH:mm')}</time><div className="mt-0.5 flex items-baseline gap-2"><strong className={`text-2xl font-black ${recordStatus === 'normal' ? 'text-emerald-700' : recordStatus === 'low' || recordStatus === 'high-fever' ? 'text-red-700' : 'text-orange-700'}`}>{record.temperature_c.toFixed(1)}°C</strong><span className="text-xs font-bold text-slate-600">{text(temperatureStatusLabel(recordStatus))}</span></div><p className="mt-1 text-xs text-slate-500">{text(TEMPERATURE_SITE_LABELS[record.measurement_site])} · {text(TEMPERATURE_CONTEXT_LABELS[record.context])}</p>{record.notes && <p className="mt-1 text-xs text-slate-700">{record.notes}</p>}</div><div className="flex gap-2"><button type="button" onClick={() => startEdit(record)} className="min-h-11 rounded-xl border border-indigo-200 bg-white px-3 text-xs font-bold text-indigo-800">{text({ id: 'Ubah', zh: '修改' ,en: 'Edit' })}</button><button type="button" onClick={() => void remove(record)} className="min-h-11 rounded-xl border border-red-200 bg-white px-3 text-xs font-bold text-red-700">{text({ id: 'Hapus', zh: '刪除' ,en: 'Delete' })}</button></div></div></li>
+              return <li key={record.id} className="rounded-2xl bg-slate-50 p-3"><div className="flex flex-wrap items-center justify-between gap-2"><div><time className="text-xs text-slate-500">{dayjs(record.measured_at).tz(TZ).format('MM/DD HH:mm')}</time><div className="mt-0.5 flex items-baseline gap-2"><strong className={`text-2xl font-black ${recordStatus === 'normal' ? 'text-emerald-700' : recordStatus === 'low' || recordStatus === 'high-fever' ? 'text-red-700' : 'text-orange-700'}`}>{record.temperature_c.toFixed(1)}°C</strong><span className="text-xs font-bold text-slate-600">{text(temperatureStatusLabel(recordStatus))}</span></div><p className="mt-1 text-xs text-slate-500">{text(TEMPERATURE_SITE_LABELS[record.measurement_site])} · {text(TEMPERATURE_CONTEXT_LABELS[record.context])}</p>{record.notes && <p className="mt-1 text-xs text-slate-700">{record.notes}</p>}</div><div className="flex gap-2"><button type="button" onClick={() => startEdit(record)} className="min-h-11 rounded-xl border border-brand-200 bg-white px-3 text-xs font-bold text-brand-700">{text({ id: 'Ubah', zh: '修改' ,en: 'Edit' })}</button><button type="button" onClick={() => void remove(record)} className="min-h-11 rounded-xl border border-red-200 bg-white px-3 text-xs font-bold text-red-700">{text({ id: 'Hapus', zh: '刪除' ,en: 'Delete' })}</button></div></div></li>
             })}
           </ol>
         </section>

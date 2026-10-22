@@ -33,7 +33,7 @@ describe('iOS project.pbxproj version fields', () => {
     'CODE_SIGN_STYLE = Automatic;',
     'CURRENT_PROJECT_VERSION = 1;',
     'MARKETING_VERSION = 1.0;',
-    'PRODUCT_BUNDLE_IDENTIFIER = com.portfolio-author.jiajianlog;',
+    'PRODUCT_BUNDLE_IDENTIFIER = com.example.jiajianlog;',
   ].join('\n')
 
   test('parses every CURRENT_PROJECT_VERSION occurrence (Debug and Release each have one)', () => {

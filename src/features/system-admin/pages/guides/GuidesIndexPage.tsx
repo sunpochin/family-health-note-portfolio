@@ -3,11 +3,22 @@
 所在層：src/features/system-admin/pages/guides 公開內容頁層；未登入也可存取，不讀取任何照護資料。
 主要關聯：四個子衛教頁（BloodPressure722GuidePage、MedicationScheduleGuidePage、CaregiverHandoverGuidePage、PetChronicDiseaseGuidePage）；排版沿用 ContentGuideLayout。
 */
-import { useI18n } from '../../../../lib/i18n'
+import { useI18n, type LocalizedText } from '../../../../lib/i18n'
 import { useEffect, useRef } from 'react'
 import { PublicBrandHeader } from '../../../../components/ui/PublicBrandHeader'
+import { Icon, type IconName } from '../../../../components/ui/Icon'
 import { ContactAndVersionFooter } from '../../../../components/system/ContactAndVersionFooter'
 
+// 每張衛教卡的圖示收 IconName（issue #1150）：原本的 emoji 欄位跨平台字型不一，改成 SVG 後顏色跟著卡片文字色走。
+interface GuideEntry {
+  title: LocalizedText
+  description: LocalizedText
+  icon: IconName
+  href: string
+  color: string
+}
+
+// 為什麼補足 44px：手機上的獨立操作要留出足夠點擊面，降低漏點與誤觸。
 export function GuidesIndexPage() {
   const { text, locale } = useI18n()
   // 記錄是否由本元件建立 meta tag；若已存在就只更新內容，卸載時也不移除，避免破壞其他頁面的 SEO。
@@ -37,7 +48,7 @@ export function GuidesIndexPage() {
     }
   }, [locale, text])
 
-  const guides = [
+  const guides: GuideEntry[] = [
     {
       title: { id: 'Prinsip 722 Pengukuran Tekanan Darah di Rumah', zh: '居家血壓 722 原則', en: 'The 722 Rule for Home Blood Pressure Monitoring' },
       description: {
@@ -45,7 +56,7 @@ export function GuidesIndexPage() {
         zh: '按照家庭標準量血壓的 722 原則與家庭血壓參考表，認識正常血壓範圍。',
         en: 'Guide to home blood pressure monitoring using the 722 rule (7 days, 2 sessions/day, 2 readings/session) and reference range table.',
       },
-      emoji: '🩺',
+      icon: 'stethoscope',
       href: '/guides/blood-pressure-722',
       color: 'rose',
     },
@@ -56,7 +67,7 @@ export function GuidesIndexPage() {
         zh: '六個常用服藥時段的對照，以及為何 App 只記錄實際情形而不自動換算遵從率百分比。',
         en: 'Six common medication time slots and how to record missed doses without automated compliance percentages.',
       },
-      emoji: '💊',
+      icon: 'pill',
       href: '/guides/medication-schedule',
       color: 'blue',
     },
@@ -67,7 +78,7 @@ export function GuidesIndexPage() {
         zh: '給新看護的四大交接重點：服藥時間、過敏禁忌、作息習慣、緊急聯絡人。',
         en: 'A 4-part handover checklist (medication schedule, allergies, daily routines, emergency contacts) to help new caregivers get started.',
       },
-      emoji: '📋',
+      icon: 'clipboard',
       href: '/guides/caregiver-handover',
       color: 'amber',
     },
@@ -78,7 +89,7 @@ export function GuidesIndexPage() {
         zh: '慢性腎病貓與糖尿病犬貓要記錄的項目：飲水量、排尿、輸液、胰島素、血糖、食慾等。',
         en: 'Daily tracking items for chronic pet diseases (fluid therapy, insulin, blood glucose, appetite) to help veterinarians track trends.',
       },
-      emoji: '🐾',
+      icon: 'paw',
       href: '/guides/pet-chronic-disease',
       color: 'green',
     },
@@ -89,23 +100,25 @@ export function GuidesIndexPage() {
         zh: '教你選對邀請類型、分享連結、確認帳號，以及安全撤銷邀請或照護權限。',
         en: 'Learn how to choose an invitation type, share a link, approve an account, and safely revoke an invitation or care access.',
       },
-      // 使用方向符號作為純文字導視，不新增跨裝置會變形的 emoji 圖示。
-      emoji: '↗',
+      // 與登入頁「如何邀請家人」入口同一個 users 圖示，兩個入口指向同一篇教學時視覺一致。
+      icon: 'users',
       href: '/guides/family-invitations',
-      color: 'indigo',
+      color: 'brand',
     },
   ]
 
+  // brand 取代原本的 indigo（退役色，#1148）。brand 沒有 300／900 階 token：hover 邊框用預設調色盤的 emerald-300
+  // （與同列 green 卡的作法一致），標題用 slate-900。
   const colorMap = {
     rose: { bg: 'bg-rose-50', border: 'border-rose-200', text: 'text-rose-900', hover: 'hover:border-rose-300 hover:shadow-rose-200/30' },
     blue: { bg: 'bg-blue-50', border: 'border-blue-200', text: 'text-blue-900', hover: 'hover:border-blue-300 hover:shadow-blue-200/30' },
     amber: { bg: 'bg-amber-50', border: 'border-amber-200', text: 'text-amber-900', hover: 'hover:border-amber-300 hover:shadow-amber-200/30' },
     green: { bg: 'bg-green-50', border: 'border-green-200', text: 'text-green-900', hover: 'hover:border-green-300 hover:shadow-green-200/30' },
-    indigo: { bg: 'bg-indigo-50', border: 'border-indigo-200', text: 'text-indigo-900', hover: 'hover:border-indigo-300 hover:shadow-indigo-200/30' },
+    brand: { bg: 'bg-brand-50', border: 'border-brand-200', text: 'text-slate-900', hover: 'hover:border-emerald-300 hover:shadow-emerald-200/30' },
   }
 
   return (
-    <div className="min-h-dvh flex flex-col items-center justify-between px-6 py-6 bg-gradient-to-b from-slate-50 via-rose-50/20 to-indigo-50/30 text-slate-900 selection:bg-rose-100 overflow-y-auto">
+    <div className="min-h-dvh flex flex-col items-center justify-between px-6 py-6 bg-gradient-to-b from-slate-50 via-rose-50/20 to-brand-50/30 text-slate-900 selection:bg-rose-100 overflow-y-auto">
       <PublicBrandHeader className="mb-6 w-full max-w-2xl rounded-full border border-slate-200/80 bg-white/80 px-4 py-2 shadow-xs backdrop-blur-md" />
 
       <main className="w-full max-w-2xl flex-1 space-y-6">
@@ -132,7 +145,7 @@ export function GuidesIndexPage() {
                 className={`block p-5 rounded-2xl border-2 transition-all hover:shadow-lg ${colors.bg} ${colors.border} ${colors.hover}`}
               >
                 <div className="flex gap-4">
-                  <div className="text-3xl flex-shrink-0">{guide.emoji}</div>
+                  <Icon name={guide.icon} className={`h-8 w-8 shrink-0 ${colors.text}`} />
                   <div className="flex-1 min-w-0">
                     <h2 className={`font-bold text-base mb-1 ${colors.text}`}>
                       {text(guide.title)}
@@ -141,7 +154,7 @@ export function GuidesIndexPage() {
                       {text(guide.description)}
                     </p>
                   </div>
-                  <div className="text-2xl flex-shrink-0 text-slate-400 self-center">→</div>
+                  <div className="text-2xl flex-shrink-0 text-slate-500 self-center">→</div>
                 </div>
               </a>
             )
@@ -150,7 +163,10 @@ export function GuidesIndexPage() {
 
         <div className="mt-8 p-5 rounded-xl bg-amber-50 border border-amber-200">
           <p className="text-sm text-amber-900">
-            <span className="font-semibold">⚠️ {text({ id: 'Perhatian', zh: '重要聲明', en: 'Important Notice' })}</span>
+            <span className="inline-flex items-center gap-1.5 font-semibold">
+              <Icon name="alert-triangle" className="h-4 w-4 shrink-0" />
+              {text({ id: 'Perhatian', zh: '重要聲明', en: 'Important Notice' })}
+            </span>
             <br />
             {text({
               id: 'Panduan ini hanya edukasi kesehatan umum, bukan saran medis. Untuk keputusan kesehatan, selalu konsultasi dengan dokter atau tenaga medis profesional.',
@@ -172,13 +188,14 @@ export function GuidesIndexPage() {
         <div className="flex flex-col gap-2">
           <a
             href="/demo"
-            className="inline-block px-6 py-2.5 rounded-full bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-semibold transition-colors"
+            className="inline-flex items-center justify-center gap-2 px-6 py-2.5 rounded-full bg-brand-700 hover:bg-emerald-800 text-white text-sm font-semibold transition-colors min-h-11"
           >
-            ✨ {text({ id: 'Coba Demo', zh: '試用看看', en: 'Try Demo' })}
+            <Icon name="sparkles" className="h-4 w-4" />
+            {text({ id: 'Coba Demo', zh: '試用看看', en: 'Try Demo' })}
           </a>
           <a
             href="/"
-            className="inline-block px-6 py-2 rounded-full border border-slate-300 hover:border-slate-400 text-slate-700 hover:text-slate-900 text-sm font-medium transition-colors"
+            className="inline-block px-6 py-2 rounded-full border border-slate-300 hover:border-slate-400 text-slate-700 hover:text-slate-900 text-sm font-medium transition-colors min-h-11"
           >
             {text({ id: 'Kembali', zh: '返回首頁', en: 'Back to Home' })}
           </a>

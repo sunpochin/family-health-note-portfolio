@@ -126,13 +126,13 @@ export function PetDigestionPage({ patientId, userEmail }: {
     <section className="space-y-5 px-5 py-6">
       <form onSubmit={handleSubmit} className="space-y-4 rounded-2xl bg-white p-5 shadow-sm">
         {todayRecord && (
-          <p className="text-xs font-semibold text-indigo-700">
+          <p className="text-xs font-semibold text-brand-700">
             {/* 編輯今日紀錄提示英文修正 */}
             {text({ id: 'Mengedit catatan hari ini.', zh: '目前正在修改今天已存的紀錄。' ,en: "Editing today's saved record." })}
           </p>
         )}
         <div>
-          <label className="block text-sm font-semibold text-gray-800">
+          <label className="block text-sm font-semibold text-slate-800">
             {text({ id: 'Frekuensi buang air besar', zh: '排便次數' ,en: "Bowel movement frequency" })}
           </label>
           <input
@@ -141,23 +141,24 @@ export function PetDigestionPage({ patientId, userEmail }: {
             step="1"
             value={formData.defecationCount}
             onChange={e => handleInputChange('defecationCount', e.target.value)}
-            placeholder="例：1"
-            className="mt-1 w-full rounded-xl border border-gray-300 px-3 py-2.5"
+            // 為什麼：placeholder 也是畫面上的系統文字，不能寫死中文，否則印尼文／英文使用者會在輸入框看到中文（#1094）。
+            placeholder={text({ id: 'Contoh: 1', zh: '例：1', en: 'e.g. 1' })}
+            className="mt-1 w-full rounded-xl border-2 border-control-border px-3 py-2.5"
           />
         </div>
 
         <div>
-          <label className="block text-sm font-semibold text-gray-800">
+          <label className="block text-sm font-semibold text-slate-800">
             {/* 糞便評分與各選項英文修正 */}
             {text({ id: 'Skor kesehatan feses (1-5)', zh: '糞便評分 (1-5)' ,en: "Stool consistency score (1-5)" })}
           </label>
-          <p className="mt-1 text-xs text-gray-500">
+          <p className="mt-1 text-xs text-slate-500">
             {text({ id: '1=diare, 3=normal, 5=sembelit', zh: '1=腹瀉, 3=正常, 5=便秘' ,en: "1=diarrhea, 3=normal, 5=constipation" })}
           </p>
           <select
             value={formData.stoolScore}
             onChange={e => handleInputChange('stoolScore', e.target.value)}
-            className="mt-2 w-full rounded-xl border border-gray-300 px-3 py-2.5"
+            className="mt-2 w-full rounded-xl border-2 border-control-border px-3 py-2.5"
           >
             <option value="">{text({ id: '(Opsional)', zh: '（可不填）' ,en: "(Optional)" })}</option>
             <option value="1">1 - {text({ id: 'Diare', zh: '腹瀉' ,en: "Diarrhea" })}</option>
@@ -169,7 +170,7 @@ export function PetDigestionPage({ patientId, userEmail }: {
         </div>
 
         <div>
-          <label className="block text-sm font-semibold text-gray-800">
+          <label className="block text-sm font-semibold text-slate-800">
             {text({ id: 'Frekuensi muntah', zh: '嘔吐次數' ,en: "Vomiting frequency" })}
           </label>
           <input
@@ -178,13 +179,13 @@ export function PetDigestionPage({ patientId, userEmail }: {
             step="1"
             value={formData.vomitingCount}
             onChange={e => handleInputChange('vomitingCount', e.target.value)}
-            placeholder="例：0"
-            className="mt-1 w-full rounded-xl border border-gray-300 px-3 py-2.5"
+            placeholder={text({ id: 'Contoh: 0', zh: '例：0', en: 'e.g. 0' })}
+            className="mt-1 w-full rounded-xl border-2 border-control-border px-3 py-2.5"
           />
         </div>
 
         {message && (
-          <p className={`text-sm ${status === 'err' ? 'text-red-600' : 'text-green-600'}`}>
+          <p className={`text-sm ${status === 'err' ? 'text-red-600' : 'text-emerald-700'}`}>
             {message}
           </p>
         )}
@@ -192,7 +193,7 @@ export function PetDigestionPage({ patientId, userEmail }: {
         <button
           type="submit"
           disabled={status === 'saving' || status === 'loading'}
-          className="w-full rounded-xl bg-indigo-700 px-4 py-3 text-sm font-bold text-white disabled:opacity-60"
+          className="w-full rounded-xl bg-brand-700 px-4 py-3 text-sm font-bold text-white disabled:opacity-60"
         >
           {text({ id: 'Simpan', zh: '儲存' ,en: "Save" })}
         </button>

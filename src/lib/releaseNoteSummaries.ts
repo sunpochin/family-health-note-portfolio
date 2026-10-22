@@ -9,31 +9,38 @@ import type { LocalizedText } from './i18n'
 
 // 為什麼以版本彙整而非逐條 commit 翻譯：release-please 會重寫 CHANGELOG，逐條 HTML metadata 不能成為可靠資料來源；人工確認的照護摘要才不會在下次發版又消失。
 export const CURATED_RELEASE_SUMMARIES: Record<string, Record<string, LocalizedText[]>> = {
-  // 為什麼要有 1.20.1：1.20.0 的 promotion PR（#981）審查時發現門診頁「醫師說了什麼」會把回答掛到還沒發生的看診，
-  // 修正後才發布，所以正式環境會直接從 1.19.0 跳到 1.20.1。原始 CHANGELOG 只有修正本身與這則摘要兩條 fix，
-  // 照搬會出現「補上 v1.20.1 的三語版本更新說明」這種照護者看不懂的條目。
-  '1.20.1': {
-    'bug fixes': [
-      { id: 'Memperbaiki bagian "Apa kata dokter" di tab Dokter yang bisa menempelkan jawaban dokter ke kunjungan yang belum terjadi (misalnya kunjungan terjadwal besok). Jawaban kini hanya dipasangkan dengan kunjungan yang sudah berlangsung sebelum jawaban dicatat; waktu kunjungan yang tercatat hanya boleh lebih lambat paling lama dua jam, karena sering yang dicatat adalah jam janji temu.', zh: '修正門診頁「醫師說了什麼」可能把醫師的回答掛到還沒發生的看診（例如排在明天的回診）上的問題；現在只會配對在回答寫下之前已經發生的看診，看診紀錄時間最多只容許比回答晚兩小時（常記成預約時間）。', en: 'Fixed "What the doctor said" on the Visit tab sometimes filing an answer under a visit that had not happened yet (for example, a follow-up scheduled for tomorrow). Answers are now paired only with visits that took place before the answer was recorded, allowing the logged visit time to be at most two hours later, since it is often the appointment time.' },
-    ],
-  },
   // 為什麼先人工彙整：1.20.0 一次帶上照護閉環 T1–T5、分享摘要 v2 T1–T4、血壓通知與畫面同源判讀（#899）、
   // #424 隱私揭露與 AUDIT-1，原始 CHANGELOG 有八十多條，同一件事常被 squash 與 merge commit 各寫一次，
   // 又混著 schema 快照、secret 閘門、pre-commit hook 等照護者看不到的工程項目。這裡只留下會改變看護
   // 或家屬操作與判斷的項目。
-  // 為什麼刻意不寫分享摘要 v2：production 的分享連結 secret 仍依 #424 Stage 0 刻意未設定，Function
-  // 會 fail closed，寫進版本說明等於宣傳一個點下去只會顯示「連結無效」的功能；等 #424／#553 解除後再寫。
+  // 為什麼刻意不寫分享摘要 v2：這個功能的啟用由 #424／#553 的部署閘門決定，不是這次部署本身就保證成立的
+  // 行為；寫進版本說明等於宣傳一個使用者可能還點不開的功能，等閘門解除後再寫。
   // AUDIT-1 的異動紀錄目前沒有任何畫面，也不寫。
-  // 為什麼要寫隱私告知改版：版本升到 2026-09-25.2 後，每個帳號第一次開 App 都會被要求重新同意，
-  // 看護要先知道這不是故障。
+  // 為什麼要寫隱私告知改版：每個帳號第一次開 App 都會被要求重新同意，看護要先知道這不是故障。
+  // 2026-10-08 補：這次發布實際帶上的是隱私 2026-10-09（#1061 階段 D 再升一版）與條款 2026-10-07（健康同意 2026-10-06），中間的 2026-09-25／09-25.2 只存在 staging，
+  // 中間版本不會單獨出現在正式環境。但使用者會**連續看到兩個**確認畫面：隱私權政策與服務條款一個
+  // （App.tsx 的 PrivacyPolicyUpdateScreen），健康資料同意另一個（HealthDataConsentScreen），各有自己的勾選與送出
+  // （Codex 對 #1240 的 P2 更正；先前寫成「只一次」是沒對照 App.tsx 的推論）。1.20.0 當初的 promotion（#981）被關閉、沒有標記，所以這份條目也承接
+  // 其後到 2026-10-08 進 staging 的、會改變看護操作或判斷的項目（見下方 2026-10-08 補的幾條）。
+  // 2026-10-08 補的取捨：沿用「版本說明只寫部署本身就保證成立的行為」。刻意不寫：(1) 個人 Telegram 的血壓危險等級通知——
+  // 要部署後另外建 personal-notification-drain 的 Cron、登記正式 bot 的 setWebhook、由照護者自己綁定才成立；
+  // (2) 「今天」頁的漏送橫幅——要 notification-delivery-sweeper 的 Cron 才有資料；(3) 付款入口——付款畫面還沒進 staging。
+  // 等這些營運步驟完成並驗證過，再另補一則說明。
   // 為什麼不寫「看護帳號不再能分享」（PR #978 Codex P1）：20260924191747 只擋新的授權、只印 WARNING，
-  // 現有看護帳號的 can_share_readonly 要等部署後營運者跑 set_patient_share_readonly 才收回
-  // （docs/operations/caregiver-share-readonly-revocation.md）。版本說明只寫部署本身就保證成立的行為。
+  // 既有授權的收回是部署之後另一個營運步驟（docs/operations/caregiver-share-readonly-revocation.md）。
+  // 版本說明只寫部署本身就保證成立的行為。
   '1.20.0': {
     features: [
       { id: 'Menambahkan tab "Dokter" untuk semua pengasuh: kunjungan berikutnya, apa yang dibawa ke dokter, apa yang ditanyakan, apa kata dokter, dan hal yang perlu dilakukan setelah kunjungan kini ada di satu halaman. Tab "Jadwal" yang sebelumnya hanya terlihat oleh pemilik keluarga digabungkan ke halaman ini.', zh: '新增「門診」分頁，所有照護者都看得到：下次門診、帶去給醫師、問什麼、醫師說了什麼、看診後要做的事，集中在同一頁；原本只有家庭擁有者看得到的「行程」分頁併入這一頁。', en: 'Added a "Visit" tab for every caregiver: the next appointment, what to bring to the doctor, what to ask, what the doctor said, and what to do after the visit are now on one page. The "Schedule" tab, previously visible only to the family owner, has been folded into it.' },
       { id: 'Bagian "Ringkasan sebelum kunjungan" di laporan tekanan darah untuk dokter kini dibagi menjadi "Catatan perawatan" dan "Pengingat terjadwal". Setiap pertanyaan di sana bisa dimasukkan ke daftar pertanyaan dengan satu ketukan, dan item yang sama tidak akan masuk dua kali. Daftar pertanyaan kini mencatat apakah pertanyaan ditambahkan manual atau dari ringkasan, serta kapan pertanyaan itu dijawab; pertanyaan lama yang sudah dijawab juga dilengkapi waktu jawabannya.', zh: '醫師版血壓報告的「就診前摘要」分成「照護筆記」與「排程提醒」兩小節，每個提問都能一鍵「加入問題清單」，同一項不會重複加入。問題清單會記下每題是手動新增還是從摘要加入，以及何時得到回答；過去已回答的問題也補上了回答時間。', en: 'The "Pre-visit brief" in the doctor-facing blood pressure report is now split into "Care notes" and "Scheduled reminders", and each question there can be added to the question list with one tap without creating duplicates. The question list now records whether a question was added by hand or from the brief, and when it was answered; questions answered earlier have had their answer time filled in.' },
       { id: 'Kebijakan privasi dan pemberitahuan data kesehatan diperbarui: kini dijelaskan bahwa notifikasi dikirim melalui Telegram, LINE, dan Resend (untuk email undangan), serta bagaimana tautan berbagi baca-saja menangani data. Saat pertama kali membuka aplikasi setelah pembaruan, Anda akan diminta menyetujuinya sekali lagi.', zh: '隱私權政策與健康資料告知改版：寫明通知會經由 Telegram、LINE 與 Resend（寄送邀請信）傳送，並說明唯讀分享連結如何處理資料；更新後第一次開啟 App 會請你重新確認一次。', en: 'The privacy policy and health data notice have been updated to state that notifications go through Telegram, LINE and Resend (for invitation emails), and how read-only share links handle data. The first time you open the app after the update, you will be asked to confirm them once more.' },
+      // 2026-10-08 補：以下三條是 1.20.0 的 promotion 被關閉之後才進 staging 的項目。
+      { id: 'Kebijakan Privasi dan Ketentuan Layanan juga menjelaskan pemrosesan pembayaran, biaya layanan, dan kebijakan pengembalian dana untuk paket berbayar (fitur berbayar belum dibuka). Anda akan melihat dua layar persetujuan berturut-turut: Kebijakan Privasi dan Ketentuan Layanan dikonfirmasi bersama di satu layar, lalu persetujuan data kesehatan dikonfirmasi di layar terpisah. Ini bukan kerusakan aplikasi.', zh: '隱私權政策與服務條款也補充說明了付費方案的付款處理、費用與退款政策（付費功能目前尚未開放）。更新後第一次開啟 App 會連續出現兩個確認畫面：隱私權政策與服務條款在同一個畫面一起確認，健康資料同意在另一個畫面單獨確認，這不是故障。', en: 'The Privacy Policy and Terms of Service also describe payment processing, fees, and the refund policy for a paid plan (paid features are not open yet). The first time you open the app after the update you will see two confirmation screens in a row: the Privacy Policy and Terms of Service are confirmed together on one screen, and the health data consent is confirmed separately on another. This is not a malfunction.' },
+      { id: 'Tombol, tautan, dan tombol tutup kini lebih besar sehingga lebih mudah ditekan dengan satu tangan, termasuk di halaman pengingat, hasil lab, dan obat.', zh: '按鈕、文字連結與關閉鈕加大，單手更好點，包含提醒、檢驗與服藥頁面。', en: 'Buttons, text links, and close buttons are larger and easier to tap with one hand, including on the reminders, lab results, and medication pages.' },
+      // 2026-10-09 補：共用群組退場（#1061 階段 D）。這是部署本身就保證成立的行為：群組不會再收到任何訊息。
+      // 個人通知本身要成立的營運步驟（Cron、綁定）沿用上方的取捨，不在這裡宣傳。
+      { id: 'Grup Telegram keluarga bersama tidak lagi menerima notifikasi tekanan darah, jadwal, dan pengingat jatuh tempo. Semua notifikasi kini hanya dikirim ke Telegram atau LINE pribadi anggota keluarga yang sudah menautkan akunnya. Tekanan darah tingkat bahaya dikirim gratis hanya ke Telegram pribadi yang sudah tertaut (LINE tidak termasuk dalam pengiriman gratis); notifikasi lainnya mengikuti paket. Keluarga lain tidak akan pernah melihatnya.', zh: '家人共用的 Telegram 群組不再收到血壓、行程與到期提醒。所有通知改為只送到已完成綁定的家人各自的 Telegram 或 LINE。危險級血壓只對已綁定**個人 Telegram** 的家人免費送達（只綁 LINE 不在免費範圍）；其餘通知依方案。別的家庭永遠看不到。', en: 'The shared family Telegram group no longer receives blood pressure, schedule, or due-date reminders. Every notification now goes only to the personal Telegram or LINE of family members who have linked their account. Danger-level blood pressure is delivered free only to linked personal Telegram (a LINE-only link is not covered by the free delivery); other notifications follow the plan. Other households never see it.' },
+      { id: 'Jatah harian untuk draf resep dengan AI kini dihitung per keluarga, bukan per akun. Jika kuota keluarga habis, aplikasi menjelaskan batasnya dan Anda tetap dapat mengisi resep secara manual.', zh: 'AI 藥單草稿的每日次數改以整個家庭計算，不再分帳號。額度用完時 App 會說明原因，仍可手動填寫藥單。', en: 'The daily allowance for AI prescription drafts is now counted per household instead of per account. When the allowance is used up, the app explains why, and you can still fill in the prescription manually.' },
     ],
     'bug fixes': [
       { id: 'Notifikasi tekanan darah untuk keluarga kini memakai penilaian yang sama dengan layar dan standar tekanan darah milik pasien itu sendiri, serta mencantumkan standar yang dipakai. Sebelumnya notifikasi bisa berkata "normal" sementara layar menunjukkan "di luar target". Jika standar pasien tersebut tidak dapat dibaca, notifikasi tetap dikirim dengan keterangan tersebut, sehingga tekanan darah rendah yang berbahaya tidak terlewat.', zh: '家人收到的血壓通知改用與畫面相同的判讀，並套用這位病人自己的血壓標準，訊息會註明依據哪個標準；先前可能發生通知說「正常」、畫面卻顯示「超出目標」。讀不到個別標準時通知仍會送出並註明，危險的低血壓不會因此漏報。', en: 'Blood pressure notifications to family now use the same assessment as the screen and the patient\'s own blood pressure standard, and state which standard was applied. Previously a notification could say "normal" while the screen showed "off target". If the individual standard cannot be read, the notification is still sent with a note saying so, so a dangerously low reading is not missed.' },
@@ -44,6 +51,16 @@ export const CURATED_RELEASE_SUMMARIES: Record<string, Record<string, LocalizedT
       // 為什麼不說「鼠蹊可分開記錄」（PR #978 Codex P1）：PetFluidTherapyPage 的選單只有頸部、腹部、側腰，沒有鼠蹊可選；
       // 這次修的是「頸部」不再兼指鼠蹊，以及舊紀錄如實標示為無法區分。
       { id: 'Pada terapi cairan hewan peliharaan, pilihan lokasi suntikan "Leher" kini hanya berarti leher. Catatan lama dengan pilihan "Leher/Selangkangan" tidak bisa dibedakan lagi, sehingga ditampilkan sebagai "Leher atau selangkangan (catatan lama)" dan tidak dianggap pasti leher.', zh: '寵物皮下輸液的注射部位選項「頸部」現在只代表頸部。舊紀錄當時的選項兼指頸部或鼠蹊、無法再區分，因此標示為「頸部或鼠蹊（舊紀錄）」，不會被當成確定是頸部。', en: 'In pet fluid therapy, the "Neck" injection site option now means only the neck. Older records made with the combined neck/groin option can no longer be told apart, so they are shown as "Neck or groin (older record)" instead of being treated as definitely the neck.' },
+      // 2026-10-08 補：以下兩條同上，是 promotion 被關閉之後才進 staging 的項目。
+      // 為什麼不寫「失敗會自動重試」（Codex 對 #1240 的 P1）：共用群組的直送路徑只有暫時性 5xx 會在請求內重送一次，
+      // 429 與網路錯誤直接終結、沒有重試者；個人路徑的重試要靠部署後另建的 drain Cron，不是部署本身保證的。
+      // 寫了會讓看護等系統再試，而不是直接聯絡家人。這裡只寫部署就成立的事：留下紀錄、失敗被看見。
+      { id: 'Alur pengiriman notifikasi tekanan darah ditulis ulang: setiap pengiriman dicatat, dan jika gagal, alasannya disimpan dan aplikasi menampilkan peringatan gagal kepada pengasuh. Jika notifikasi gagal terkirim, hubungi keluarga langsung; jangan menunggu pengiriman ulang otomatis.', zh: '血壓通知的送出流程重寫：每次送出都會留下紀錄，失敗時會記下原因，並在畫面上提醒看護「通知失敗」。看到通知失敗時，請直接聯絡家人，不要等系統自動重送。', en: 'The blood-pressure notification pipeline was rewritten: every delivery is recorded, and when one fails the reason is stored and the app shows the caregiver a failure warning. If a notification fails, contact the family directly; do not wait for an automatic resend.' },
+      { id: 'Tekanan darah yang dicatat saat offline kini dikirim ulang otomatis selama aplikasi terbuka, tidak hanya saat Anda berada di halaman tekanan darah. Jika penyimpanan ditolak setelah Anda pindah halaman, aplikasi tetap mengingatkan Anda.', zh: '離線時記下的血壓，現在只要 App 開著就會自動補送，不必停在血壓頁；離開頁面後才被拒絕的儲存，App 仍會提醒您。', en: 'Blood pressure readings recorded offline are now re-sent automatically while the app is open, not only while you are on the blood pressure page. If a save is rejected after you have left the page, the app still reminds you.' },
+      // 2026-10-08 補：這條原本掛在 1.20.1（當時規劃正式環境直接從 1.19.0 跳到 1.20.1）。現在這次發布定為 1.20.0，
+      // 該修正（34882c11 等）確實在這批裡，所以移到這裡；原本的 1.20.1 條目已刪除（Codex 對 #1240 的 P2）：
+      // 條目只要版本號相符就會整段取代該版本的 CHANGELOG，留著的話，日後真的出 1.20.1 時它的 Bug Fixes 會被這條舊的蓋掉。
+      { id: 'Memperbaiki bagian "Apa kata dokter" di tab Dokter yang bisa menempelkan jawaban dokter ke kunjungan yang belum terjadi (misalnya kunjungan terjadwal besok). Jawaban kini hanya dipasangkan dengan kunjungan yang sudah berlangsung sebelum jawaban dicatat; waktu kunjungan yang tercatat hanya boleh lebih lambat paling lama dua jam, karena sering yang dicatat adalah jam janji temu.', zh: '修正門診頁「醫師說了什麼」可能把醫師的回答掛到還沒發生的看診（例如排在明天的回診）上的問題；現在只會配對在回答寫下之前已經發生的看診，看診紀錄時間最多只容許比回答晚兩小時（常記成預約時間）。', en: 'Fixed "What the doctor said" on the Visit tab sometimes filing an answer under a visit that had not happened yet (for example, a follow-up scheduled for tomorrow). Answers are now paired only with visits that took place before the answer was recorded, allowing the logged visit time to be at most two hours later, since it is often the appointment time.' },
     ],
   },
   // 為什麼先人工彙整：1.19.0 的原始 CHANGELOG 條目混雜大量內部工程用語（Edge Function secret 檢查、
@@ -360,7 +377,7 @@ export const CURATED_RELEASE_SUMMARIES: Record<string, Record<string, LocalizedT
         zh: '放大休息提醒文字，並為血壓量測倒數計時橫幅加上顏色編碼，讓使用者更容易看到下次休息時間與目前的量測狀態。', en: 'Enlarge the break reminder text and color-code the blood pressure measurement countdown banner to make it easier for users to see the next break and the current measurement status.',
       },
       {
-        id: 'Mengotomasi penerapan migration Supabase production agar proses penerbitan versi lebih lancar dan konsisten dengan alur staging.',
+        id: 'Mengotomasi penerapan migrasi Supabase production agar proses penerbitan versi lebih lancar dan konsisten dengan alur staging.',
         zh: '自動應用正式環境 Supabase 資料庫異動，讓版本發布流程更順暢且與 staging 流程保持一致。', en: 'Automated Supabase production migrations so releases are smoother and consistent with the staging workflow.',
       },
       {
@@ -484,8 +501,8 @@ export const CURATED_RELEASE_SUMMARIES: Record<string, Record<string, LocalizedT
   '1.2.2': {
     'bug fixes': [
       {
-        id: 'Memastikan akun pasien ibu hanya dapat melihat dan mengelola data kesehatan ibu sendiri.',
-        zh: '確保媽媽的病人帳號只能查看與管理媽媽自己的健康資料。', en: 'Ensured the mother patient account can only view and manage her own health data.',
+        id: 'Memastikan akun pasien hanya dapat melihat dan mengelola data kesehatan dirinya sendiri.',
+        zh: '確保病人本人的帳號只能查看與管理自己的健康資料。', en: 'Ensured a patient account can only view and manage its own health data.',
       },
       {
         id: 'Memperkuat pembersihan izin agar perubahan akses yang terjadi bersamaan tetap aman.',

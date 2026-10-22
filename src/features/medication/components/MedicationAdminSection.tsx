@@ -7,11 +7,13 @@
 import { useI18n } from '../../../lib/i18n'
 import { formatDoseAmountLocalized, formatMedicationLabel } from '../../../lib/medication/medications'
 import { medicationSlotQuantityText, medicationSlotText } from '../../../lib/medication/medicationSchedule'
+import { MedicationHoldSummary } from './MedicationHoldSummary'
 import { MedicationAppearance } from './MedicationAppearance'
 import { MedicationSnapshotNameHeading } from './MedicationNameHeading'
 import { MedicationAiDraftSection } from './MedicationAiDraftSection'
 import { ExistingPlanForm } from './ExistingPlanForm'
 import { NewMedicationForm } from './NewMedicationForm'
+import { MedicationPlanBatchForm } from './MedicationPlanBatchForm'
 import { useMedicationAdminForm, withDosageForm } from '../hooks/useMedicationAdminForm'
 
 export function MedicationAdminSection({ patientId, patientDisplayName, isOwnPatient, nameEnglishFirst = true, onMedicationPlanChanged, externalCatalogQuery, onExternalCatalogQueryConsumed }: { patientId: string; patientDisplayName: string; isOwnPatient: boolean; nameEnglishFirst?: boolean; onMedicationPlanChanged?: () => void; externalCatalogQuery?: string | null; onExternalCatalogQueryConsumed?: () => void }) {
@@ -39,6 +41,7 @@ export function MedicationAdminSection({ patientId, patientDisplayName, isOwnPat
       {!loading && activePlanGroups.length > 0 && <p role="status" className="rounded-2xl border border-emerald-300 bg-white px-4 py-2.5 text-sm font-black text-emerald-950">
         {text({ id: `Total per hari: ${dailyMedicationCount} obat · ${dailyQuantity.id}`, zh: `每日總計：${dailyMedicationCount} 種藥・共 ${dailyQuantity.zh}` ,en: `Daily total: ${dailyMedicationCount} medication${dailyMedicationCount === 1 ? '' : 's'} · ${dailyQuantity.en}` })}
       </p>}
+      <MedicationPlanBatchForm batch={form.batch} medicationById={medicationById} patientName={patientDisplayName} disabled={saving || !form.canEditSubject} nameEnglishFirst={nameEnglishFirst} />
       {activePlanGroups.length ? activePlanGroups.map(([slot, slotPlans]) => <section key={slot} className="space-y-2 rounded-2xl border border-emerald-200 bg-emerald-100/60 p-3">
         <h3 className="flex items-center justify-between gap-2 px-1 text-sm font-black text-emerald-950">
           {text(medicationSlotText(slot))}
@@ -48,20 +51,25 @@ export function MedicationAdminSection({ patientId, patientDisplayName, isOwnPat
         <div className="grid gap-2">
           {slotPlans.map(plan => {
             const medication = medicationById.get(plan.medication_id)
-            return <div key={plan.id} className="flex items-center justify-between gap-2 overflow-hidden rounded-xl bg-white p-3 text-xs text-gray-700">
+            return <div key={plan.id} className="flex items-center justify-between gap-2 overflow-hidden rounded-xl bg-white p-3 text-xs text-slate-700">
               {/* flex-1 與 overflow-hidden 一起限制文字欄，避免巢狀外觀描述的固有寬度把操作按鈕推到畫面外。 */}
               <div className="min-w-0 flex-1 overflow-hidden">
                 {medication
                   ? <MedicationSnapshotNameHeading englishName={formatMedicationLabel(medication.brand_name, medication.strength_mg, medication.strength_label)} localizedName={medication.brand_name_zh || text({ id: 'Nama merek Mandarin belum tercatat', zh: '中文商品名未登錄' ,en: 'Chinese brand name not recorded' })} englishFirst={nameEnglishFirst} />
-                  : <h4 className="break-all font-black text-gray-900">{plan.medication_id}</h4>}
-                {medication && <p className="mt-0.5 truncate text-gray-500">{medication.generic_name}</p>}
+                  : <h4 className="break-all font-black text-slate-900">{plan.medication_id}</h4>}
+                {medication && <p className="mt-0.5 truncate text-slate-500">{medication.generic_name}</p>}
+                {/* 排藥清單也呈現現行醫囑，避免只進編輯才看得到條件。 */}
+                <MedicationHoldSummary rule={plan.holdRule} />
                 {medication && <div className="mt-1"><MedicationAppearance medication={medication} compact /></div>}
                 <div className="mt-2 flex flex-wrap gap-1">
                   <span className="rounded-full bg-emerald-100 px-2 py-0.5 font-bold text-emerald-900">{medication ? formatDoseAmountLocalized(plan.dose_amount, medication.dosage_form, locale) : plan.dose_amount}</span>
                   {plan.as_needed && <span className="rounded-full bg-amber-100 px-2 py-0.5 font-bold text-amber-900">{text({ id: 'Bila perlu', zh: '需要時服用' ,en: 'As needed' })}</span>}
                 </div>
+                {/* 只從目前病人的固定藥單開整組，PRN 仍走既有單筆操作。 */}
+                {!plan.as_needed && medication && <button type="button" disabled={saving || !form.canEditSubject} onClick={() => form.batch.open(plan.medication_id)} className="mt-2 min-h-11 rounded-xl border border-emerald-300 px-3 py-2 font-bold text-emerald-800 disabled:opacity-50">{text({ zh: '整顆藥', id: 'Semua jadwal obat ini', en: 'All schedules for this medication' })}</button>}
               </div>
-              <div className="flex shrink-0 flex-col gap-1"><button type="button" disabled={saving} aria-expanded={editingPlanId === plan.id} onClick={() => startEditingPlan(plan)} className={`min-h-10 rounded-xl border px-3 py-2 font-bold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-600 focus-visible:ring-offset-2 disabled:opacity-50 ${editingPlanId === plan.id ? 'border-emerald-700 bg-emerald-700 text-white' : 'border-emerald-200 bg-white text-emerald-800 hover:bg-emerald-50'}`}>{editingPlanId === plan.id ? text({ id: 'Sedang diubah', zh: '調整中' ,en: 'Editing' }) : text({ id: 'Ubah', zh: '調整' ,en: 'Edit' })}</button><button type="button" disabled={saving} onClick={() => remove(plan)} className="min-h-10 rounded-xl border border-red-200 bg-white px-3 py-2 font-bold text-red-700 transition-colors hover:bg-red-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-600 focus-visible:ring-offset-2 disabled:opacity-50">{text({ id: 'Hapus', zh: '移除' ,en: 'Delete' })}</button></div>
+              {/* 調整／移除上下相疊、移除不可逆，原 40px 容易按錯；兩顆都 min-h-11（44px，#1198），直排不增加寬度。 */}
+              <div className="flex shrink-0 flex-col gap-1"><button type="button" disabled={saving} aria-expanded={editingPlanId === plan.id} onClick={() => startEditingPlan(plan)} className={`min-h-11 rounded-xl border px-3 py-2 font-bold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-700 focus-visible:ring-offset-2 disabled:opacity-50 ${editingPlanId === plan.id ? 'border-emerald-700 bg-emerald-700 text-white' : 'border-emerald-200 bg-white text-emerald-800 hover:bg-emerald-50'}`}>{editingPlanId === plan.id ? text({ id: 'Sedang diubah', zh: '調整中' ,en: 'Editing' }) : text({ id: 'Ubah', zh: '調整' ,en: 'Edit' })}</button><button type="button" disabled={saving} onClick={() => remove(plan)} className="min-h-11 rounded-xl border border-red-200 bg-white px-3 py-2 font-bold text-red-700 transition-colors hover:bg-red-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-700 focus-visible:ring-offset-2 disabled:opacity-50">{text({ id: 'Hapus', zh: '移除' ,en: 'Delete' })}</button></div>
             </div>
           })}
         </div>

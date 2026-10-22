@@ -8,6 +8,7 @@
 為什麼展示模式（demo）直接回傳空清單：到期提醒（useTodayOverview 既有邏輯）已經是同樣的界線——
 展示資料是固定故事，硬套真實的漏服藥／體重趨勢規則只會算出不成立的假觀察，不值得為此另外造假資料。
 */
+import { heldMedicationCareDates, type MedicationHoldEvent } from '../../../lib/medication/medicationHold'
 import { useEffect, useMemo, useState } from 'react'
 import dayjs from 'dayjs'
 import utc from 'dayjs/plugin/utc'
@@ -54,6 +55,7 @@ export function useCareAnomalySignals(patientId: string): { items: TodayAttentio
   const [settings, setSettings] = useState<CareAnomalyAlertSettings>(DEFAULT_CARE_ANOMALY_ALERT_SETTINGS)
   const [weightPoints, setWeightPoints] = useState<{ measured_on: string; weight_kg: number }[]>([])
   const [doseLogs, setDoseLogs] = useState<{ care_date?: string | null; taken_on: string }[]>([])
+  const [heldCareDates, setHeldCareDates] = useState<Set<string>>(new Set())
   const [doseReadFailed, setDoseReadFailed] = useState(false)
   // issue #887：體重／藥單查詢失敗時，原本只把它們當成「沒有資料」（[]／false），完全不影響 items
   // 或 loading，於是今天頁把「根本沒檢查成功」呈現成「檢查過了、沒事」。這個旗標讓上層（useTodayOverview／
@@ -83,6 +85,7 @@ export function useCareAnomalySignals(patientId: string): { items: TodayAttentio
     // 不清空的話會在新資料還沒回來前，把前一位病人的觀察文字（含實際體重數字）誤標成目前病人的。
     setWeightPoints([])
     setDoseLogs([])
+    setHeldCareDates(new Set())
     setDoseReadFailed(false)
     setCheckFailed(false)
     setHasScheduledMedication(false)
@@ -101,18 +104,20 @@ export function useCareAnomalySignals(patientId: string): { items: TodayAttentio
     void Promise.all([
       supabase.from('patient_weight_measurement_records').select('weight_kg, measured_on').eq('patient_id', patientId).gte('measured_on', since),
       supabase.from('medication_intake_logs').select('care_date, taken_on').eq('patient_id', patientId).gte('taken_on', since),
-      // 只取生效中排藥（非需要時服用）裡最早的建立時間：existence 用來判斷 hasScheduledMedication，
+      // 讀全部現役固定藥，避免一顆藥的暫停掩蓋其他藥的零紀錄；排序仍保留最早生效日。
       // 建立時間用來限制漏服規則不得往回數到藥單生效之前。
-      supabase.from('medication_plans').select('created_at').eq('patient_id', patientId).eq('active', true).eq('as_needed', false).order('created_at', { ascending: true }).limit(1),
-    ]).then(([weightResult, doseResult, planResult]) => {
+      supabase.from('medication_plans').select('patient_id, medication_id, created_at, active, as_needed').eq('patient_id', patientId).eq('active', true).eq('as_needed', false).order('created_at', { ascending: true }),
+      supabase.from('medication_hold_events').select('*').eq('patient_id', patientId).gte('ends_at', `${since}T00:00:00+08:00`),
+    ]).then(([weightResult, doseResult, planResult, holdResult]) => {
       if (cancelled) return
       if (weightResult.error) console.error('[anomaly signals weight read error]', weightResult.error)
       if (doseResult.error) console.error('[anomaly signals medication read error]', doseResult.error)
       if (planResult.error) console.error('[anomaly signals medication plan read error]', planResult.error)
       setWeightPoints(weightResult.error ? [] : (weightResult.data ?? []))
       setDoseLogs(doseResult.error ? [] : (doseResult.data ?? []))
-      setDoseReadFailed(Boolean(doseResult.error))
-      setCheckFailed(Boolean(weightResult.error || doseResult.error || planResult.error))
+      setHeldCareDates(heldMedicationCareDates((holdResult.data ?? []) as MedicationHoldEvent[], planResult.data ?? [], patientId))
+      setDoseReadFailed(Boolean(doseResult.error || holdResult.error))
+      setCheckFailed(Boolean(weightResult.error || doseResult.error || planResult.error || holdResult.error))
       const earliestPlan = planResult.error ? [] : (planResult.data ?? [])
       setHasScheduledMedication(earliestPlan.length > 0)
       setPlanEffectiveSinceCareDate(earliestPlan.length > 0 ? careDateKey(dayjs(earliestPlan[0].created_at)) : null)
@@ -164,6 +169,7 @@ export function useCareAnomalySignals(patientId: string): { items: TodayAttentio
         settings.missedMedicationThresholdDays,
         hasScheduledMedication,
         planEffectiveSinceCareDate,
+        heldCareDates,
       )
       if (medicationSignal) signals.push(medicationSignal)
     }
@@ -183,7 +189,7 @@ export function useCareAnomalySignals(patientId: string): { items: TodayAttentio
       description: text(describeAnomalySignal(signal)),
       dueToday: false,
     }))
-  }, [demo, settings, weightPoints, doseLogs, doseReadFailed, hasScheduledMedication, planEffectiveSinceCareDate, bpRecords, evaluator.resolver, text])
+  }, [heldCareDates, demo, settings, weightPoints, doseLogs, doseReadFailed, hasScheduledMedication, planEffectiveSinceCareDate, bpRecords, evaluator.resolver, text])
 
   // 展示模式沒有任何真實查詢，checkFailed 一律為 false，不受上面幾個 state 殘留值影響。
   return { items, loading: loading || bpLoading, checkFailed: !demo && (checkFailed || settingsReadFailed || Boolean(bpError)) }

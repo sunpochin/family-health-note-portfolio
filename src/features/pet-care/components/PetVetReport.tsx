@@ -69,7 +69,7 @@ export function PetVetReport({ patientId, subjectLabel, days, careRecipientType 
     return (
       <div>
         <p role="alert" className="text-sm font-semibold text-red-700">{text({ id: 'Laporan dokter hewan tidak dapat dimuat.', zh: '目前無法讀取獸醫報告。' ,en: "Unable to load vet report." })}</p>
-        <button type="button" onClick={() => setRetryKey(value => value + 1)} className="mt-3 min-h-11 rounded-xl border border-red-200 bg-white px-4 text-sm font-bold text-red-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500">
+        <button type="button" onClick={() => setRetryKey(value => value + 1)} className="mt-3 min-h-11 rounded-xl border border-red-200 bg-white px-4 text-sm font-bold text-red-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-700 focus-visible:ring-offset-2">
           {text(common.retry)}
         </button>
       </div>
@@ -91,19 +91,19 @@ export function PetVetReport({ patientId, subjectLabel, days, careRecipientType 
       <div className="record-report rounded-2xl border border-slate-200 bg-white p-4">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div>
-            <p className="text-xs print:text-[10px] font-bold uppercase tracking-[0.16em] text-indigo-600">{text({ id: 'Laporan satu halaman', zh: '一頁式彙整報告' ,en: "One-page summary report" })}</p>
+            <p className="text-xs print:text-[10px] font-bold uppercase tracking-[0.16em] text-brand-700">{text({ id: 'Laporan satu halaman', zh: '一頁式彙整報告' ,en: "One-page summary report" })}</p>
             <h2 className="mt-1 text-lg font-extrabold tracking-tight text-slate-950">{text({ id: `Untuk ${doctorWordId}`, zh: `給${doctorWordZh}的彙整報告` ,en: `Summary report for ${doctorWordEn}` })}</h2>
             <p className="mt-1 text-xs text-slate-500">{subjectLabel} · {periodLabel} · {TZ} (UTC+8)</p>
             <p className="mt-1 text-xs print:text-[10px] text-slate-500">{text({ id: 'Dibuat:', zh: '產生時間：' ,en: "Generated:" })}{generatedAt.format('YYYY/MM/DD HH:mm')}</p>
           </div>
-          <button type="button" onClick={() => window.print()} className="print-hidden min-h-11 shrink-0 self-start rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600">
+          <button type="button" onClick={() => window.print()} className="print-hidden min-h-11 shrink-0 self-start rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-700 focus-visible:ring-offset-2">
             <span className="mr-1" aria-hidden="true">▧</span>
             {text({ id: 'Cetak / Simpan PDF', zh: '列印 / 存為 PDF' ,en: "Print / Save PDF" })}
           </button>
         </div>
 
         {/* 驗收條件：匯出內容需標示資料來源與期間，並註明為家庭自記錄而非醫療診斷文件。 */}
-        <div className="mt-3 rounded-xl border border-indigo-200 bg-indigo-50 px-3 py-2 text-xs print:text-[11px] leading-relaxed text-indigo-900">
+        <div className="mt-3 rounded-xl border border-brand-200 bg-brand-50 px-3 py-2 text-xs print:text-[11px] leading-relaxed text-slate-900">
           <p className="font-bold">{text({ id: 'Sumber & cakupan data', zh: '資料來源與範圍' ,en: "Data sources & scope" })}</p>
           <p className="mt-1">{text({ id: `Dicatat mandiri oleh keluarga/pengasuh di aplikasi ini, periode ${periodLabel}. Bukan dokumen diagnosis medis.`, zh: `由家屬／照護者於本 App 自行記錄，統計期間 ${periodLabel}；本文件為家庭自記錄，非醫療診斷文件。` ,en: `Recorded by family/caregivers in this app, period ${periodLabel}. Not a medical diagnostic document.` })}</p>
         </div>

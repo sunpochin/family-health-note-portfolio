@@ -164,12 +164,12 @@ export function WeightPage({ patientId, patientName, userEmail, embedded = false
     .sort((left, right) => Date.parse(right.measured_at) - Date.parse(left.measured_at))
   const title = patientName || text({ id: 'Orang yang dirawat', zh: '被照護者', en: 'Care recipient' })
   // 照護頁是體重的唯一入口；最近紀錄也必須留在同一區段，避免輸入與歷史被誤認為兩套功能。
-  return <section className={embedded ? 'rounded-3xl border border-slate-200 bg-white p-4 shadow-sm' : 'min-h-full bg-gray-50 px-5 py-5 text-gray-900'}>
+  return <section className={embedded ? 'rounded-3xl border border-slate-200 bg-white p-4 shadow-sm' : 'min-h-full bg-slate-50 px-5 py-5 text-slate-900'}>
     {!embedded && <header><TabHeader title="weight" /></header>}
     <div className={embedded ? '' : 'mt-5 rounded-2xl bg-white p-4 shadow-sm'}>
       <h2 className="text-base font-extrabold text-slate-950">{text({ id: 'Berat badan hari ini', zh: '今天體重', en: 'Today’s weight' })}</h2>
       <p className="mt-1 text-xs text-slate-500">{title}</p>
-      <label htmlFor="weight-kg" className="mt-3 block text-sm font-semibold text-gray-600">{text({ id: 'Berat (kg)', zh: '體重（公斤）', en: 'Weight (kg)' })}</label>
+      <label htmlFor="weight-kg" className="mt-3 block text-sm font-semibold text-slate-600">{text({ id: 'Berat (kg)', zh: '體重（公斤）', en: 'Weight (kg)' })}</label>
       {/* 正在修改哪一筆用時間表達，不用槽位編號——照護者記得的是「早上量的那次」，不是「第 3 次」。 */}
       {editingRecord && <p className="mt-1 text-sm font-bold text-blue-800">
         {text({
@@ -178,10 +178,10 @@ export function WeightPage({ patientId, patientName, userEmail, embedded = false
          en: `Editing the record from ${dayjs(editingRecord.measured_at).tz(TZ).format('HH:mm')}`,
         })}
       </p>}
-      <div className="mt-2 flex items-center gap-3"><input id="weight-kg" type="number" inputMode="decimal" min={WEIGHT_MIN_KG} max={WEIGHT_MAX_KG} step={WEIGHT_INPUT_STEP} value={weight} disabled={status === 'saving'} onChange={event => setWeight(event.target.value === '' ? '' : Number(event.target.value))} className="min-w-0 flex-1 rounded-xl border border-gray-200 px-4 py-3 text-2xl font-bold tabular-nums focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200" /><span className="text-lg font-bold text-gray-500">kg</span></div>
+      <div className="mt-2 flex items-center gap-3"><input id="weight-kg" type="number" inputMode="decimal" min={WEIGHT_MIN_KG} max={WEIGHT_MAX_KG} step={WEIGHT_INPUT_STEP} value={weight} disabled={status === 'saving'} onChange={event => setWeight(event.target.value === '' ? '' : Number(event.target.value))} className="min-w-0 flex-1 rounded-xl border-2 border-control-border px-4 py-3 text-2xl font-bold tabular-nums focus-visible:border-brand-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-700" /><span className="text-lg font-bold text-slate-500">kg</span></div>
       <div className="mt-3 flex gap-2">
-        <button type="button" disabled={!userEmail || !isValidWeightInput(weight) || status === 'saving' || (!editingRecord && todayCount >= WEIGHT_MEASUREMENTS_PER_DAY)} onClick={save} className="min-h-11 flex-1 rounded-xl bg-blue-700 px-4 py-3 font-bold text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 disabled:bg-gray-300">{status === 'saving' ? text({ id: 'Menyimpan…', zh: '儲存中…', en: 'Saving...' }) : editingRecord ? text({ id: 'Perbarui catatan', zh: '更新這筆', en: 'Update this' }) : todayCount >= WEIGHT_MEASUREMENTS_PER_DAY ? text({ id: 'Batas hari ini tercapai', zh: '今天已達記錄上限', en: 'Record limit reached today' }) : text({ id: 'Simpan berat badan', zh: '儲存體重', en: 'Save weight' })}</button>
-        {editingRecord && <button type="button" onClick={cancelEdit} disabled={status === 'saving'} className="min-h-11 rounded-xl border border-gray-300 bg-white px-4 font-bold text-gray-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 disabled:opacity-60">{text({ id: 'Batal', zh: '取消', en: 'Cancel' })}</button>}
+        <button type="button" disabled={!userEmail || !isValidWeightInput(weight) || status === 'saving' || (!editingRecord && todayCount >= WEIGHT_MEASUREMENTS_PER_DAY)} onClick={save} className="min-h-11 flex-1 rounded-xl bg-blue-700 px-4 py-3 font-bold text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-700 focus-visible:ring-offset-2 disabled:bg-slate-300">{status === 'saving' ? text({ id: 'Menyimpan…', zh: '儲存中…', en: 'Saving...' }) : editingRecord ? text({ id: 'Perbarui catatan', zh: '更新這筆', en: 'Update this' }) : todayCount >= WEIGHT_MEASUREMENTS_PER_DAY ? text({ id: 'Batas hari ini tercapai', zh: '今天已達記錄上限', en: 'Record limit reached today' }) : text({ id: 'Simpan berat badan', zh: '儲存體重', en: 'Save weight' })}</button>
+        {editingRecord && <button type="button" onClick={cancelEdit} disabled={status === 'saving'} className="min-h-11 rounded-xl border border-slate-300 bg-white px-4 font-bold text-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-700 focus-visible:ring-offset-2 disabled:opacity-60">{text({ id: 'Batal', zh: '取消', en: 'Cancel' })}</button>}
       </div>
       {status === 'ok' && <p role="status" className="mt-2 text-sm font-semibold text-green-700">{text({ id: 'Berat badan tersimpan.', zh: '體重已儲存。', en: 'Weight saved.' })}</p>}
       {(loadError || error) && <p role="alert" className="mt-2 text-sm font-semibold text-red-700">{loadError ? text({ id: 'Tidak dapat memuat berat badan.', zh: '目前無法讀取體重紀錄。', en: 'Unable to load weight records.' }) : error}</p>}
@@ -196,14 +196,14 @@ export function WeightPage({ patientId, patientName, userEmail, embedded = false
               <time className="text-xs text-slate-500">{dayjs(record.measured_at).tz(TZ).format('HH:mm')}</time>
               <strong className="text-base font-black text-blue-800">{formatWeightKg(record.weight_kg)} kg</strong>
             </span>
-            <button type="button" onClick={() => startEdit(record)} disabled={status === 'saving'} className="min-h-11 rounded-xl border border-blue-200 bg-white px-3 text-xs font-bold text-blue-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 disabled:opacity-60">{text({ id: 'Ubah', zh: '修改', en: 'Edit' })}</button>
+            <button type="button" onClick={() => startEdit(record)} disabled={status === 'saving'} className="min-h-11 rounded-xl border border-blue-200 bg-white px-3 text-xs font-bold text-blue-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-700 focus-visible:ring-offset-2 disabled:opacity-60">{text({ id: 'Ubah', zh: '修改', en: 'Edit' })}</button>
           </li>)}
         </ul>
       </div>}
     </div>
     {/* 「最近紀錄」跨多天、不只今天，先前遺漏在這裡仍顯示槽位編號，
         與本次修正的目標（槽位編號不再出現在畫面上）矛盾；日期與時間已足夠識別每一筆，直接拿掉槽位文字。 */}
-    <div className="mt-5 border-t border-slate-100 pt-4"><h2 className="font-bold">{text({ id: 'Riwayat terakhir', zh: '最近紀錄', en: 'Recent records' })}</h2>{loading ? <p className="mt-3 text-sm text-gray-400">{text({ id: 'Memuat…', zh: '讀取中…', en: 'Loading…' })}</p> : recent.length === 0 ? <p className="mt-3 text-sm text-gray-400">{text({ id: 'Belum ada catatan.', zh: '還沒有紀錄。', en: 'No records yet.' })}</p> : <ul className="mt-3 divide-y divide-gray-100">{recent.map(record => <li key={record.id} className="flex items-center justify-between gap-3 py-2 text-sm"><span><span className="block">{record.measured_on}</span><time className="block text-xs text-gray-400">{text({ id: 'Waktu input', zh: '輸入時間', en: 'Input time' })} {dayjs(record.measured_at).tz(TZ).format('HH:mm')}</time></span><span className="font-bold text-blue-700">{formatWeightKg(record.weight_kg)} kg</span></li>)}</ul>}</div>
+    <div className="mt-5 border-t border-slate-100 pt-4"><h2 className="font-bold">{text({ id: 'Riwayat terakhir', zh: '最近紀錄', en: 'Recent records' })}</h2>{loading ? <p className="mt-3 text-sm text-slate-500">{text({ id: 'Memuat…', zh: '讀取中…', en: 'Loading…' })}</p> : recent.length === 0 ? <p className="mt-3 text-sm text-slate-500">{text({ id: 'Belum ada catatan.', zh: '還沒有紀錄。', en: 'No records yet.' })}</p> : <ul className="mt-3 divide-y divide-slate-100">{recent.map(record => <li key={record.id} className="flex items-center justify-between gap-3 py-2 text-sm"><span><span className="block">{record.measured_on}</span><time className="block text-xs text-slate-500">{text({ id: 'Waktu input', zh: '輸入時間', en: 'Input time' })} {dayjs(record.measured_at).tz(TZ).format('HH:mm')}</time></span><span className="font-bold text-blue-700">{formatWeightKg(record.weight_kg)} kg</span></li>)}</ul>}</div>
     {/* 體重變化是醫師最常問的指標之一，原本全 App 卻沒有任何地方畫得出來。 */}
     <ModuleTrendSection moduleId="weight" titleId="weight-module-trend-title">
       {days => <WeightTrendPanel patientId={patientId} days={days} />}

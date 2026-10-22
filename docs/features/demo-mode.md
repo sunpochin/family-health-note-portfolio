@@ -15,11 +15,11 @@
 - 線上展示：讀取明確的 demo patient／seed 資料，只提供唯讀視圖。
 - 本機試用：在本機以受控 demo data adapter 提供互動預覽；資料留在 demo storage，不寫入 production。
 
-兩條路徑都要在 UI 明確標示展示／唯讀狀態，避免訪客把假資料當成媽媽的真實健康資料。
+兩條路徑都要在 UI 明確標示展示／唯讀狀態，避免訪客把假資料當成真實健康資料。
 
 ## 安全邊界
 
-Demo 展示資料由 `demoData`／`demoStorage` 的本機虛構資料提供；正式 Supabase 健康資料表不對 `PUBLIC`／`anon` 開放 SELECT 或 DML。登入後的 staging seed 仍必須遵守 authenticated 的 `care_access.patient_id` RLS，不能複製 caregiver、媽媽或其他真實健康資料。
+Demo 展示資料由 `demoData`／`demoStorage` 的本機虛構資料提供；正式 Supabase 健康資料表不對 `PUBLIC`／`anon` 開放 SELECT 或 DML。登入後的 staging seed 仍必須遵守 authenticated 的 `care_access.patient_id` RLS，不能複製任何真實使用者的健康資料。
 
 ## 種子案例
 

@@ -112,6 +112,26 @@ describe('blood pressure pending queue', () => {
     expect(result.remaining.map(record => record.id)).toEqual(['record-1', 'record-2'])
   })
 
+  test('treats the supabase-js offline error as temporary and stops before later records (issue #1116)', async () => {
+    enqueuePendingBloodPressureRecord(pendingRecord())
+    enqueuePendingBloodPressureRecord(pendingRecord({ id: 'record-2', queued_at: '2026-08-22T03:02:00.000Z' }))
+    const attempted: string[] = []
+    const result = await flushPendingBloodPressureRecords({
+      patientId: 'patient-a',
+      recordedBy: 'care@example.com',
+      save: async record => {
+        attempted.push(record.id)
+        // insertBloodPressureRecord 斷線時丟出的就是這個形狀（postgrest-js 吞掉 TypeError、status 0）。
+        throw { message: 'TypeError: Failed to fetch', details: '', hint: '', code: '', status: 0 }
+      },
+    })
+
+    // 斷線時後面幾筆也一定失敗；先停下來保留順序，不要一次把整個佇列都打一遍。
+    expect(attempted).toEqual(['record-1'])
+    expect(result.blocked).toBe(true)
+    expect(result.remaining.map(record => record.id)).toEqual(['record-1', 'record-2'])
+  })
+
   test('skips a permanently failing record so later measurements still sync', async () => {
     enqueuePendingBloodPressureRecord(pendingRecord())
     enqueuePendingBloodPressureRecord(pendingRecord({ id: 'record-2', queued_at: '2026-08-22T03:02:00.000Z' }))

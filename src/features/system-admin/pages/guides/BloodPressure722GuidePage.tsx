@@ -51,19 +51,19 @@ export function BloodPressure722GuidePage() {
         <div className="overflow-x-auto">
           <table className="w-full min-w-[420px] border-collapse text-left text-sm">
             <thead>
-              <tr className="border-b border-gray-200 text-xs font-bold text-gray-500">
+              <tr className="border-b border-slate-200 text-xs font-bold text-slate-500">
                 <th className="py-2 pr-3">{text({ id: 'Tingkat', zh: '等級', en: 'Category' })}</th>
                 <th className="py-2 pr-3">{text({ id: 'Sistolik (angka atas)', zh: '收縮壓', en: 'Systolic' })}</th>
                 <th className="py-2">{text({ id: 'Diastolik (angka bawah)', zh: '舒張壓', en: 'Diastolic' })}</th>
               </tr>
             </thead>
             <tbody>
-              <tr className="border-b border-gray-100">
+              <tr className="border-b border-slate-100">
                 <td className="py-2 pr-3 font-semibold text-emerald-700">{text({ id: 'Normal', zh: '正常', en: 'Normal' })}</td>
                 <td className="py-2 pr-3">&lt; 130</td>
                 <td className="py-2">&lt; 80</td>
               </tr>
-              <tr className="border-b border-gray-100">
+              <tr className="border-b border-slate-100">
                 <td className="py-2 pr-3 font-semibold text-orange-700">{text({ id: 'Waspada', zh: '略高', en: 'Elevated' })}</td>
                 <td className="py-2 pr-3">≥ 130</td>
                 <td className="py-2">≥ 80</td>
@@ -76,7 +76,7 @@ export function BloodPressure722GuidePage() {
             </tbody>
           </table>
         </div>
-        <p className="text-xs text-gray-500">
+        <p className="text-xs text-slate-500">
           {text({
             id: 'Tabel ini adalah standar rumah tangga untuk referensi (berbeda dari standar klinik), bukan anjuran pengobatan. Silakan diskusikan hasil pengukuran dengan tenaga medis.',
             zh: '此表為居家參考標準（與診間標準不同），非用藥或治療建議，量測結果請與醫療人員討論。',

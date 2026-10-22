@@ -35,9 +35,9 @@ export function ReadingScaleSettings() {
   }
 
   return (
-    <section className="mt-6 rounded-2xl border border-gray-200 bg-white p-4" aria-labelledby="reading-scale-settings-title">
-      <h2 id="reading-scale-settings-title" className="font-bold text-gray-900">{text({ id: 'Ukuran teks', zh: '文字大小' ,en: 'Text size' })}</h2>
-      <p id="reading-scale-settings-help" className="mt-1 text-sm text-gray-500">
+    <section className="mt-6 rounded-2xl border border-slate-200 bg-white p-4" aria-labelledby="reading-scale-settings-title">
+      <h2 id="reading-scale-settings-title" className="font-bold text-slate-900">{text({ id: 'Ukuran teks', zh: '文字大小' ,en: 'Text size' })}</h2>
+      <p id="reading-scale-settings-help" className="mt-1 text-sm text-slate-500">
         {text({ id: 'Perbesar seluruh tampilan aplikasi jika tulisan terasa terlalu kecil. Anda juga tetap bisa memperbesar layar dengan dua jari.', zh: '覺得字太小時可以放大整個 App。也可以隨時用兩指縮放畫面。' ,en: 'Increase the app-wide text size if the writing feels too small. You can still pinch to zoom the screen.' })}
       </p>
 
@@ -58,7 +58,7 @@ export function ReadingScaleSettings() {
               <label
                 key={option}
                 htmlFor={`reading-scale-${option}`}
-                className={`relative flex min-h-16 cursor-pointer flex-col items-center justify-center gap-1 rounded-xl border px-2 py-3 text-center focus-within:ring-2 focus-within:ring-indigo-500 ${selected ? 'border-indigo-600 bg-indigo-50 text-indigo-900' : 'border-gray-200 bg-gray-50 text-gray-700'}`}
+                className={`relative flex min-h-16 cursor-pointer flex-col items-center justify-center gap-1 rounded-xl border px-2 py-3 text-center focus-within:ring-2 focus-within:ring-brand-700 ${selected ? 'border-brand-700 bg-brand-50 text-slate-900' : 'border-slate-200 bg-slate-50 text-slate-700'}`}
               >
                 <input
                   id={`reading-scale-${option}`}
@@ -72,7 +72,7 @@ export function ReadingScaleSettings() {
                 {/* 每顆卡片自己就用該段位的相對字級當範例，讓人不用先按下去才知道會變多大。 */}
                 <span aria-hidden="true" className={`font-black leading-none ${option === 'standard' ? 'text-base' : option === 'large' ? 'text-xl' : 'text-2xl'}`}>Aa</span>
                 <span className="text-sm font-semibold">{text(SCALE_LABELS[option])}</span>
-                <span className="text-xs text-gray-500">{text(SCALE_HINTS[option])}</span>
+                <span className="text-xs text-slate-500">{text(SCALE_HINTS[option])}</span>
               </label>
             )
           })}
@@ -81,18 +81,18 @@ export function ReadingScaleSettings() {
 
       {/* 預覽用真的會出現在每日照護頁的血壓讀值，而不是抽象的示範句；
           照護者最在意的就是「這個數字我看不看得清楚」。顏色沿用血壓識別色規範。 */}
-      <div className="mt-4 rounded-xl bg-gray-50 px-3 py-3">
-        <p className="text-xs font-semibold text-gray-500">{text({ id: 'Pratinjau', zh: '預覽' ,en: 'Preview' })}</p>
+      <div className="mt-4 rounded-xl bg-slate-50 px-3 py-3">
+        <p className="text-xs font-semibold text-slate-500">{text({ id: 'Pratinjau', zh: '預覽' ,en: 'Preview' })}</p>
         <p className="mt-1">
           <span className="vital-systolic text-2xl font-black">128</span>
-          <span className="mx-1 text-lg text-gray-400">/</span>
+          <span className="mx-1 text-lg text-slate-500">/</span>
           <span className="vital-diastolic text-2xl font-black">76</span>
-          <span className="ml-2 text-sm text-gray-500">mmHg</span>
+          <span className="ml-2 text-sm text-slate-500">mmHg</span>
         </p>
-        <p className="mt-1 text-sm text-gray-600">{text({ id: 'Tekanan darah pagi, sebelum minum obat.', zh: '早上血壓，服藥前量測。' ,en: 'Morning blood pressure, measured before medication.' })}</p>
+        <p className="mt-1 text-sm text-slate-600">{text({ id: 'Tekanan darah pagi, sebelum minum obat.', zh: '早上血壓，服藥前量測。' ,en: 'Morning blood pressure, measured before medication.' })}</p>
       </div>
 
-      <p className="mt-3 text-xs text-gray-500">
+      <p className="mt-3 text-xs text-slate-500">
         {text({ id: 'Pengaturan ini hanya berlaku di perangkat ini dan tidak mengubah catatan kesehatan apa pun.', zh: '這個設定只套用在這台裝置，不會改動任何健康紀錄。' ,en: 'This setting applies only on this device and does not change any health records.' })}
       </p>
     </section>

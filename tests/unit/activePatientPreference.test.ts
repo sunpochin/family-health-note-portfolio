@@ -38,7 +38,7 @@ const { readActivePatientPreference, resolveActivePatientPreference, saveActiveP
 
 describe('active patient preference', () => {
   test('keeps a saved patient UUID only while the account is still authorized', () => {
-    expect(resolveActivePatientPreference('patient-mother', ['patient-own', 'patient-mother'], 'patient-own')).toBe('patient-mother')
+    expect(resolveActivePatientPreference('patient-b', ['patient-own', 'patient-b'], 'patient-own')).toBe('patient-b')
   })
 
   test('falls back to an authorized patient UUID when a saved value is stale', () => {

@@ -60,7 +60,7 @@ export function VisitOutcomesSection({ groups, loading, unavailable, demo }: {
                   <p className="text-base font-bold text-slate-900">{question.question}</p>
                   <p className="mt-1 text-sm text-slate-700">{text(ANSWER_PREFIX)}{question.answer}</p>
                   {question.source === 'pre_visit_rule' && (
-                    <p className="mt-1 text-xs text-indigo-700">{text(SOURCE_PREFIX)}{ruleLabel ? `（${text(ruleLabel)}）` : ''}</p>
+                    <p className="mt-1 text-xs text-brand-700">{text(SOURCE_PREFIX)}{ruleLabel ? `（${text(ruleLabel)}）` : ''}</p>
                   )}
                 </li>
               )

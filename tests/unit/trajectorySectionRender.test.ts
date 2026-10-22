@@ -73,7 +73,7 @@ describe('TrajectorySection', () => {
     const sourceEntry: CareTimelineEntry = {
       id: 'visit-2', patient_id: 'patient-1', event_type: 'health_visit', title: '心臟科回診', details: '',
       occurred_at: '2026-07-12T00:00:00.000Z', reassess_on: null, created_by: 'caregiver@example.com', created_at: '2026-07-12T00:00:00.000Z',
-      medication_plan_id: null, visit_kind: 'outpatient', visit_department: '心臟內科', visit_institution: '台大醫院',
+      medication_plan_id: null, visit_kind: 'outpatient', visit_department: '心臟內科', visit_institution: '示範醫院',
     }
     const event: TimelineTrajectoryEvent = {
       id: 'visit-2', occurredAt: '2026-07-12T00:00:00.000Z', kind: 'health_visit', title: '心臟科回診', details: '', reassessOn: null,
@@ -81,7 +81,7 @@ describe('TrajectorySection', () => {
     }
     const rendered = render([event])
     expect(rendered).toContain('心臟內科 門診')
-    expect(rendered).toContain('台大醫院')
+    expect(rendered).toContain('示範醫院')
   })
 
   test('does not render a visit structure line when the health_visit entry has no structured fields', () => {

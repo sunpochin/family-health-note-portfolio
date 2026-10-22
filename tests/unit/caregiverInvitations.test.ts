@@ -94,23 +94,23 @@ describe('caregiver invitations', () => {
   })
 
   test('creates a targeted invitation through the email Function and preserves fallback status', async () => {
-    functionsResponse = { data: { emailStatus: 'not_configured', invitation: { invitationId: 'invite-2', token: 'f'.repeat(64), expiresAt: '2026-09-12T00:00:00Z', invitedEmail: 'demo.oauth-tester@example.test' } }, error: null }
-    await expect(createCaregiverInvitationWithEmail('00000000-0000-4000-8000-000000000001', 'demo.oauth-tester@example.test', true, false)).resolves.toMatchObject({ invitationId: 'invite-2', emailStatus: 'not_configured' })
+    functionsResponse = { data: { emailStatus: 'not_configured', invitation: { invitationId: 'invite-2', token: 'f'.repeat(64), expiresAt: '2026-09-12T00:00:00Z', invitedEmail: 'invitee@example.com' } }, error: null }
+    await expect(createCaregiverInvitationWithEmail('00000000-0000-4000-8000-000000000001', 'Invitee@Example.com', true, false)).resolves.toMatchObject({ invitationId: 'invite-2', emailStatus: 'not_configured' })
     expect(lastFunction).toEqual({
       name: 'send-invitation-email',
-      body: { kind: 'caregiver', patientId: '00000000-0000-4000-8000-000000000001', invitedEmail: 'demo.oauth-tester@example.test', canRecord: true, canManageMedication: false },
+      body: { kind: 'caregiver', patientId: '00000000-0000-4000-8000-000000000001', invitedEmail: 'Invitee@Example.com', canRecord: true, canManageMedication: false },
     })
   })
 
   test('reads targeted pending invitations and requests them by id', async () => {
-    rpcResponse = { data: [{ invitation_id: 'invite-3', patient_display_name: 'Mother', invited_email: 'demo.oauth-tester@example.test', status: 'pending', can_record: true, can_manage_medication: false, created_at: '2026-09-06T00:00:00Z', expires_at: '2026-09-13T00:00:00Z' }], error: null }
-    await expect(fetchPendingCaregiverInvitations()).resolves.toEqual([expect.objectContaining({ invitationId: 'invite-3', invitedEmail: 'demo.oauth-tester@example.test', status: 'pending' })])
+    rpcResponse = { data: [{ invitation_id: 'invite-3', patient_display_name: 'Demo Patient', invited_email: 'invitee@example.com', status: 'pending', can_record: true, can_manage_medication: false, created_at: '2026-09-06T00:00:00Z', expires_at: '2026-09-13T00:00:00Z' }], error: null }
+    await expect(fetchPendingCaregiverInvitations()).resolves.toEqual([expect.objectContaining({ invitationId: 'invite-3', invitedEmail: 'invitee@example.com', status: 'pending' })])
     await requestPendingCaregiverInvitation('invite-3')
     expect(lastRpc).toEqual({ name: 'request_caregiver_invitation_by_id', args: { p_invitation_id: 'invite-3' } })
   })
 
   test('does not block existing care work after an invitation is already requested', () => {
-    const base = { patientDisplayName: 'Mother', invitedEmail: 'demo.oauth-tester@example.test', canRecord: true, canManageMedication: false, createdAt: '2026-09-06T00:00:00Z', expiresAt: '2026-09-13T00:00:00Z' }
+    const base = { patientDisplayName: 'Demo Patient', invitedEmail: 'invitee@example.com', canRecord: true, canManageMedication: false, createdAt: '2026-09-06T00:00:00Z', expiresAt: '2026-09-13T00:00:00Z' }
     const invitations = [
       { ...base, invitationId: 'pending', status: 'pending' as const },
       { ...base, invitationId: 'requested', status: 'requested' as const },

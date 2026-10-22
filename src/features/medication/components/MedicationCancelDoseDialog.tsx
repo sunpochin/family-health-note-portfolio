@@ -1,7 +1,8 @@
 /*
 檔案用途：取消單筆服藥打卡前的二次確認視窗，並在確認或取消後把焦點還給原本觸發的藥卡按鈕。
 所在層：src/features/medication/components；由 MedicationPage 在照護者點擊已服用藥卡時掛載。
-主要關聯：實際的取消寫入（clearMedicationDose）與觸發按鈕的 ref 都留在 MedicationPage，
+主要關聯：實際的取消寫入與觸發按鈕的 ref 都留在 MedicationPage——已存進伺服器的劑次走 clearMedicationDose，
+離線佇列裡待同步的劑次走 useMedicationPendingDoses 的撤回（issue #822）；
 本元件只呈現對話框、管理自己的開合與內部聚焦，並在關閉時把觸發按鈕的焦點還原。
 */
 import { useEffect, useRef, type MutableRefObject } from 'react'
@@ -81,11 +82,15 @@ export function MedicationCancelDoseDialog({
           <p className="text-base font-black text-slate-900">{formatMedicationLabel(pending.plan.medication.brand_name, pending.plan.medication.strength_mg, pending.plan.medication.strength_label)}</p>
           <p className="mt-2 text-sm font-medium text-slate-600">{text({ id: `Tercatat diminum pukul ${dayjs(pending.existing.taken_at).tz(CARE_DAY_TIMEZONE).format('HH:mm')}.`, zh: `已記錄於 ${dayjs(pending.existing.taken_at).tz(CARE_DAY_TIMEZONE).format('HH:mm')} 服用。` ,en: `Recorded as taken at ${dayjs(pending.existing.taken_at).tz(CARE_DAY_TIMEZONE).format('HH:mm')}.` })}</p>
         </div>
+        {/* 確認鍵停用時要講原因：藥卡上的「同步中…」被對話框蓋住了，看護只會以為按鈕壞了。 */}
+        {busy && <p role="status" className="mt-3 text-sm font-semibold text-slate-600">{text({ id: 'Sedang diproses, tunggu sebentar…', zh: '處理中，請稍候…', en: 'Processing, please wait…' })}</p>}
         <div className="mt-6 grid grid-cols-[.9fr_1.1fr] gap-3">
-          <button ref={dismissButtonRef} type="button" onClick={onDismiss} className="min-h-14 rounded-2xl border border-slate-300 bg-white px-4 text-base font-black text-slate-700 active:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-600 focus-visible:ring-offset-2">
+          <button ref={dismissButtonRef} type="button" onClick={onDismiss} className="min-h-14 rounded-2xl border border-slate-300 bg-white px-4 text-base font-black text-slate-700 active:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-700 focus-visible:ring-offset-2">
             {text({ id: 'Kembali', zh: '返回' ,en: 'Back' })}
           </button>
-          <button type="button" onClick={onConfirm} className="min-h-14 whitespace-nowrap rounded-2xl bg-red-700 px-4 text-base font-black text-white shadow-sm active:bg-red-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-700 focus-visible:ring-offset-2">
+          {/* busy 時（另一劑寫入中，或這一劑的離線補送正在送出）先停用：送出結果回來前無法確定伺服器有沒有收到，
+              這時撤回只會撤掉本機那筆，伺服器上卻可能已經寫入。 */}
+          <button type="button" onClick={onConfirm} disabled={busy} className="min-h-14 whitespace-nowrap rounded-2xl bg-red-700 px-4 text-base font-black text-white shadow-sm active:bg-red-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-700 focus-visible:ring-offset-2 disabled:opacity-50">
             {text({ id: 'Batalkan catatan', zh: '取消紀錄' ,en: 'Cancel History' })}
           </button>
         </div>

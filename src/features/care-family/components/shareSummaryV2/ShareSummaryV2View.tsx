@@ -14,6 +14,7 @@ import { ShareSummaryBloodPressureSection } from './ShareSummaryBloodPressureSec
 import { ShareSummaryMedicationSection } from './ShareSummaryMedicationSection'
 import { ShareSummaryEventsSection } from './ShareSummaryEventsSection'
 
+// 為什麼補足 44px：手機上的獨立操作要留出足夠點擊面，降低漏點與誤觸。
 export function ShareSummaryV2View({ summary }: { summary: PatientShareSummaryV2Dto }) {
   const { text, locale } = useI18n()
   const generatedAt = formatTaipeiDateTime(summary.generatedAt)
@@ -22,10 +23,10 @@ export function ShareSummaryV2View({ summary }: { summary: PatientShareSummaryV2
       <div className="flex items-start justify-between gap-3">
         <div>
           <h1 className="text-2xl font-black">{localized(summary.patientAlias, locale)}</h1>
-          <p className="text-sm text-gray-500">{text(SHARE_V2_LABELS.twoWeekSummary)} · {generatedAt}（{summary.timezone}）</p>
+          <p className="text-sm text-slate-500">{text(SHARE_V2_LABELS.twoWeekSummary)} · {generatedAt}（{summary.timezone}）</p>
         </div>
         {/* 診間常見的 fallback 是印出來；瀏覽器列印即可，不另外產 PDF（沒有第二條資料通道）。 */}
-        <button type="button" onClick={() => window.print()} className="shrink-0 rounded-lg border border-gray-300 px-3 py-1.5 text-xs font-bold text-gray-700 print:hidden">
+        <button type="button" onClick={() => window.print()} className="shrink-0 rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-bold text-slate-700 print:hidden min-h-11">
           {text(SHARE_V2_LABELS.print)}
         </button>
       </div>
@@ -42,7 +43,7 @@ export function ShareSummaryV2View({ summary }: { summary: PatientShareSummaryV2
         <p>{text(SHARE_V2_DATA_LIMITS)}</p>
         <p className="mt-1 font-semibold">{text(SHARE_V2_SNAPSHOT(generatedAt))}</p>
       </div>
-      <p className="text-xs text-gray-400">{text(SHARE_V2_LABELS.readOnlyFooter)}</p>
+      <p className="text-xs text-slate-500">{text(SHARE_V2_LABELS.readOnlyFooter)}</p>
       <PrintSourceFooter />
     </div>
   )

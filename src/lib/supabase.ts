@@ -10,7 +10,8 @@ import { resolveSupabasePublicKey, resolveSupabaseUrl, type SupabasePublicKeyEnv
 export { resolveSupabasePublicKey, resolveSupabaseUrl, type SupabasePublicKeyEnv }
 
 export const supabaseUrl = resolveSupabaseUrl(import.meta.env)
-const supabasePublicKey = resolveSupabasePublicKey(import.meta.env)
+// 工程 worker 的首次設定可重用公開 API key；這不授予派工或健康資料權限。
+export const supabasePublicKey = resolveSupabasePublicKey(import.meta.env)
 
 if (!import.meta.env.VITE_SUPABASE_URL) {
   // /demo 的試用資料不依賴 Supabase；只有真正登入後的跨裝置資料同步會在缺設定時失效。

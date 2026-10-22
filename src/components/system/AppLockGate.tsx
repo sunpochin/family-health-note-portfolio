@@ -11,6 +11,7 @@ import { useI18n } from '../../lib/i18n'
 import { getNativePlatform, isNativeApp } from '../../lib/platform'
 import { usePwaUpdateGuard } from '../../lib/pwaUpdateGuard'
 import { useAppLock } from '../../hooks/useAppLock'
+import { Icon } from '../ui/Icon'
 
 export function AppLockGate() {
   // 只有 iOS 殼有原生 AppLock plugin；Android 尚未實作，若在 Android 上誤開會變成「永遠解不開的鎖」，
@@ -59,18 +60,18 @@ function AppLockGateNative() {
   return createPortal(
     // 完全不透明的白底、不顯示任何病人名稱或數值：遮罩本身就是鎖定畫面，不能洩漏它在保護的東西。
     <div
-      className="fixed inset-0 z-[1000] flex flex-col items-center justify-center bg-white px-6 pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)] text-center text-gray-900"
+      className="fixed inset-0 z-[1000] flex flex-col items-center justify-center bg-white px-6 pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)] text-center text-slate-900"
       role={locked ? 'dialog' : undefined}
       aria-modal={locked ? true : undefined}
       aria-labelledby={locked ? 'app-lock-title' : undefined}
     >
-      <span className="text-6xl" aria-hidden="true">🔒</span>
+      <Icon name="lock" className="h-16 w-16 text-slate-700" />
       {locked && (
         <>
           <h1 id="app-lock-title" className="mt-4 text-2xl font-black">
             {text({ id: 'Aplikasi terkunci', zh: 'App 已鎖定', en: 'App locked' })}
           </h1>
-          <p className="mt-2 max-w-sm text-base text-gray-600">
+          <p className="mt-2 max-w-sm text-base text-slate-600">
             {text({
               id: 'Gunakan Face ID, sidik jari, atau kode sandi perangkat untuk membuka.',
               zh: '請用 Face ID、指紋或裝置密碼解鎖。',
@@ -87,13 +88,13 @@ function AppLockGateNative() {
             type="button"
             onClick={() => void unlock()}
             disabled={authenticating}
-            className="mt-6 min-h-14 w-full max-w-xs rounded-2xl bg-indigo-600 px-6 text-lg font-bold text-white active:bg-indigo-700 disabled:opacity-60"
+            className="mt-6 min-h-14 w-full max-w-xs rounded-2xl bg-brand-700 px-6 text-lg font-bold text-white active:bg-emerald-800 disabled:opacity-60"
           >
             {authenticating
               ? text({ id: 'Memeriksa…', zh: '驗證中…', en: 'Checking…' })
               : text({ id: 'Buka kunci', zh: '解鎖', en: 'Unlock' })}
           </button>
-          <p className="mt-6 max-w-sm text-xs text-gray-500">
+          <p className="mt-6 max-w-sm text-xs text-slate-500">
             {text({
               id: 'Ini hanya kunci layar. Anda tidak keluar dari akun dan data tidak dihapus.',
               zh: '這只是畫面鎖，不會登出，也不會刪除任何資料。',

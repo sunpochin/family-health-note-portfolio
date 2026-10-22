@@ -45,7 +45,7 @@ export function PetChronicDiseaseGuidePage() {
           { id: 'Persentase makanan yang dihabiskan — penting karena dosis insulin biasanya terkait dengan asupan makan.', zh: '進食比例——因為胰島素劑量通常與進食量有關，格外重要。', en: 'Meal percentage consumed — crucial as insulin dosing is typically tied to food intake.' },
           { id: 'Jumlah buang air besar dan skor bentuk feses, muntah, jika ada.', zh: '排便次數與糞便型態評分、嘔吐次數（若有）。', en: 'Bowel movement count, fecal score, and vomiting episodes (if any).' },
         ]} />
-        <p className="text-xs text-gray-500">
+        <p className="text-xs text-slate-500">
           {text({
             id: 'Rentang referensi gula darah 80–120 mg/dL yang ditampilkan aplikasi hanya berlaku untuk anjing/kucing, bukan manusia, dan tetap harus dibandingkan dengan target yang ditentukan dokter hewan untuk masing-masing hewan.',
             zh: 'App 顯示的血糖參考範圍 80–120 mg/dL 僅適用於犬貓，不適用於人類，實際判讀仍須依獸醫為個別動物設定的目標值。',

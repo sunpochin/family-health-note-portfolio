@@ -116,8 +116,8 @@ export function TrajectoryEventRow({ event, bpRecords, bpUnavailable, patientId,
     const categoryLabel = resolveMedicationCategory(event.medication.atc_code)
     const doseText = event.doseAmount != null ? formatDoseAmountLocalized(event.doseAmount, event.dosageForm || 'tablet', locale) : null
     const slotLabel = event.scheduleSlot ? text(medicationSlotText(event.scheduleSlot)) : null
-    return <li className="border-l-4 border-indigo-300 pl-3">
-      <div className="flex flex-wrap items-center gap-x-2 gap-y-1"><span className="rounded-full bg-indigo-50 px-2 py-0.5 text-xs font-bold text-indigo-800">{text(TRAJECTORY_DIRECTION_LABELS[event.direction])}</span><time className="text-xs text-slate-500">{dayjs(event.occurredAt).tz(TZ).format('YYYY/MM/DD')}</time></div>
+    return <li className="border-l-4 border-brand-200 pl-3">
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-1"><span className="rounded-full bg-brand-50 px-2 py-0.5 text-xs font-bold text-brand-700">{text(TRAJECTORY_DIRECTION_LABELS[event.direction])}</span><time className="text-xs text-slate-500">{dayjs(event.occurredAt).tz(TZ).format('YYYY/MM/DD')}</time></div>
       <h3 className="mt-1 font-bold text-slate-900">{medicationName}</h3>
       <p className="mt-1 text-sm text-slate-700">{[categoryLabel ? text(categoryLabel) : null, slotLabel, doseText, event.asNeeded ? text(AS_NEEDED_TEXT) : null].filter(Boolean).join(' · ')}</p>
       {event.reason && <p className="mt-1 text-sm italic text-slate-600">{event.reason}</p>}
@@ -145,15 +145,18 @@ export function TrajectoryEventRow({ event, bpRecords, bpUnavailable, patientId,
   const demoPhotos: CareEventPhotoAttachment[] = (entry.demo_photo_urls ?? []).map(url => ({ path: url, thumbnail_path: url, thumbnailUrl: url }))
   const photos = demoPhotos.length > 0 ? demoPhotos : normalizeCareEventPhotoPaths(entry.photo_paths, true)
 
-  return <li className={`border-l-4 pl-3 ${isFamilyObservation ? 'border-family-300' : 'border-indigo-300'}`}>
-    <div className="flex flex-wrap items-center gap-x-2 gap-y-1"><span className={`rounded-full px-2 py-0.5 text-xs font-bold ${isFamilyObservation ? 'bg-family-50 text-family-800' : 'bg-indigo-50 text-indigo-800'}`}>{text(careTimelineEventText[entry.event_type])}</span><time className="text-xs text-slate-500">{dayjs(entry.occurred_at).tz(TZ).format('YYYY/MM/DD HH:mm')}</time></div>
+  // 色彩分工（#1145、設計文件 §4.1／§4.2）：臨床事件走 brand（淡綠色條＋pill），家屬觀察走 family 暖色。
+  // 兩者靠「pill 文字＋色條色相」雙重區分，不能只靠單一顏色；owner 已在 #1145 確認用 brand 而非中性 slate。
+  // 刪除鈕刻意維持 danger 紅（含 focus ring）：它是破壞性動作，不併入「focus ring 統一為 brand-700」。
+  return <li className={`border-l-4 pl-3 ${isFamilyObservation ? 'border-family-300' : 'border-brand-200'}`}>
+    <div className="flex flex-wrap items-center gap-x-2 gap-y-1"><span className={`rounded-full px-2 py-0.5 text-xs font-bold ${isFamilyObservation ? 'bg-family-50 text-family-800' : 'bg-brand-50 text-brand-700'}`}>{text(careTimelineEventText[entry.event_type])}</span><time className="text-xs text-slate-500">{dayjs(entry.occurred_at).tz(TZ).format('YYYY/MM/DD HH:mm')}</time></div>
     <h3 className="mt-1 font-bold text-slate-900">{entry.title}</h3>
     {entry.details && <p className="mt-1 whitespace-pre-wrap text-sm text-slate-700">{entry.details}</p>}
     {entry.reassess_on && <p className="mt-1 text-xs font-semibold text-amber-800">{text({ id: `Evaluasi lagi: ${entry.reassess_on}`, zh: `下次評估：${entry.reassess_on}`, en: `Reassess on: ${entry.reassess_on}` })}</p>}
     {photos.length > 0 && <TrajectoryEventPhotos photos={photos} isDemo={demoPhotos.length > 0} />}
     <TrajectoryClosestReadings records={bpRecords} occurredAt={entry.occurred_at} unavailable={bpUnavailable} />
     {!isProtected && <div className="mt-2 flex flex-wrap gap-2">
-      <button type="button" disabled={editor.saving} onClick={() => editor.beginEdit(entry)} className="min-h-11 rounded-lg border border-indigo-200 bg-white px-3 py-1.5 text-xs font-bold text-indigo-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2">{text({ id: 'Ubah', zh: '修改', en: 'Edit' })}</button>
+      <button type="button" disabled={editor.saving} onClick={() => editor.beginEdit(entry)} className="min-h-11 rounded-lg border border-brand-200 bg-white px-3 py-1.5 text-xs font-bold text-brand-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-700 focus-visible:ring-offset-2">{text({ id: 'Ubah', zh: '修改', en: 'Edit' })}</button>
       <button type="button" disabled={editor.saving} onClick={() => editor.remove(entry)} className="min-h-11 rounded-lg border border-red-200 bg-white px-3 py-1.5 text-xs font-bold text-red-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-2">{text({ id: 'Hapus', zh: '刪除', en: 'Delete' })}</button>
     </div>}
     <ReviewToggle open={reviewOpen} onToggle={onToggleReview} />
@@ -163,5 +166,5 @@ export function TrajectoryEventRow({ event, bpRecords, bpUnavailable, patientId,
 
 function ReviewToggle({ open, onToggle }: { open: boolean; onToggle: () => void }) {
   const { text } = useI18n()
-  return <button type="button" aria-expanded={open} onClick={onToggle} className="mt-2 min-h-11 rounded-lg border border-indigo-200 bg-white px-3 py-1.5 text-xs font-bold text-indigo-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2">{text(open ? REVIEW_TOGGLE_TEXT.close : REVIEW_TOGGLE_TEXT.open)}</button>
+  return <button type="button" aria-expanded={open} onClick={onToggle} className="mt-2 min-h-11 rounded-lg border border-brand-200 bg-white px-3 py-1.5 text-xs font-bold text-brand-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-700 focus-visible:ring-offset-2">{text(open ? REVIEW_TOGGLE_TEXT.close : REVIEW_TOGGLE_TEXT.open)}</button>
 }

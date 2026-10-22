@@ -1,7 +1,12 @@
 /*
 檔案用途：解析多租戶 Domain、子網域與特定家庭情境設定。
 所在層：src/lib；為多租戶判斷輔助層。
-主要關聯：由 TenantApp 與系統網域邏輯使用。
+主要關聯：由 features/care-family 的家庭／病人管理元件與邀請 hooks 使用。TenantApp 已隨 #1169 移除，
+fetchTenantContext、beginHouseholdOnboarding、saveTenantBpRecord 目前沒有 production 呼叫端，僅剩單元測試；
+刻意先留著，因為它們背後是資料庫 RPC，是否一併移除需另案評估，不在死碼清理範圍內。
+HouseholdMemberManagement 與它專用的五個 helper（成員新增／移除、逐人逐病人授權的讀寫）已隨 #1173 移除：
+該畫面自 2026-07-30 起沒有掛載點，家人加入與撤銷走 caregiverInvitations 的邀請流程。
+對應的 add／remove_household_member、set／fetch_household_patient_access RPC 仍在資料庫，這裡不動。
 */
 import { supabase } from './supabase'
 
@@ -136,7 +141,14 @@ export async function createHouseholdPatientInvitationWithEmail(displayName: str
   const { data, error } = await supabase.functions.invoke('send-invitation-email', {
     body: { kind: 'patient', displayName: displayName.trim(), invitedEmail: invitedEmail.trim(), authorizationBasis: authorizationBasis.trim() },
   })
-  if (error) throw error
+  if (error) {
+    // FunctionsHttpError 的 message 只有 HTTP 狀態；只認回應中的固定額滿碼，其他錯誤保留通用提示。
+    if (error.context instanceof Response) {
+      const body = await error.context.clone().json().catch(() => null)
+      if (body?.error === 'household_care_recipient_limit') throw new Error('household_care_recipient_limit')
+    }
+    throw error
+  }
   const row = data as { emailStatus?: CreatedPatientCareInvitation['emailStatus']; invitation?: { invitationId?: string; patientId?: string; token?: string; expiresAt?: string; invitedEmail?: string } } | null
   if (!row) throw new Error('Undangan pasien tidak dapat dibuat. / 無法建立被照顧者邀請。')
   const invitation = row?.invitation
@@ -216,14 +228,6 @@ export async function declinePatientCareInvitation(invitationId: string): Promis
   if (error) throw error
 }
 
-export interface HouseholdMemberInfo {
-  user_id: string
-  email: string
-  display_name: string | null
-  role: HouseholdRole
-  created_at: string
-}
-
 export interface ManagedPatient {
   patient_id: string
   display_name: string
@@ -233,35 +237,11 @@ export interface ManagedPet extends ManagedPatient {
   care_recipient_type: Exclude<CareRecipientType, 'human'>
 }
 
-export interface PatientAccessGrant {
-  profile_email: string
-  patient_id: string
-  can_record: boolean
-  can_manage_medication: boolean
-}
-
-export async function fetchHouseholdMembers(): Promise<HouseholdMemberInfo[]> {
-  const { data, error } = await supabase.rpc('fetch_household_members')
-  if (error) throw error
-  return (data ?? []) as HouseholdMemberInfo[]
-}
-
 export async function fetchCurrentHouseholdRole(): Promise<HouseholdRole> {
   const { data, error } = await supabase.rpc('fetch_current_household_role')
   if (error) throw error
   if (data !== 'owner' && data !== 'caregiver' && data !== 'viewer') throw new Error('Peran ruang keluarga tidak valid. / 家庭角色不正確。')
   return data
-}
-
-export async function addHouseholdMember(email: string, role: HouseholdRole = 'caregiver'): Promise<void> {
-  if (!email.trim()) throw new Error('Email harus diisi. / 請輸入 Email。')
-  const { error } = await supabase.rpc('add_household_member', { p_email: email.trim(), p_role: role })
-  if (error) throw error
-}
-
-export async function removeHouseholdMember(userId: string): Promise<void> {
-  const { error } = await supabase.rpc('remove_household_member', { p_user_id: userId })
-  if (error) throw error
 }
 
 export async function fetchHouseholdManagementPatients(): Promise<ManagedPatient[]> {
@@ -284,21 +264,5 @@ export async function fetchHouseholdArchivedPets(): Promise<ManagedPet[]> {
 
 export async function archiveHouseholdPet(patientId: string): Promise<void> {
   const { error } = await supabase.rpc('archive_household_pet', { p_patient_id: patientId })
-  if (error) throw error
-}
-
-export async function fetchHouseholdPatientAccess(): Promise<PatientAccessGrant[]> {
-  const { data, error } = await supabase.rpc('fetch_household_patient_access')
-  if (error) throw error
-  return (data ?? []) as PatientAccessGrant[]
-}
-
-export async function setHouseholdPatientAccess(email: string, patientId: string, canRecord: boolean, canManageMedication: boolean): Promise<void> {
-  const { error } = await supabase.rpc('set_household_patient_access', {
-    p_profile_email: email.trim(),
-    p_patient_id: patientId,
-    p_can_record: canRecord,
-    p_can_manage_medication: canManageMedication,
-  })
   if (error) throw error
 }

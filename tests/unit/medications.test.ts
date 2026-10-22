@@ -67,10 +67,10 @@ const { saveDemoPatientMedicationInstruction } = await import('../../src/lib/dem
 import type { MedicationPlanView } from '../../src/lib/medication/medications'
 
 const plan: MedicationPlanView = {
-  id: 'portfolio-author-latrigine-am',
-  account_email: ' admin@careapp.local ',
+  id: 'owner-norvasc-am',
+  account_email: ' Owner@Example.com ',
   patient_id: 'patient-1',
-  medication_id: 'latrigine-50',
+  medication_id: 'norvasc-5',
   schedule_slot: 'morning',
   as_needed: false,
   dose_amount: 1,
@@ -79,14 +79,14 @@ const plan: MedicationPlanView = {
   active: true,
   created_at: '2026-07-11T00:00:00.000Z',
   medication: {
-    id: 'latrigine-50',
+    id: 'norvasc-5',
     drug_product_id: null,
-    brand_name: 'Latrigine',
+    brand_name: 'Norvasc',
     brand_name_zh: null,
-    generic_name: 'Lamotrigine',
-    strength_mg: 50,
+    generic_name: 'Amlodipine',
+    strength_mg: 5,
     dosage_form: 'tablet',
-    appearance_note: 'Green print',
+    appearance_note: 'White round',
     appearance_color: null,
     appearance_shape: null,
     appearance_photo_url: null,
@@ -96,12 +96,12 @@ const plan: MedicationPlanView = {
 
 describe('structured medication dose records & change logs', () => {
   test('keeps strength numeric and records each pill separately', () => {
-    expect(plan.medication.strength_mg).toBe(50)
+    expect(plan.medication.strength_mg).toBe(5)
     expect(buildMedicationDoseInsert(plan, '2026-07-10', 2, ' Caregiver@example.com ', '2026-07-10T19:00:00.000Z')).toMatchObject({
       account_email: 'caregiver@example.com',
-      medication_id: 'latrigine-50',
-      medication_name: 'Latrigine',
-      plan_id: 'portfolio-author-latrigine-am',
+      medication_id: 'norvasc-5',
+      medication_name: 'Norvasc',
+      plan_id: 'owner-norvasc-am',
       dose_number: 2,
       taken_on: '2026-07-11',
       care_date: '2026-07-10',
@@ -212,7 +212,7 @@ describe('structured medication dose records & change logs', () => {
   test('only celebrates a meal when every routine dose is checked, not when an optional medicine is skipped', () => {
     const optionalPlan = { ...plan, id: 'optional-plan', as_needed: true }
     const secondRoutinePlan = { ...plan, id: 'second-routine-plan' }
-    expect(completesRequiredMedicationSlot([plan, optionalPlan], [{ id: 'log-1', account_email: 'admin@careapp.local', patient_id: 'patient-1', medication_id: 'latrigine-50', medication_name: 'Latrigine', plan_id: plan.id, dose_number: 1, taken_on: '2026-07-22', taken_at: '2026-07-22T01:00:00.000Z', created_at: '2026-07-22T01:00:00.000Z' }], plan.id, 2)).toBe(true)
+    expect(completesRequiredMedicationSlot([plan, optionalPlan], [{ id: 'log-1', account_email: 'owner@example.com', patient_id: 'patient-1', medication_id: 'norvasc-5', medication_name: 'Norvasc', plan_id: plan.id, dose_number: 1, taken_on: '2026-07-22', taken_at: '2026-07-22T01:00:00.000Z', created_at: '2026-07-22T01:00:00.000Z' }], plan.id, 2)).toBe(true)
     expect(completesRequiredMedicationSlot([plan, secondRoutinePlan], [], plan.id, 2)).toBe(false)
   })
 
@@ -230,15 +230,15 @@ describe('structured medication dose records & change logs', () => {
           patient_id: 'pat-1',
           action: 'create',
           plan_id: 'p-1',
-          medication_id: 'latrigine-50',
+          medication_id: 'norvasc-5',
           schedule_slot: 'morning',
           dose_amount: 1,
           dose_count: 1,
           as_needed: false,
           reason: '新增藥單',
-          actor_email: 'admin@careapp.local',
+          actor_email: 'owner@example.com',
           before_snapshot: {},
-          after_snapshot: { plan_id: 'p-1', medication_id: 'latrigine-50', schedule_slot: 'morning', dose_amount: 1, dose_count: 1, as_needed: false, active: true, brand_name: 'Latrigine', dosage_form: 'tablet' },
+          after_snapshot: { plan_id: 'p-1', medication_id: 'norvasc-5', schedule_slot: 'morning', dose_amount: 1, dose_count: 1, as_needed: false, active: true, brand_name: 'Norvasc', dosage_form: 'tablet' },
           recorded_at: '2026-08-01T00:00:00Z',
           effective_at: '2026-08-01T00:00:00Z',
           created_at: '2026-08-01T00:00:00Z',
@@ -254,14 +254,14 @@ describe('structured medication dose records & change logs', () => {
     const history = await readMedicationHistory('pat-1')
     expect(history.length).toBe(1)
     expect(history[0].action).toBe('create')
-    expect(history[0].medication.brand_name).toBe('Latrigine')
+    expect(history[0].medication.brand_name).toBe('Norvasc')
   })
 
   test('readMedicationHistory silently drops a change log whose medication has since been removed from the catalog', async () => {
     changeLogsResponse = {
       data: [
         {
-          id: 'log-1', patient_id: 'pat-1', action: 'create', plan_id: 'p-1', medication_id: 'latrigine-50',
+          id: 'log-1', patient_id: 'pat-1', action: 'create', plan_id: 'p-1', medication_id: 'norvasc-5',
           schedule_slot: 'morning', dose_amount: 1, dose_count: 1, as_needed: false, reason: '新增藥單',
           actor_email: 'caregiver@example.com', before_snapshot: {}, after_snapshot: {},
           recorded_at: '2026-08-01T00:00:00Z', effective_at: '2026-08-01T00:00:00Z', created_at: '2026-08-01T00:00:00Z',

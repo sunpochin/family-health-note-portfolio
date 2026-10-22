@@ -29,9 +29,9 @@ export function UpcomingScheduleSection({ patientId, isDemoMode }: { patientId: 
         type="button"
         aria-pressed={days === value}
         onClick={() => setDays(value as AgendaDays)}
-        className={`min-h-11 cursor-pointer rounded-xl px-4 text-base font-bold transition-colors duration-150 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-900 motion-reduce:transition-none ${days === value ? 'bg-slate-900 text-white' : 'border border-slate-300 bg-white text-slate-700'}`}
+        className={`min-h-11 cursor-pointer rounded-xl px-4 text-base font-bold transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-700 focus-visible:ring-offset-2 motion-reduce:transition-none ${days === value ? 'bg-slate-900 text-white' : 'border border-slate-300 bg-white text-slate-700'}`}
       >{text(common.days(value))}</button>)}
-      <button type="button" onClick={refresh} disabled={status === 'loading'} className="ml-auto min-h-11 cursor-pointer rounded-xl border border-slate-300 bg-white px-4 text-base font-bold text-slate-700 transition-colors duration-150 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-900 disabled:cursor-not-allowed disabled:opacity-50 motion-reduce:transition-none">
+      <button type="button" onClick={refresh} disabled={status === 'loading'} className="ml-auto min-h-11 cursor-pointer rounded-xl border border-slate-300 bg-white px-4 text-base font-bold text-slate-700 transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-700 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 motion-reduce:transition-none">
         {text({ id: 'Muat ulang', zh: '重新整理', en: 'Reload' })}
       </button>
     </div>
@@ -39,11 +39,12 @@ export function UpcomingScheduleSection({ patientId, isDemoMode }: { patientId: 
 
     <div className="mt-4" aria-live="polite">
       {status === 'loading' && <p className="rounded-2xl bg-slate-50 p-4 text-base text-slate-700">{text(common.loading)}</p>}
-      {status === 'demo' && <p className="rounded-2xl border border-indigo-200 bg-indigo-50 p-4 text-base text-indigo-950">{text({ id: 'Mode demo belum terhubung ke Google Calendar.', zh: '展示模式尚未連結 Google Calendar。', en: 'Demo mode is not connected to Google Calendar yet.' })}</p>}
+      {/* 展示模式提示是系統訊息，依設計系統用 info-* token（sky／indigo 不再當一般色）。 */}
+      {status === 'demo' && <p className="rounded-2xl border border-info-700/30 bg-info-50 p-4 text-base text-slate-900">{text({ id: 'Mode demo belum terhubung ke Google Calendar.', zh: '展示模式尚未連結 Google Calendar。', en: 'Demo mode is not connected to Google Calendar yet.' })}</p>}
       {status === 'notConfigured' && <p className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-base text-amber-950">{text({ id: 'Jadwal Google untuk penerima perawatan ini belum dihubungkan.', zh: '這位照護對象尚未連結 Google 行程。', en: 'Google Calendar is not connected for this care recipient yet.' })}</p>}
       {status === 'error' && <div role="alert" className="rounded-2xl border border-rose-200 bg-rose-50 p-4 text-base text-rose-950">
         <p>{text({ id: 'Jadwal tidak dapat dimuat. Coba lagi nanti.', zh: '行程載入失敗，請稍後再試。', en: 'Unable to load the schedule. Please try again later.' })}</p>
-        <button type="button" onClick={refresh} className="mt-3 min-h-11 cursor-pointer rounded-xl bg-rose-700 px-4 text-base font-bold text-white transition-colors duration-150 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rose-900 motion-reduce:transition-none">{text(common.retry)}</button>
+        <button type="button" onClick={refresh} className="mt-3 min-h-11 cursor-pointer rounded-xl bg-rose-700 px-4 text-base font-bold text-white transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-700 focus-visible:ring-offset-2 motion-reduce:transition-none">{text(common.retry)}</button>
       </div>}
       {status === 'ready' && events.length === 0 && <p className="rounded-2xl bg-slate-50 p-4 text-base text-slate-700">{text({ id: `Tidak ada jadwal dalam ${days} hari ke depan.`, zh: `未來 ${days} 天沒有行程。`, en: `No appointments in the next ${days} days.` })}</p>}
       {status === 'ready' && events.length > 0 && <UpcomingScheduleList events={events} />}

@@ -4,8 +4,8 @@
 所在層：src/hooks；提供給任何需要「危險操作前二次確認」的元件。
 2026-09-25（PR #922）：面板改為最高與視窗同高、只有訊息區捲動，長同意文字在短螢幕也按得到按鈕。
 主要關聯：取代先前散落在 AdminPage／CareTimeline／CareRecipientManagement／
-  HouseholdMemberManagement／MedicationTodayCard／MedicationAdminSection／
-  TemperaturePage／DailyBloodPressureRecords 各處的 window.confirm 呼叫——
+  MedicationTodayCard／MedicationAdminSection／
+  TemperaturePage／DailyBloodPressureRecords 各處（HouseholdMemberManagement 已隨 #1173 移除）的 window.confirm 呼叫——
   部分行動瀏覽器在短時間內彈出多次原生對話框後會直接封鎖或讓 confirm() 拋出例外，
   讓整個送出流程在畫面上毫無反應（真實案例：儲存藥物調整時「按了沒反應」）。
 */
@@ -87,10 +87,12 @@ export function useConfirm() {
     return () => document.removeEventListener('keydown', handleKeyDown)
   }, [hasDom, request, settle])
 
+  // 遮罩色改成 slate-950/55（與 PwaUpdatePrompt 的 sheet 遮罩同色，design doc §4.4）；backdrop-blur 一併拿掉，因為 §4.4 規定 flat、不用 glassmorphism。
+  // 確認鈕改用語意 token brand-700（與原 emerald-700 同值），之後調品牌色只需改 @theme 一處。
   const dialog = request && (
     <div
       ref={dialogRef}
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-xs"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/55 p-4"
       role="alertdialog"
       aria-modal="true"
       aria-describedby="confirm-dialog-message"
@@ -98,7 +100,7 @@ export function useConfirm() {
       {/* 為什麼限制高度並讓訊息區捲動：外層是 fixed＋垂直置中，面板若比視窗高，上下兩端（含按鈕）都會被裁掉，
           使用者連「取消」都按不到。唯讀分享的同意文字（印尼文約 900 字）在短螢幕手機或橫向時就會超出（PR #922 Codex P1）。
           面板最高等於視窗扣掉外層 padding，只有訊息區捲動，按鈕列 shrink-0 永遠留在畫面內。 */}
-      <div className="flex max-h-full w-full max-w-sm flex-col rounded-3xl border border-gray-100 bg-white p-5 text-gray-900 shadow-xl">
+      <div className="flex max-h-full w-full max-w-sm flex-col rounded-3xl border border-slate-100 bg-white p-5 text-slate-900 shadow-xl">
         {/* 保留原生 confirm() 對多行文字（\n）的排版方式，避免醫囑摘要擠成一行看不清楚。 */}
         <p id="confirm-dialog-message" className="min-h-0 overflow-y-auto overscroll-contain whitespace-pre-line text-sm leading-relaxed">{request.message}</p>
         <div className="mt-4 flex shrink-0 gap-2">
@@ -106,14 +108,14 @@ export function useConfirm() {
             ref={cancelButtonRef}
             type="button"
             onClick={() => settle(false)}
-            className="min-h-11 flex-1 rounded-xl border border-gray-300 bg-white px-3 py-2.5 text-xs font-bold text-gray-700 transition active:bg-gray-100"
+            className="min-h-11 flex-1 rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-xs font-bold text-slate-700 transition active:bg-slate-100"
           >
             {text({ id: 'Batal', zh: '取消' ,en: "Cancel" })}
           </button>
           <button
             type="button"
             onClick={() => settle(true)}
-            className={`min-h-11 flex-1 rounded-xl px-3 py-2.5 text-xs font-bold text-white shadow-sm transition ${request.danger ? 'bg-red-600 active:bg-red-700' : 'bg-emerald-700 active:bg-emerald-800'}`}
+            className={`min-h-11 flex-1 rounded-xl px-3 py-2.5 text-xs font-bold text-white shadow-sm transition ${request.danger ? 'bg-red-600 active:bg-red-700' : 'bg-brand-700 active:bg-emerald-800'}`}
           >
             {text({ id: 'Konfirmasi', zh: '確定' ,en: "Confirm" })}
           </button>

@@ -126,8 +126,8 @@ function toReminderFields(input: CreateCareDueReminderInput) {
 }
 
 // 照護閉環 T2（Codex review PR #952 P2）：關聯欄位走 patch 語意——表單沒提供的欄位就不送，讓只改到期日或門檻的
-// 編輯（CareDueRemindersPage 目前沒有連結欄位）不會把既有的 related_entry_id／related_lab_result_id／
-// visit_department 覆寫成 null；明確傳 null 才代表清除。藥量倒數例外：它跟臨床事件／檢驗值／科別無關，一律送
+// 編輯（例如其他呼叫端只改到期日）不會把既有的 related_entry_id／related_lab_result_id／
+// visit_department 覆寫成 null；明確傳 null 才代表清除；CareDueRemindersPage（T6）編輯時三欄都明確帶值，不依賴這個保留行為，但其他呼叫端仍可靠它。藥量倒數例外：它跟臨床事件／檢驗值／科別無關，一律送
 // null——型別從回診改成藥量倒數時也要一併清掉，否則 care_due_reminders_medication_fields_check 會擋。
 function toClinicalLinkFields(input: CreateCareDueReminderInput, isMedication: boolean) {
   if (isMedication) return { related_entry_id: null, related_lab_result_id: null, visit_department: null }

@@ -19,7 +19,7 @@ export function FamilyInvitationGuidePage() {
         en: 'Step-by-step instructions for inviting a patient or a family member caregiver in Family Health Note.',
       }}
     >
-      <div className="rounded-2xl border border-indigo-200 bg-indigo-50 p-4 text-sm leading-6 text-indigo-950">
+      <div className="rounded-2xl border border-brand-200 bg-brand-50 p-4 text-sm leading-6 text-slate-900">
         {text({
           id: 'Ada dua jenis undangan. Pilih yang sesuai: orang yang dirawat masuk untuk mengonfirmasi identitasnya sendiri, atau anggota keluarga masuk untuk membantu merawat pasien yang sudah ada.',
           zh: '家健錄有兩種邀請，請先選對：被照顧者本人登入確認自己的身分，或是家人登入後協助照護已存在的病人。',
@@ -51,19 +51,19 @@ export function FamilyInvitationGuidePage() {
       </GuideSection>
 
       <GuideSection title={{ id: 'Perbedaan yang paling penting', zh: '最容易搞混的差別', en: 'The most important difference' }}>
-        <div className="overflow-x-auto rounded-xl border border-gray-200">
+        <div className="overflow-x-auto rounded-xl border border-slate-200">
           <table className="w-full min-w-[32rem] text-left text-sm">
-            <thead className="bg-gray-50 text-gray-800">
+            <thead className="bg-slate-50 text-slate-800">
               <tr>
                 <th className="p-3 font-bold">{text({ id: 'Pertanyaan', zh: '問題', en: 'Question' })}</th>
                 <th className="p-3 font-bold">{text({ id: 'Orang yang dirawat', zh: '被照顧者本人', en: 'Patient' })}</th>
                 <th className="p-3 font-bold">{text({ id: 'Anggota keluarga', zh: '家人照護者', en: 'Family caregiver' })}</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-100">
-              <tr><th className="p-3 font-semibold text-gray-700">{text({ id: 'Apa yang dikonfirmasi?', zh: '確認什麼？', en: 'What is confirmed?' })}</th><td className="p-3">{text({ id: 'Identitas pasien sendiri', zh: '本人被照顧者身分', en: 'The patient’s own identity' })}</td><td className="p-3">{text({ id: 'Permintaan membantu pasien tertentu', zh: '協助特定病人的申請', en: 'A request to help a specific patient' })}</td></tr>
-              <tr><th className="p-3 font-semibold text-gray-700">{text({ id: 'Jalur masuk', zh: '入口', en: 'Entry route' })}</th><td className="p-3">/patient-invite</td><td className="p-3">/join</td></tr>
-              <tr><th className="p-3 font-semibold text-gray-700">{text({ id: 'Siapa yang menyetujui?', zh: '誰確認？', en: 'Who approves?' })}</th><td className="p-3">{text({ id: 'Orang yang diundang', zh: '受邀本人', en: 'The invited person' })}</td><td className="p-3">{text({ id: 'Pengelola keluarga', zh: '家庭管理者', en: 'The family owner' })}</td></tr>
+            <tbody className="divide-y divide-slate-100">
+              <tr><th className="p-3 font-semibold text-slate-700">{text({ id: 'Apa yang dikonfirmasi?', zh: '確認什麼？', en: 'What is confirmed?' })}</th><td className="p-3">{text({ id: 'Identitas pasien sendiri', zh: '本人被照顧者身分', en: 'The patient’s own identity' })}</td><td className="p-3">{text({ id: 'Permintaan membantu pasien tertentu', zh: '協助特定病人的申請', en: 'A request to help a specific patient' })}</td></tr>
+              <tr><th className="p-3 font-semibold text-slate-700">{text({ id: 'Jalur masuk', zh: '入口', en: 'Entry route' })}</th><td className="p-3">/patient-invite</td><td className="p-3">/join</td></tr>
+              <tr><th className="p-3 font-semibold text-slate-700">{text({ id: 'Siapa yang menyetujui?', zh: '誰確認？', en: 'Who approves?' })}</th><td className="p-3">{text({ id: 'Orang yang diundang', zh: '受邀本人', en: 'The invited person' })}</td><td className="p-3">{text({ id: 'Pengelola keluarga', zh: '家庭管理者', en: 'The family owner' })}</td></tr>
             </tbody>
           </table>
         </div>

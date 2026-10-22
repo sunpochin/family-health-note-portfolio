@@ -61,7 +61,8 @@ export function NextVisitCard({ reminder, loading, unavailable, demo, onOpenRemi
     <section className="mb-4 rounded-3xl border border-brand-200 bg-brand-50 p-5 shadow-sm" aria-labelledby="next-visit-next-title">
       <div className="flex items-center justify-between gap-2">
         <h2 id="next-visit-next-title" className="text-lg font-black text-ink">{text(TITLE)}</h2>
-        <button type="button" onClick={onOpenReminders} className="min-h-9 text-sm font-bold text-brand-700 underline decoration-brand-200 underline-offset-4">
+        {/* 觸控目標至少 44px（control-min）：看護單手、半夜操作時 36／40px 容易按錯，與 15 秒原則衝突（#1161）。 */}
+        <button type="button" onClick={onOpenReminders} className="min-h-11 text-sm font-bold text-brand-700 underline decoration-brand-200 underline-offset-4">
           {text(ALL_REMINDERS)}
         </button>
       </div>

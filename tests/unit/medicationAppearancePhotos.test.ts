@@ -110,7 +110,7 @@ describe('extractMedicationAppearancePhotoStoragePath', () => {
   })
 
   test('recovers the path from a legacy public URL left by a stale client during rollout', () => {
-    expect(extractMedicationAppearancePhotoStoragePath('https://nhdmksmcsvkfadgafooh.supabase.co/storage/v1/object/public/medication-appearance-photos/photos/abc-123.webp')).toBe('photos/abc-123.webp')
+    expect(extractMedicationAppearancePhotoStoragePath('https://your-project.supabase.co/storage/v1/object/public/medication-appearance-photos/photos/abc-123.webp')).toBe('photos/abc-123.webp')
   })
 
   test('rejects unrelated external URLs and traversal attempts', () => {
@@ -130,7 +130,7 @@ describe('signMedicationAppearancePhotoPath', () => {
   })
 
   test('signs a legacy public URL written by a stale client during the rollout window', async () => {
-    const url = await signMedicationAppearancePhotoPath('https://nhdmksmcsvkfadgafooh.supabase.co/storage/v1/object/public/medication-appearance-photos/photos/abc-123.webp')
+    const url = await signMedicationAppearancePhotoPath('https://your-project.supabase.co/storage/v1/object/public/medication-appearance-photos/photos/abc-123.webp')
     expect(url).toBe('https://storage.test/signed/photos/abc-123.webp?ttl=3600')
   })
 

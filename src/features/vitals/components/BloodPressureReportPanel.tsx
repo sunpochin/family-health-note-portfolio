@@ -1,7 +1,7 @@
 /*
 檔案用途：呈現單一照護對象的完整血壓報告——趨勢圖、統計卡片、逐筆報告與 CSV 匯出。
 所在層：src/features/vitals/components；由血壓模組的「近期趨勢」與封存對象的唯讀歷史頁共用同一份內容。
-主要關聯：useBpRecords、DashboardChart、DashboardStatsCards、RecordReport、readMedicationHistory、readMedicationDay。
+主要關聯：useBpRecords、DashboardChart、DashboardStatsCards、ReportExportActions、RecordReport、readMedicationHistory、readMedicationDay。
 
 為什麼合併成一個元件：原本這些內容集中在獨立的「報告」底部分頁，但趨勢圖與體溫圖其實
 已經跟血壓、體溫模組自己的「近期趨勢」重複顯示。拆分後這裡只保留真正不重複的部分
@@ -13,7 +13,6 @@
 */
 import { useEffect, useMemo, useState } from 'react'
 import { useBpRecords } from '../../../hooks/useBpRecords'
-import { useDarkColorScheme } from '../../../hooks/useDarkColorScheme'
 import { common, useI18n } from '../../../lib/i18n'
 import { summarizeBpRecords } from '../../../lib/dashboardStats'
 import { careDateKey } from '../../../lib/careDay'
@@ -23,10 +22,12 @@ import type { PatientIdentity } from '../../../lib/auth'
 import { DashboardChart } from './DashboardChart'
 import { DashboardStatsCards } from './DashboardStatsCards'
 import { RecordReport } from './RecordReport'
+import { ReportExportActions } from './ReportExportActions'
 import { usePreVisitSources } from '../hooks/usePreVisitSources'
 import { useAddBriefToVisitQuestions } from '../hooks/useAddBriefToVisitQuestions'
 import { isDemoPatientId } from '../../../lib/demoData'
 import { BpStandardProvider, useBpEvaluator } from '../hooks/useBpEvaluator'
+import { Icon } from '../../../components/ui/Icon'
 
 /**
  * 這個面板自己掛一層 BpStandardProvider，不依賴 App.tsx 那一層。
@@ -46,6 +47,9 @@ export function BloodPressureReportPanel(props: {
   allowQuestionAdoption?: boolean
   // 成功加入問題清單後通知掛載端（門診頁要重新讀同頁的問題清單與「醫師說了什麼」）。
   onQuestionAdopted?: () => void
+  // 同頁的輸入表單新增／修改／刪除血壓後遞增；面板展開時是另一份 useBpRecords，不帶這個值就會停在舊資料，
+  // 剛量的那一筆不會出現在「每日紀錄」。唯讀路徑（封存歷史、門診頁）沒有同頁寫入，可省略。
+  refreshVersion?: number
 }) {
   return (
     <BpStandardProvider patientId={props.patientId}>
@@ -54,7 +58,7 @@ export function BloodPressureReportPanel(props: {
   )
 }
 
-function BloodPressureReportPanelContent({ patientId, days, subjectLabel, careRecipientType, userEmail, allowQuestionAdoption = false, onQuestionAdopted }: {
+function BloodPressureReportPanelContent({ patientId, days, subjectLabel, careRecipientType, userEmail, allowQuestionAdoption = false, onQuestionAdopted, refreshVersion = 0 }: {
   patientId: string
   days: number
   subjectLabel: string
@@ -62,11 +66,11 @@ function BloodPressureReportPanelContent({ patientId, days, subjectLabel, careRe
   userEmail?: string
   allowQuestionAdoption?: boolean
   onQuestionAdopted?: () => void
+  refreshVersion?: number
 }) {
   const { text } = useI18n()
-  const { records, loading, error, isOfflineData, cacheUpdatedAt, refetch } = useBpRecords(days, patientId)
+  const { records, loading, error, isOfflineData, cacheUpdatedAt, refetch } = useBpRecords(days, patientId, refreshVersion)
   const evaluator = useBpEvaluator()
-  const usesDarkColorScheme = useDarkColorScheme()
   const [medicationChanges, setMedicationChanges] = useState<MedicationPlanChangeLogView[]>([])
   const [currentMedications, setCurrentMedications] = useState<MedicationPlanView[]>([])
   const { events: trajectoryEvents, sourceStatus: trajectorySourceStatus, baselineRecords, dueReminders, labResults, window: preVisitWindow } = usePreVisitSources(patientId, days)
@@ -107,10 +111,14 @@ function BloodPressureReportPanelContent({ patientId, days, subjectLabel, careRe
   if (loading || evaluator.loading) return <p role="status" className="text-sm text-slate-500">{text(common.loading)}</p>
   if (error) return <p role="alert" className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">
     {error}
-    <button type="button" className="ml-3 font-semibold underline" onClick={refetch}>{text(common.retry)}</button>
+    {/* 重試是報告讀取失敗時的主要恢復入口，保留 44px 觸控高度。 */}
+    <button type="button" className="ml-3 inline-flex min-h-11 items-center font-semibold underline" onClick={refetch}>{text(common.retry)}</button>
   </p>
 
   const summary = summarizeBpRecords(records, evaluator.resolver)
+  // 標準讀不到時不得匯出：CSV 與 GPT 摘要會在每一列印出判讀標準，
+  // 那份檔案會離開 app 進到醫師手上，不能帶著一份我們自己都不確定的判讀出去。
+  const canExport = Boolean(userEmail) && evaluator.error == null
 
   return (
     <div className="space-y-4">
@@ -118,13 +126,14 @@ function BloodPressureReportPanelContent({ patientId, days, subjectLabel, careRe
         <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-xs text-red-800" role="alert">
           <p className="font-semibold">{text({ id: 'Standar penilaian tidak terbaca', zh: '判讀標準讀取失敗', en: 'Could not read the interpretation standard' })}</p>
           <p className="mt-0.5">{text({ id: 'Warna dan hitungan di bawah sementara memakai standar dewasa umum, bukan target pasien ini. Ekspor dinonaktifkan sampai berhasil dibaca.', zh: '以下顏色與統計暫時以一般成人標準計算，不是這位照護對象的目標。讀取成功前停用匯出。', en: 'The colours and counts below temporarily use the general adult standard, not this person’s target. Export is disabled until it loads.' })}</p>
-          <button type="button" className="mt-1 font-semibold underline" onClick={() => evaluator.reload()}>{text(common.retry)}</button>
+          {/* 判讀標準失敗時的重試會恢復血壓報告正確性，按鈕至少 44px 高。 */}
+          <button type="button" className="mt-1 inline-flex min-h-11 items-center font-semibold underline" onClick={() => evaluator.reload()}>{text(common.retry)}</button>
         </div>
       )}
 
       {isOfflineData && (
         <div className="rounded-xl bg-amber-50 border border-amber-200 p-3 text-xs text-amber-850 flex items-center gap-2" role="status">
-          <span className="text-base">⚠️</span>
+          <Icon name="alert-triangle" className="h-5 w-5 shrink-0" />
           <div>
             <p className="font-semibold">{text({ id: 'Mode Offline', zh: '離線模式', en: 'Offline Mode' })}</p>
             <p className="mt-0.5 text-amber-600">{text({ id: 'Tidak ada internet. Menampilkan data cache.', zh: '目前無網路，顯示的是快取資料。', en: 'No internet connection. Showing cached data.' })}</p>
@@ -133,14 +142,28 @@ function BloodPressureReportPanelContent({ patientId, days, subjectLabel, careRe
       )}
 
       {careRecipientType && careRecipientType !== 'human' && (
-        <div className="rounded-xl bg-indigo-50 border border-indigo-200 p-3 text-xs text-indigo-950 flex items-center gap-2">
-          <span className="text-base">🐾</span>
+        <div className="rounded-xl bg-brand-50 border border-brand-200 p-3 text-xs text-slate-900 flex items-center gap-2">
+          <Icon name="paw" className="h-5 w-5 shrink-0 text-brand-700" />
           <div>
             <p className="font-bold">{text({ id: 'Catatan Kesehatan Hewan', zh: '寵物健康與日常紀錄', en: 'Pet health and routine' })}</p>
-            <p className="mt-0.5 text-indigo-900">{text({ id: 'Tekanan darah hewan umumnya diukur di klinik veteriner. Gunakan aplikasi ini untuk memantau berat badan, jadwal obat, dan peristiwa kesehatan harian.', zh: '寵物血壓常規由獸醫師診所量測；家健錄為您聚焦體重變化、服藥紀錄與健康大事記。', en: 'Your pet’s blood pressure is routinely measured by your veterinarian’s office; your home health record keeps you focused on weight changes, medication records, and health memories.' })}</p>
+            <p className="mt-0.5 text-slate-800">{text({ id: 'Tekanan darah hewan umumnya diukur di klinik veteriner. Gunakan aplikasi ini untuk memantau berat badan, jadwal obat, dan peristiwa kesehatan harian.', zh: '寵物血壓常規由獸醫師診所量測；家健錄為您聚焦體重變化、服藥紀錄與健康大事記。', en: 'Your pet’s blood pressure is routinely measured by your veterinarian’s office; your home health record keeps you focused on weight changes, medication records, and health memories.' })}</p>
           </div>
         </div>
       )}
+
+      {/* 輸出工具列放在面板最上方（在錯誤／離線提示之後，讓使用者先看到資料狀態再按），
+          不必捲過趨勢圖、統計卡與逐日明細才找得到「複製摘要」。 */}
+      <ReportExportActions
+        records={records}
+        subjectLabel={subjectLabel}
+        selectedDays={days}
+        canExport={canExport}
+        isOfflineData={isOfflineData}
+        cacheUpdatedAt={cacheUpdatedAt}
+        trajectoryEvents={trajectoryEvents}
+        trajectorySourceStatus={trajectorySourceStatus}
+        preVisitBriefItems={preVisitBriefItems}
+      />
 
       {records.length === 0
         ? <p className="text-sm text-slate-500">{text({ id: 'Belum ada catatan tekanan darah pada rentang ini.', zh: '這個區間還沒有血壓紀錄。', en: 'No blood pressure records in this range yet.' })}</p>
@@ -149,7 +172,6 @@ function BloodPressureReportPanelContent({ patientId, days, subjectLabel, careRe
             days={days}
             subjectLabel={subjectLabel}
             isOfflineData={isOfflineData}
-            usesDarkColorScheme={usesDarkColorScheme}
             medicationChanges={medicationChanges}
           />}
 
@@ -159,9 +181,6 @@ function BloodPressureReportPanelContent({ patientId, days, subjectLabel, careRe
         records={records}
         subjectLabel={subjectLabel}
         selectedDays={days}
-        // 標準讀不到時不得匯出：CSV 與 GPT 摘要會在每一列印出判讀標準，
-        // 那份檔案會離開 app 進到醫師手上，不能帶著一份我們自己都不確定的判讀出去。
-        canExport={Boolean(userEmail) && evaluator.error == null}
         isOfflineData={isOfflineData}
         cacheUpdatedAt={cacheUpdatedAt}
         currentMedications={currentMedications}

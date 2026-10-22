@@ -22,11 +22,13 @@ const TONE_BADGE_CLASS: Record<AttentionTone, string> = {
   ok: 'bg-slate-200 text-slate-700',
 }
 
-export function AttentionItem({ tone = 'ok', title, badge, description, actions, onClick }: {
+export function AttentionItem({ tone = 'ok', title, badge, description, meta, actions, onClick }: {
   tone?: AttentionTone
   title: string
   badge?: string
   description?: string
+  // 說明文字下方的補充標記（例如提醒連結的來源 chip）；不傳就不佔位，既有呼叫端不受影響。
+  meta?: ReactNode
   actions?: ReactNode
   onClick?: () => void
 }) {
@@ -43,6 +45,7 @@ export function AttentionItem({ tone = 'ok', title, badge, description, actions,
           {badge && <span className={`shrink-0 rounded-full px-3 py-1 text-xs font-black ${TONE_BADGE_CLASS[tone]}`}>{badge}</span>}
         </div>
         {description && <p className="mt-1 text-sm font-medium text-slate-600">{description}</p>}
+        {meta}
       </Container>
       {actions && <div className="mt-3 flex flex-wrap gap-2">{actions}</div>}
     </li>

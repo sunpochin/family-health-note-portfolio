@@ -1,9 +1,11 @@
 /*
 檔案用途：處理個人與家庭藥單清單、藥物劑量與劑型之 CRUD 邏輯。
 所在層：src/lib；為用藥資料庫操作共用模組。
-主要關聯：由 MedicationPage、MedicationAdminSection 載入。
+主要關聯：由 MedicationPage、MedicationAdminSection 載入；服藥打卡離線佇列（medicationPendingQueue）共用
+  insertMedicationDoseLog／buildMedicationDoseInsertFor／deleteOwnMedicationDoseLog 補送與撤回（issue #822）。
 */
 import dayjs from 'dayjs'
+import { readMedicationHoldRules, readMedicationHoldContext, type MedicationHoldContext, type MedicationHoldRule } from './medicationHold'
 import { supabase } from '../supabase'
 import { normalizeMedicationEmail } from './medicationToday'
 import { calendarDateKey, careDateKey } from '../careDay'
@@ -38,6 +40,9 @@ export interface MedicationPlanChangeLogView {
 }
 
 export interface MedicationPlanView extends MedicationPlan {
+  // 只要曾有條件就走受控入口，撤銷後也不能用舊版刪除稽核歷史。
+  holdRule?: MedicationHoldRule | null
+  holdContext?: MedicationHoldContext | null
   medication: MedicationCatalog
   // B 層（人講過的服用方式）：這顆藥沒有紀錄時是 null，不是「還沒載入」，呼叫端不必另外判斷 undefined。
   instruction: PatientMedicationInstruction | null
@@ -89,7 +94,7 @@ export function resolveMedicationNames(medication: MedicationCatalog, locale: Lo
 
 export function completesRequiredMedicationSlot(slotPlans: MedicationPlanView[], logs: MedicationIntakeLog[], savedPlanId: string, savedDoseNumber: number) {
   const requiredPlans = slotPlans.filter(plan => !plan.as_needed)
-  // 需要時才吃的藥不能阻擋「這餐已完成」；否則媽媽沒吃 PRN 反而永遠看不到完成提示。
+  // 需要時才吃的藥不能阻擋「這餐已完成」；否則病人沒吃 PRN 反而永遠看不到完成提示。
   return requiredPlans.length > 0 && requiredPlans.every(plan =>
     Array.from({ length: plan.dose_count }, (_, index) => index + 1).every(doseNumber =>
       (plan.id === savedPlanId && doseNumber === savedDoseNumber)
@@ -98,16 +103,35 @@ export function completesRequiredMedicationSlot(slotPlans: MedicationPlanView[],
   )
 }
 
+/** 組一筆服藥紀錄需要的「哪一劑」資訊；線上打卡從藥單取，離線佇列從打卡當下存下的快照取（補送時藥單可能沒載入）。 */
+export interface MedicationDoseTarget {
+  patient_id: string
+  plan_id: string
+  medication_id: string
+  medication_name: string
+  dose_number: number
+}
+
 export function buildMedicationDoseInsert(plan: MedicationPlanView, _date: string, doseNumber: number, recordedByEmail: string, takenAtValue = dayjs().toISOString()) {
+  return buildMedicationDoseInsertFor({
+    patient_id: plan.patient_id,
+    plan_id: plan.id,
+    medication_id: plan.medication_id,
+    medication_name: plan.medication.brand_name,
+    dose_number: doseNumber,
+  }, recordedByEmail, takenAtValue)
+}
+
+export function buildMedicationDoseInsertFor(target: MedicationDoseTarget, recordedByEmail: string, takenAtValue: string) {
   const takenAt = dayjs(takenAtValue)
   return {
     // 藥單建立者可與代為勾藥的照護者不同；服藥紀錄必須保存目前 JWT 帳號，才能通過 RLS 並留下真實稽核來源。
     account_email: normalizeMedicationEmail(recordedByEmail),
-    patient_id: plan.patient_id,
-    medication_id: plan.medication_id,
-    medication_name: plan.medication.brand_name,
-    plan_id: plan.id,
-    dose_number: doseNumber,
+    patient_id: target.patient_id,
+    medication_id: target.medication_id,
+    medication_name: target.medication_name,
+    plan_id: target.plan_id,
+    dose_number: target.dose_number,
     // 繁體中文註解：taken_on 留下實際台北日曆日；date/care_date 才是每日待辦的照護日。
     taken_on: calendarDateKey(takenAt),
     // 伺服器 trigger 也會重算；客戶端先用同一個時間點產生，避免剛好跨 04:00 時畫面與回傳資料不同步。
@@ -150,6 +174,8 @@ export async function readMedicationDay(patientId: string, date: string) {
   // 不重寫一次 supabase.from('patient_medication_instructions')。
   const instructions = await readPatientMedicationInstructions(patientId)
   const instructionByMedicationId = new Map(instructions.map(instruction => [instruction.medication_id, instruction]))
+  const holdRules = await readMedicationHoldRules(patientId)
+  const holdContexts = new Map(await Promise.all([...new Set(holdRules.map(rule => rule.medication_id))].map(async id => [id, await readMedicationHoldContext(patientId, id)] as const)))
 
   // 病人層外觀覆蓋（issue #759）：這裡查的是共用目錄，覆蓋要另外合併，才能讓每日藥卡顯示這位病人
   // 手上這顆藥實際的顏色／形狀／照片，而不是全站共用的那一版。
@@ -170,11 +196,12 @@ export async function readMedicationDay(patientId: string, date: string) {
     mergeMedicationAppearanceOverride(medication, overrideByMedicationId.get(medication.id)),
   ]))
   // 藥品目錄若缺資料就不顯示該計畫，避免只剩 ID 時讓看護猜藥。
+  // 第一版只約束固定藥；同品項的 PRN 不呈現這個固定劑次醫囑，以免誤導。
   const planViews = (plans ?? []).flatMap(plan => {
     const medication = catalog.get(plan.medication_id)
     if (!medication) return []
     const instruction = instructionByMedicationId.get(plan.medication_id) ?? null
-    return [{ ...plan, medication, instruction } as MedicationPlanView]
+    return [{ ...plan, medication, instruction, holdRule: plan.as_needed ? null : holdContexts.get(plan.medication_id)?.rule ?? null, holdContext: plan.as_needed ? null : holdContexts.get(plan.medication_id) ?? null } as MedicationPlanView]
   })
   const prnDay = await readPrnMedicationDay(patientId, date, planViews.filter(plan => plan.as_needed).map(plan => plan.id))
 
@@ -231,30 +258,54 @@ export function doseAmountFieldLabel(dosageForm: string): LocalizedText {
   return { id: 'Dosis setiap kali minum', zh: '每次幾顆', en: dosageForm === 'capsule' ? 'Capsules per dose' : 'Tablets per dose' }
 }
 
-export async function saveMedicationDose(plan: MedicationPlanView, date: string, doseNumber: number, recordedByEmail: string) {
+export type MedicationDoseInsert = ReturnType<typeof buildMedicationDoseInsertFor>
+
+const MEDICATION_INTAKE_COLUMNS = 'id, account_email, patient_id, medication_id, medication_name, plan_id, dose_number, taken_on, care_date, taken_at, created_at'
+
+/**
+ * takenAt 由呼叫端在「按下去的那一刻」產生並傳入：線上寫入失敗轉進離線佇列時，補送要用同一個時間，
+ * 照護日才不會因為晚了幾小時才送出（甚至跨過 04:00）而被資料庫 trigger 算到另一天；
+ * 也只有時間相同，補送讀回「其實上次已寫入」的那一筆時，才認得出那是自己而不是其他裝置。
+ */
+export async function saveMedicationDose(plan: MedicationPlanView, date: string, doseNumber: number, recordedByEmail: string, takenAt = dayjs().toISOString()) {
   if (isDemoMode() && isDemoPatientId(plan.patient_id)) {
     return saveDemoMedicationDose(plan, date, doseNumber, recordedByEmail)
   }
-  const { data, error } = await supabase
+  return insertMedicationDoseLog(buildMedicationDoseInsert(plan, date, doseNumber, recordedByEmail, takenAt))
+}
+
+/**
+ * 寫入一劑服藥紀錄；線上打卡與離線佇列補送共用，兩條路都遵守「同一劑只能一筆、先記錄者為準」。
+ * 去重靠資料庫唯一索引 (patient_id, plan_id, care_date, dose_number)，不靠前端判斷——兩台手機各自離線打卡時，
+ * 前端根本看不到對方。
+ */
+export async function insertMedicationDoseLog(payload: MedicationDoseInsert, signal?: AbortSignal): Promise<MedicationIntakeLog> {
+  let request = supabase
     .from('medication_intake_logs')
-    .insert(buildMedicationDoseInsert(plan, date, doseNumber, recordedByEmail))
-    .select('id, account_email, patient_id, medication_id, medication_name, plan_id, dose_number, taken_on, care_date, taken_at, created_at')
-    .single()
+    .insert(payload)
+    .select(MEDICATION_INTAKE_COLUMNS)
+  // 補送的登入者退場或逾時時必須真正中止請求，不能只忽略回應而一直占住跨分頁鎖。
+  if (signal) request = request.abortSignal(signal)
+  const { data, error, status } = await request.single()
 
   if (error?.code === '23505') {
-    // 另一台裝置已先記錄同一顆時，直接讀回該筆，避免使用者誤以為尚未服用而重複吃藥。
-    const { data: existing, error: readError } = await supabase
+    // 另一台裝置（或自己上一次回應遺失的請求）已先記錄同一劑時，直接讀回該筆，避免使用者誤以為尚未服用而重複吃藥。
+    let existingRequest = supabase
       .from('medication_intake_logs')
-      .select('id, account_email, patient_id, medication_id, medication_name, plan_id, dose_number, taken_on, care_date, taken_at, created_at')
-      .eq('patient_id', plan.patient_id)
-      .eq('plan_id', plan.id)
-      .eq('care_date', date)
-      .eq('dose_number', doseNumber)
-      .single()
-    if (readError) throw readError
+      .select(MEDICATION_INTAKE_COLUMNS)
+      .eq('patient_id', payload.patient_id)
+      .eq('plan_id', payload.plan_id)
+      .eq('care_date', payload.care_date)
+      .eq('dose_number', payload.dose_number)
+    // 衝突回讀也是同一筆補送的一部分；只中止 INSERT 仍可能卡在這次 GET。
+    if (signal) existingRequest = existingRequest.abortSignal(signal)
+    const { data: existing, error: readError, status: readStatus } = await existingRequest.single()
+    if (readError) throw Object.assign(readError, { status: readStatus })
     return existing as MedicationIntakeLog
   }
-  if (error) throw error
+  // PostgrestError 本身沒有 HTTP status；408/429/5xx 只出現在頂層回應，要掛回去才能讓
+  // isRetryableWriteError() 把暫時性伺服器錯誤放進離線佇列（與 insertBloodPressureRecord 相同做法）。
+  if (error) throw Object.assign(error, { status })
   return data as MedicationIntakeLog
 }
 
@@ -272,6 +323,52 @@ export async function clearMedicationDose(planId: string, patientId: string, dat
     .eq('dose_number', doseNumber)
 
   if (error) throw error
+}
+
+/**
+ * 刪掉「這支手機自己寫進去」的那一劑，供離線佇列撤回使用：撤回的那一劑可能在回應遺失前其實已寫入伺服器，
+ * 只刪本機佇列會讓伺服器留著「已服用」，真的漏服也不會被發現。
+ * 篩選條件刻意加上帳號與服藥時間：只對得上自己那次打卡，別的裝置或家人記錄的同一劑不會被誤刪；
+ * 伺服器上根本沒有這筆時刪到 0 列也算成功。
+ */
+export async function deleteOwnMedicationDoseLog(dose: { patient_id: string; plan_id: string; care_date: string; dose_number: number; recorded_by: string; taken_at: string }, signal?: AbortSignal) {
+  let request = supabase
+    .from('medication_intake_logs')
+    .delete()
+    .eq('patient_id', dose.patient_id)
+    .eq('plan_id', dose.plan_id)
+    .eq('care_date', dose.care_date)
+    .eq('dose_number', dose.dose_number)
+    .eq('account_email', normalizeMedicationEmail(dose.recorded_by))
+    .eq('taken_at', dose.taken_at)
+  // 撤回也要釋放舊 session 的請求；原本精確的病人／操作者／時間篩選不可省略。
+  if (signal) request = request.abortSignal(signal)
+  const { error, status } = await request
+
+  // 同 insertMedicationDoseLog：把頂層 HTTP status 掛回錯誤，暫時性失敗才會留在佇列裡等下次重試。
+  if (error) throw Object.assign(error, { status })
+}
+
+/**
+ * 本機清理證明可能在 App 重開時遺失；只讀回同一操作者／時間且帶受控事件的事實，不能拿一般紀錄吃掉撤回。
+ * hold_event_id 由資料庫 guard 驗證與 taken event 同交易連結；RLS 仍以 patient_id 驗證讀取權限。
+ */
+export async function readConfirmedMedicationDoseLog(dose: { patient_id: string; plan_id: string; care_date: string; dose_number: number; recorded_by: string; taken_at: string }, signal?: AbortSignal): Promise<MedicationIntakeLog | null> {
+  let request = supabase.from('medication_intake_logs')
+    .select(`${MEDICATION_INTAKE_COLUMNS},hold_event_id`)
+    .eq('patient_id', dose.patient_id).eq('plan_id', dose.plan_id).eq('care_date', dose.care_date)
+    .eq('dose_number', dose.dose_number).eq('account_email', normalizeMedicationEmail(dose.recorded_by)).eq('taken_at', dose.taken_at)
+    .not('hold_event_id', 'is', null)
+  // 這個回讀仍屬於同一劑補送，必須遵守原本的 15 秒 deadline 與登出 abort。
+  if (signal) request = request.abortSignal(signal)
+  const { data, error, status } = await request.maybeSingle()
+  if (error) throw Object.assign(error, { status })
+  const row = data as (MedicationIntakeLog & { hold_event_id?: string | null }) | null
+  // query 範圍與回傳事實都要吻合；不能因有受控事件就吃掉另一病人或另一時間的撤回。
+  return row && typeof row.hold_event_id === 'string' && row.hold_event_id.length > 0
+    && row.patient_id === dose.patient_id && row.plan_id === dose.plan_id && row.care_date === dose.care_date
+    && row.dose_number === dose.dose_number && normalizeMedicationEmail(row.account_email) === normalizeMedicationEmail(dose.recorded_by)
+    && Date.parse(row.taken_at) === Date.parse(dose.taken_at) ? row : null
 }
 
 export async function readMedicationHistory(patientId: string, limit: number = 20): Promise<MedicationPlanChangeLogView[]> {

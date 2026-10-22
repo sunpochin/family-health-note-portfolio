@@ -12,12 +12,10 @@ import { TAIWAN_MEDICATION_FREQUENCY_PRESETS, findMatchingPresetBySlots } from '
 import { type LocalizedText, useI18n } from '../../../lib/i18n'
 import { signMedicationAppearancePhotoPath, uploadMedicationAppearancePhoto } from '../../../lib/medication/medicationAppearancePhotos'
 import { MedicationAppearance } from './MedicationAppearance'
+import { MedicationHoldEditor } from './MedicationHoldEditor'
 import { MedicationInstructionEditor } from './MedicationInstructionEditor'
-
-// 步距改成 0.25：媽媽正在減藥，選單要能選 1/4、3/4 這種更細的單次劑量，不能只到半顆。
-const DOSE_STEP = 0.25
-const MAX_DOSE_AMOUNT = 9
-const DOSE_OPTIONS = Array.from({ length: MAX_DOSE_AMOUNT / DOSE_STEP }, (_, index) => (index + 1) * DOSE_STEP)
+import { Icon } from '../../../components/ui/Icon'
+import { DOSE_OPTIONS } from '../../../lib/medication/medicationAdminFormHelpers'
 
 const FRACTION_SUFFIXES: Record<number, string> = { 0.25: '¼', 0.5: '½', 0.75: '¾' }
 
@@ -93,8 +91,8 @@ export function AppearancePhotoField({ value, onChange, disabled }: { value: str
       <p className="mt-1 text-[11px] leading-4 text-emerald-700">{text({ id: 'Foto ini akan menjadi gambar bersama untuk semua pengguna, jangan sertakan nama atau info rekam medis (mis. label apotek).', zh: '這張照片會成為所有使用者共用的藥品目錄圖，請避免拍到姓名或病歷資訊（例如藥局標籤）。' ,en: 'This photo becomes a shared image for all users; avoid capturing names or medical record info (e.g. pharmacy labels).' })}</p>
       {value && previewUrl && <img src={previewUrl} alt="" className="mt-2 h-20 w-20 rounded-lg border border-emerald-200 object-cover" />}
       <div className="mt-2 grid grid-cols-2 gap-2">
-        <button type="button" disabled={disabled || uploading} onClick={() => cameraInputRef.current?.click()} className="min-h-11 rounded-xl border border-emerald-200 bg-white px-3 py-2 text-sm font-bold text-emerald-800 disabled:opacity-50">📷 {text({ id: 'Ambil foto', zh: '拍照' ,en: "Take photo" })}</button>
-        <button type="button" disabled={disabled || uploading} onClick={() => libraryInputRef.current?.click()} className="min-h-11 rounded-xl border border-emerald-200 bg-white px-3 py-2 text-sm font-bold text-emerald-800 disabled:opacity-50">🖼️ {text({ id: 'Pilih dari galeri', zh: '從相簿選取' ,en: "Choose from album" })}</button>
+        <button type="button" disabled={disabled || uploading} onClick={() => cameraInputRef.current?.click()} className="min-h-11 rounded-xl border border-emerald-200 bg-white px-3 py-2 text-sm font-bold text-emerald-800 disabled:opacity-50"><span className="inline-flex items-center justify-center gap-2"><Icon name="camera" className="h-4 w-4 shrink-0" />{text({ id: 'Ambil foto', zh: '拍照' ,en: "Take photo" })}</span></button>
+        <button type="button" disabled={disabled || uploading} onClick={() => libraryInputRef.current?.click()} className="min-h-11 rounded-xl border border-emerald-200 bg-white px-3 py-2 text-sm font-bold text-emerald-800 disabled:opacity-50"><span className="inline-flex items-center justify-center gap-2"><Icon name="image" className="h-4 w-4 shrink-0" />{text({ id: 'Pilih dari galeri', zh: '從相簿選取' ,en: "Choose from album" })}</span></button>
       </div>
       {/* iOS Safari 對同一個 input 同時使用 capture 與不加 capture 的行為不一致；拆成兩個入口才能明確保留拍照與相簿選取。 */}
       <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" disabled={disabled || uploading} onChange={handleFile} className="sr-only" />
@@ -108,44 +106,46 @@ export function AppearancePhotoField({ value, onChange, disabled }: { value: str
 
 export function MedicationChoice({ medication, selected, onSelect }: { medication: MedicationOption; selected: boolean; onSelect: () => void }) {
   const { text } = useI18n()
-  const verification = medication.verification_status === 'official' ? text({ id: 'Data resmi', zh: '官方資料' ,en: 'Official' }) : medication.verification_status === 'manually_verified' ? text({ id: 'Sudah diperiksa manual', zh: '已人工核對' ,en: 'Manually checked' }) : text({ id: '⚠ Belum diverifikasi', zh: '⚠ 未驗證' ,en: 'Unverified' })
+  const verification = medication.verification_status === 'official' ? text({ id: 'Data resmi', zh: '官方資料' ,en: 'Official' }) : medication.verification_status === 'manually_verified' ? text({ id: 'Sudah diperiksa manual', zh: '已人工核對' ,en: 'Manually checked' }) : text({ id: 'Belum diverifikasi', zh: '未驗證' ,en: 'Unverified' })
   const categoryLabel = medication.medication_category === 'animal'
-    ? text({ id: 'Obat Hewan (Kementan)', zh: '🐾 動物用藥（農業部）' ,en: '🐾 Veterinary Medicine (MOA)' })
+    ? text({ id: 'Obat Hewan (Kementan)', zh: '動物用藥（農業部）' ,en: 'Veterinary Medicine (MOA)' })
     : medication.medication_category === 'dual'
-      ? text({ id: 'Penggunaan Manusia & Hewan', zh: '👩🐾 人寵共用' ,en: '👩🐾 Human & Pet Use' })
-      : text({ id: 'Obat Manusia (TFDA)', zh: '👩 人類用藥（TFDA）' ,en: '👩 Human Medicine (TFDA)' })
+      ? text({ id: 'Penggunaan Manusia & Hewan', zh: '人寵共用' ,en: 'Human & Pet Use' })
+      : text({ id: 'Obat Manusia (TFDA)', zh: '人類用藥（TFDA）' ,en: 'Human Medicine (TFDA)' })
 
   // 顯示適用與禁用物種標籤；bird 不能退回 other，否則 Pickle 的藥品適用範圍會被誤讀。
+  // 物種名稱前原本的動物／人 emoji 在三個語系都拿掉了（issue #1150）：標籤是純字串、放不進 SVG，文字本身已說明物種；
+  // 失去 emoji 當分隔後，多個標籤改用「 · 」連接，避免「Anjing Kucing」這種黏在一起難以分辨的寫法。
   const speciesTags = (medication.applicable_species ?? ['human']).map(s => {
-    if (s === 'dog') return text({ id: '🐶 Anjing', zh: '🐶 狗' ,en: '🐶 Dog' })
-    if (s === 'cat') return text({ id: '🐱 Kucing', zh: '🐱 貓' ,en: '🐱 Cat' })
-    if (s === 'bird') return text({ id: '🐦 Burung', zh: '🐦 鳥' ,en: "🐦 Bird" })
-    if (s === 'rabbit') return text({ id: '🐰 Kelinci', zh: '🐰 兔' ,en: '🐰 Rabbit' })
-    if (s === 'human') return text({ id: '👩 Manusia', zh: '👩 人' ,en: '👩 Human' })
-    return text({ id: '🐾 Lainnya', zh: '🐾 其他' ,en: '🐾 Other' })
-  }).join(' ')
+    if (s === 'dog') return text({ id: 'Anjing', zh: '狗' ,en: 'Dog' })
+    if (s === 'cat') return text({ id: 'Kucing', zh: '貓' ,en: 'Cat' })
+    if (s === 'bird') return text({ id: 'Burung', zh: '鳥' ,en: 'Bird' })
+    if (s === 'rabbit') return text({ id: 'Kelinci', zh: '兔' ,en: 'Rabbit' })
+    if (s === 'human') return text({ id: 'Manusia', zh: '人' ,en: 'Human' })
+    return text({ id: 'Lainnya', zh: '其他' ,en: 'Other' })
+  }).join(' · ')
 
   const contraTags = (medication.contraindicated_species ?? []).map(s => {
-    if (s === 'cat') return text({ id: '🐱 Dilarang untuk Kucing', zh: '🐱 貓禁用' ,en: '🐱 Contraindicated for Cats' })
-    if (s === 'dog') return text({ id: '🐶 Dilarang untuk Anjing', zh: '🐶 狗禁用' ,en: '🐶 Contraindicated for Dogs' })
-    if (s === 'bird') return text({ id: '🐦 Dilarang untuk Burung', zh: '🐦 鳥禁用' ,en: "🐦 Contraindicated for Birds" })
-    if (s === 'rabbit') return text({ id: '🐰 Dilarang untuk Kelinci', zh: '🐰 兔禁用' ,en: '🐰 Contraindicated for Rabbits' })
+    if (s === 'cat') return text({ id: 'Dilarang untuk Kucing', zh: '貓禁用' ,en: 'Contraindicated for Cats' })
+    if (s === 'dog') return text({ id: 'Dilarang untuk Anjing', zh: '狗禁用' ,en: 'Contraindicated for Dogs' })
+    if (s === 'bird') return text({ id: 'Dilarang untuk Burung', zh: '鳥禁用' ,en: 'Contraindicated for Birds' })
+    if (s === 'rabbit') return text({ id: 'Dilarang untuk Kelinci', zh: '兔禁用' ,en: 'Contraindicated for Rabbits' })
     return text({ id: 'Dilarang', zh: '禁用' ,en: 'Contraindicated' })
-  }).join(' ')
+  }).join(' · ')
 
-  return <button type="button" aria-pressed={selected} onClick={onSelect} className={`min-h-11 break-all rounded-xl border p-3 text-left text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-600 focus-visible:ring-offset-2 ${selected ? 'border-emerald-700 bg-emerald-50 text-emerald-950' : 'border-emerald-200 text-gray-700'}`}>
+  return <button type="button" aria-pressed={selected} onClick={onSelect} className={`min-h-11 break-all rounded-xl border p-3 text-left text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-700 focus-visible:ring-offset-2 ${selected ? 'border-emerald-700 bg-emerald-50 text-emerald-950' : 'border-emerald-200 text-slate-700'}`}>
     <div className="flex flex-wrap items-center justify-between gap-1">
       <b>{medication.brand_name_zh || text({ id: 'Nama merek Mandarin belum tercatat', zh: '中文商品名未登錄' ,en: 'Chinese brand name not recorded' })} · {formatMedicationLabel(medication.brand_name, medication.strength_mg, medication.strength_label)}</b>
       <span className="rounded bg-emerald-100 px-1.5 py-0.5 text-[10px] font-bold text-emerald-900">{categoryLabel}</span>
     </div>
-    <p className="mt-0.5 text-gray-600">{medication.generic_name}</p>
-    {medication.indications && <p className="mt-0.5 text-indigo-900 font-medium">{text({ id: 'Indikasi: ', zh: '適應症：' ,en: 'Indications: ' })}{medication.indications}</p>}
+    <p className="mt-0.5 text-slate-600">{medication.generic_name}</p>
+    {medication.indications && <p className="mt-0.5 text-slate-800 font-medium">{text({ id: 'Indikasi: ', zh: '適應症：' ,en: 'Indications: ' })}{medication.indications}</p>}
     <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[11px]">
       <span className="rounded bg-slate-100 px-1.5 py-0.5 font-semibold text-slate-800">{speciesTags}</span>
-      {contraTags && <span className="rounded bg-red-100 px-1.5 py-0.5 font-bold text-red-800">⚠️ {contraTags}</span>}
+      {contraTags && <span className="inline-flex items-center gap-1 rounded bg-red-100 px-1.5 py-0.5 font-bold text-red-800"><Icon name="alert-triangle" className="h-3.5 w-3.5 shrink-0" />{contraTags}</span>}
     </div>
     <div className="mt-1"><MedicationAppearance medication={medication} compact /></div>
-    <span className={medication.verification_status === 'unverified' ? 'text-amber-800' : 'text-emerald-800'}>{verification}{medication.tfda_license_number ? ` · ${medication.tfda_license_number}` : ''}{medication.animal_drug_license_number ? ` · ${text({ id: 'Izin obat hewan: ', zh: '動物藥證: ' ,en: 'Veterinary drug license: ' })}${medication.animal_drug_license_number}` : ''}</span>
+    <span className={medication.verification_status === 'unverified' ? 'text-amber-800' : 'text-emerald-800'}>{medication.verification_status === 'unverified' && <Icon name="alert-triangle" className="mr-1 inline-block h-3.5 w-3.5 align-text-bottom" />}{verification}{medication.tfda_license_number ? ` · ${medication.tfda_license_number}` : ''}{medication.animal_drug_license_number ? ` · ${text({ id: 'Izin obat hewan: ', zh: '動物藥證: ' ,en: 'Veterinary drug license: ' })}${medication.animal_drug_license_number}` : ''}</span>
   </button>
 }
 
@@ -162,8 +162,8 @@ export function RegistryMedicationChoice({ product, selected, onSelect }: { prod
       type="button"
       aria-pressed={selected}
       onClick={onSelect}
-      className={`min-h-11 break-all rounded-xl border p-3 text-left text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-600 focus-visible:ring-offset-2 ${
-        selected ? 'border-emerald-700 bg-emerald-50 text-emerald-950' : 'border-emerald-200 text-gray-700'
+      className={`min-h-11 break-all rounded-xl border p-3 text-left text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-700 focus-visible:ring-offset-2 ${
+        selected ? 'border-emerald-700 bg-emerald-50 text-emerald-950' : 'border-emerald-200 text-slate-700'
       }`}
     >
       <div className="flex items-center justify-between gap-1">
@@ -172,8 +172,8 @@ export function RegistryMedicationChoice({ product, selected, onSelect }: { prod
           {text(sourceLabel)}
         </span>
       </div>
-      {product.nameEn && <p className="mt-0.5 text-gray-600">{product.nameEn}</p>}
-      {product.ingredient && <p className="mt-0.5 text-gray-500">{text({ id: 'Bahan: ', zh: '成分：' ,en: 'Ingredients: ' })}{product.ingredient}</p>}
+      {product.nameEn && <p className="mt-0.5 text-slate-600">{product.nameEn}</p>}
+      {product.ingredient && <p className="mt-0.5 text-slate-500">{text({ id: 'Bahan: ', zh: '成分：' ,en: 'Ingredients: ' })}{product.ingredient}</p>}
       <span className="mt-1 block text-emerald-800">
         {product.sourceId} {product.manufacturer ? `· ${product.manufacturer}` : ''}
       </span>
@@ -194,6 +194,7 @@ export interface PlanFieldsProps {
   occupiedSlots?: Set<string>
   dosageForm?: string
   isEditing?: boolean
+  hasFixedPlan?: boolean
   // 服用方式 B 層只在「已確認的病人專屬藥品」存在時才能填寫；新增自訂藥品當下 medicationId 還沒建立，
   // 兩者都給值時才掛載 MedicationInstructionEditor，否則就靜靜跳過，不擋住其餘欄位。
   patientId?: string
@@ -215,6 +216,7 @@ export function PlanFields({
   occupiedSlots,
   dosageForm = 'tablet',
   isEditing = false,
+  hasFixedPlan = false,
   patientId,
   medicationId,
   onInstructionChanged,
@@ -266,7 +268,7 @@ export function PlanFields({
               setScheduleSlot?.(e.target.value)
               setScheduleSlots?.([e.target.value])
             }}
-            className="mt-1 min-h-11 w-full rounded-xl border border-emerald-200 p-2 text-sm font-normal focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-200"
+            className="mt-1 min-h-11 w-full rounded-xl border-2 border-control-border p-2 text-sm font-normal focus:border-brand-700 focus:outline-none focus:ring-2 focus:ring-brand-700"
           >
             {legacySlot && <option value={legacySlot}>{text(medicationSlotText(legacySlot))}{text({ id: '（jadwal lama）', zh: '（原本時段）', en: ' (previous time slot)' })}</option>}
             {/* 已被同一顆藥佔用的時段要先標出來，選到它代表覆蓋既有醫囑，不是單純多加一次服用。 */}
@@ -287,7 +289,7 @@ export function PlanFields({
             <select
               value={activePreset?.id ?? 'custom'}
               onChange={e => handleSelectPreset(e.target.value)}
-              className="mt-1 min-h-11 w-full rounded-xl border border-emerald-200 bg-white p-2 text-sm font-semibold text-emerald-950 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-200"
+              className="mt-1 min-h-11 w-full rounded-xl border-2 border-control-border bg-white p-2 text-sm font-semibold text-emerald-950 focus:border-brand-700 focus:outline-none focus:ring-2 focus:ring-brand-700"
             >
               {TAIWAN_MEDICATION_FREQUENCY_PRESETS.map(preset => (
                 <option key={preset.id} value={preset.id}>
@@ -314,15 +316,15 @@ export function PlanFields({
                     type="button"
                     aria-pressed={isSelected}
                     onClick={() => handleToggleSlot(value)}
-                    className={`flex min-h-11 items-center justify-between gap-1 rounded-xl border px-2.5 py-1.5 text-left text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-600 focus-visible:ring-offset-1 ${
+                    className={`flex min-h-11 items-center justify-between gap-1 rounded-xl border px-2.5 py-1.5 text-left text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-700 focus-visible:ring-offset-1 ${
                       isSelected
                         ? 'border-emerald-600 bg-emerald-600 text-white font-bold shadow-sm'
                         : 'border-slate-200 bg-white text-slate-800 hover:border-emerald-300'
                     }`}
                   >
                     <span className="truncate">{text(medicationSlotText(value))}</span>
-                    <span className="shrink-0 text-[11px]">
-                      {isSelected ? '✓' : ''}
+                    <span className="inline-flex shrink-0 items-center text-[11px]">
+                      {isSelected && <Icon name="check" className="h-3.5 w-3.5" />}
                       {isOccupied && <span className={`ml-0.5 text-[10px] ${isSelected ? 'text-emerald-100' : 'text-amber-800'}`}>!</span>}
                     </span>
                   </button>
@@ -353,7 +355,7 @@ export function PlanFields({
         <select
           value={doseAmount}
           onChange={e => setDoseAmount(e.target.value)}
-          className="mt-1 min-h-11 w-full rounded-xl border border-emerald-200 bg-white p-2 font-bold focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-200"
+          className="mt-1 min-h-11 w-full rounded-xl border-2 border-control-border bg-white p-2 font-bold focus:border-brand-700 focus:outline-none focus:ring-2 focus:ring-brand-700"
         >
           {/* 用選單直接呈現半顆，避免手機數字鍵盤讓照護者誤輸成 5 或漏掉小數點。 */}
           {DOSE_OPTIONS.map(amount => <option key={amount} value={amount}>{doseOptionLabel(amount)}</option>)}
@@ -368,6 +370,9 @@ export function PlanFields({
         />
         {text({ id: 'Bila perlu / PRN', zh: '需要時 / PRN' ,en: 'As needed / PRN' })}
       </label>
+      {/* 換病人或藥品就重建草稿，醫囑不能帶到另一人的藥。 */}
+      {/* 藥品目錄身分不代表病人已有固定藥單；先完成藥單才能登錄暫停條件，避免每次儲存都被 RPC 拒絕。 */}
+      {patientId && medicationId && hasFixedPlan && !asNeeded && <MedicationHoldEditor key={`${patientId}:${medicationId}`} patientId={patientId} medicationId={medicationId} onChanged={onInstructionChanged} />}
       {patientId && medicationId && <MedicationInstructionEditor patientId={patientId} medicationId={medicationId} onChanged={onInstructionChanged} />}
     </>
   )
@@ -377,6 +382,6 @@ export function ChangeReasonField({ value, onChange }: { value: string; onChange
   const { text } = useI18n()
   return <label className="block text-sm font-bold text-emerald-900">
     {text({ id: 'Alasan perubahan (opsional)', zh: '調整原因（可不填）' ,en: 'Reason for change (optional)' })}
-    <textarea value={value} onChange={event => onChange(event.target.value)} maxLength={280} rows={2} placeholder={text({ id: 'Contoh: sesuai resep kontrol 20/7', zh: '例如：依 7/20 回診醫囑調整' ,en: 'Example: 7/20 Visit Order Adjustment' })} className="mt-1 w-full rounded-xl border border-emerald-200 p-2 text-sm font-normal focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-200" />
+    <textarea value={value} onChange={event => onChange(event.target.value)} maxLength={280} rows={2} placeholder={text({ id: 'Contoh: sesuai resep kontrol 20/7', zh: '例如：依 7/20 回診醫囑調整' ,en: 'Example: 7/20 Visit Order Adjustment' })} className="mt-1 w-full rounded-xl border-2 border-control-border p-2 text-sm font-normal focus:border-brand-700 focus:outline-none focus:ring-2 focus:ring-brand-700" />
   </label>
 }

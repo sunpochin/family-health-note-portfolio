@@ -11,6 +11,7 @@ import timezone from 'dayjs/plugin/timezone'
 import { ModuleTrendSection } from '../../../components/daily-care/ModuleTrendSection'
 import { useSaveStatus } from '../../../hooks/useSaveStatus'
 import { useI18n } from '../../../lib/i18n'
+import { Icon } from '../../../components/ui/Icon'
 import { supabase } from '../../../lib/supabase'
 import { TZ } from '../../../lib/timezone'
 import { isDemoMode, readDemoPetGlucoseRecords, readDemoPetInsulinRecords, saveDemoPetGlucoseRecord, saveDemoPetInsulinRecord } from '../../../lib/demoStorage'
@@ -134,10 +135,10 @@ export function PetEndocrinePage({ patientId, patientName, userEmail, careRecipi
     <section className="space-y-5 px-5 py-6">
       <form onSubmit={handleSubmit} className="space-y-4 rounded-2xl bg-white p-5 shadow-sm">
         <div>
-          <label className="block text-sm font-semibold text-gray-800">
+          <label className="block text-sm font-semibold text-slate-800">
             {text({ id: 'Insulin (unit)', zh: '胰島素（單位）' ,en: "Insulin (unit)" })}
           </label>
-          <p className="mt-1 text-xs text-gray-500">
+          <p className="mt-1 text-xs text-slate-500">
             {/* 胰島素劑量說明英文修正 */}
             {text({ id: '(Opsional) Dosis insulin yang diberikan', zh: '（可不填）給藥的胰島素劑量' ,en: "(Optional) Insulin dose administered" })}
           </p>
@@ -147,16 +148,17 @@ export function PetEndocrinePage({ patientId, patientName, userEmail, careRecipi
             step="0.5"
             value={insulinUnits}
             onChange={e => setInsulinUnits(e.target.value === '' ? '' : Number(e.target.value))}
-            placeholder="例：5"
-            className="mt-2 w-full rounded-xl border border-gray-300 px-3 py-2.5"
+            // 為什麼：placeholder 也是畫面上的系統文字，不能寫死中文，否則印尼文／英文使用者會在輸入框看到中文（#1094）。
+            placeholder={text({ id: 'Contoh: 5', zh: '例：5', en: 'e.g. 5' })}
+            className="mt-2 w-full rounded-xl border-2 border-control-border px-3 py-2.5"
           />
         </div>
 
         <div>
-          <label className="block text-sm font-semibold text-gray-800">
+          <label className="block text-sm font-semibold text-slate-800">
             {text({ id: 'Kadar glukosa darah (mg/dL)', zh: '血糖值（mg/dL）' ,en: "Blood glucose (mg/dL)" })}
           </label>
-          <p className="mt-1 text-xs text-gray-500">
+          <p className="mt-1 text-xs text-slate-500">
             {isHuman
               ? text({ id: '(Opsional) Rentang normal berbeda untuk manusia; ikuti target dari dokter.', zh: '（可不填）人類的正常範圍不同，請依醫師設定的目標值判讀。' ,en: '(Optional) Normal ranges are different for humans; interpret readings using the targets set by your doctor.' })
               : targetRange
@@ -169,27 +171,28 @@ export function PetEndocrinePage({ patientId, patientName, userEmail, careRecipi
             step="5"
             value={bloodGlucoseMgDl}
             onChange={e => setBloodGlucoseMgDl(e.target.value === '' ? '' : Number(e.target.value))}
-            placeholder="例：110"
-            className="mt-2 w-full rounded-xl border border-gray-300 px-3 py-2.5"
+            placeholder={text({ id: 'Contoh: 110', zh: '例：110', en: 'e.g. 110' })}
+            className="mt-2 w-full rounded-xl border-2 border-control-border px-3 py-2.5"
           />
           {/* 正式資料只有在資料庫回傳目前 patient_id 的 target row 時才判讀，避免跨病人沿用門檻。 */}
+          {/* 狀態字色用 700 階：600 階在白底只有 2.9～3.6:1，達不到 AA 4.5:1；語意（低＝黃、正常＝綠、高＝橘）與判定邏輯都沒動。 */}
           {glucoseStatus && (
             <div className="mt-2 text-xs">
               {glucoseStatus === 'low' && (
-                <p className="text-yellow-600">{text({ id: '⚠ Rendah (hipoglikemia)', zh: '⚠ 低血糖' ,en: "⚠ Low (Hypoglycemia)" })}</p>
+                <p className="flex items-center gap-1 text-yellow-700"><Icon name="alert-triangle" className="h-3.5 w-3.5 shrink-0" />{text({ id: 'Rendah (hipoglikemia)', zh: '低血糖' ,en: "Low (Hypoglycemia)" })}</p>
               )}
               {glucoseStatus === 'normal' && (
-                <p className="text-green-600">{text({ id: '✓ Normal', zh: '✓ 正常' ,en: "✓ Normal" })}</p>
+                <p className="flex items-center gap-1 text-emerald-700"><Icon name="check" className="h-3.5 w-3.5 shrink-0" />{text({ id: 'Normal', zh: '正常' ,en: "Normal" })}</p>
               )}
               {glucoseStatus === 'high' && (
-                <p className="text-orange-600">{text({ id: '⚠ Tinggi (hiperglikemia)', zh: '⚠ 高血糖' ,en: "⚠ High (Hyperglycemia)" })}</p>
+                <p className="flex items-center gap-1 text-orange-700"><Icon name="alert-triangle" className="h-3.5 w-3.5 shrink-0" />{text({ id: 'Tinggi (hiperglikemia)', zh: '高血糖' ,en: "High (Hyperglycemia)" })}</p>
               )}
             </div>
           )}
         </div>
 
         {message && (
-          <p className={`text-sm ${status === 'err' ? 'text-red-600' : 'text-green-600'}`}>
+          <p className={`text-sm ${status === 'err' ? 'text-red-600' : 'text-emerald-700'}`}>
             {message}
           </p>
         )}
@@ -197,30 +200,30 @@ export function PetEndocrinePage({ patientId, patientName, userEmail, careRecipi
         <button
           type="submit"
           disabled={status === 'saving'}
-          className="w-full rounded-xl bg-indigo-700 px-4 py-3 text-sm font-bold text-white disabled:opacity-60"
+          className="w-full rounded-xl bg-brand-700 px-4 py-3 text-sm font-bold text-white disabled:opacity-60"
         >
           {text({ id: 'Simpan', zh: '儲存' ,en: "Save" })}
         </button>
       </form>
 
       <div className="rounded-2xl bg-white p-5 shadow-sm">
-        <h3 className="text-sm font-bold text-gray-800">{text({ id: 'Catatan hari ini', zh: '今天的紀錄' ,en: "Today's records" })}</h3>
+        <h3 className="text-sm font-bold text-slate-800">{text({ id: 'Catatan hari ini', zh: '今天的紀錄' ,en: "Today's records" })}</h3>
         {loading ? (
-          <p className="mt-2 text-sm text-gray-500">{text({ id: 'Memuat…', zh: '讀取中…' ,en: "Loading…" })}</p>
+          <p className="mt-2 text-sm text-slate-500">{text({ id: 'Memuat…', zh: '讀取中…' ,en: "Loading…" })}</p>
         ) : todayInsulin.length === 0 && todayGlucose.length === 0 ? (
-          <p className="mt-2 text-sm text-gray-500">{text({ id: 'Belum ada catatan hari ini.', zh: '今天還沒有紀錄。' ,en: "No records for today yet." })}</p>
+          <p className="mt-2 text-sm text-slate-500">{text({ id: 'Belum ada catatan hari ini.', zh: '今天還沒有紀錄。' ,en: "No records for today yet." })}</p>
         ) : (
           <ul className="mt-2 space-y-2">
             {todayInsulin.map(record => (
-              <li key={record.id} className="flex items-center justify-between rounded-xl bg-gray-50 px-3 py-2 text-sm">
-                <span className="font-semibold text-gray-700">{text({ id: 'Insulin', zh: '胰島素' ,en: "Insulin" })}</span>
-                <span className="font-bold text-indigo-700">{record.insulin_units} {text({ id: 'unit', zh: '單位' ,en: "units" })}</span>
+              <li key={record.id} className="flex items-center justify-between rounded-xl bg-slate-50 px-3 py-2 text-sm">
+                <span className="font-semibold text-slate-700">{text({ id: 'Insulin', zh: '胰島素' ,en: "Insulin" })}</span>
+                <span className="font-bold text-brand-700">{record.insulin_units} {text({ id: 'unit', zh: '單位' ,en: "units" })}</span>
               </li>
             ))}
             {todayGlucose.map(record => (
-              <li key={record.id} className="flex items-center justify-between rounded-xl bg-gray-50 px-3 py-2 text-sm">
-                <span className="font-semibold text-gray-700">{text({ id: 'Glukosa darah', zh: '血糖' ,en: "Blood glucose" })}</span>
-                <span className="font-bold text-indigo-700">{record.glucose_mg_dl} mg/dL</span>
+              <li key={record.id} className="flex items-center justify-between rounded-xl bg-slate-50 px-3 py-2 text-sm">
+                <span className="font-semibold text-slate-700">{text({ id: 'Glukosa darah', zh: '血糖' ,en: "Blood glucose" })}</span>
+                <span className="font-bold text-brand-700">{record.glucose_mg_dl} mg/dL</span>
               </li>
             ))}
           </ul>

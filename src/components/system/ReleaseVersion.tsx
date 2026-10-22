@@ -7,17 +7,18 @@ import { APP_GIT_SHA_SHORT, APP_RELEASE_CODENAME, APP_RELEASE_DATE, APP_VERSION 
 import { useI18n } from '../../lib/i18n'
 import { MengniDogMark } from './MengniDogMark'
 
+// 為什麼補足 44px：手機上的獨立操作要留出足夠點擊面，降低漏點與誤觸。
 export function ReleaseVersion() {
   const { text } = useI18n()
   return (
     <a
       href="/releases"
-      className="inline-flex flex-wrap items-center gap-x-1 gap-y-0.5 underline decoration-gray-300 underline-offset-2 hover:text-gray-700"
+      className="inline-flex flex-wrap items-center gap-x-1 gap-y-0.5 underline decoration-slate-300 underline-offset-2 hover:text-slate-700 min-h-11"
       aria-label={text({ id: 'Buka catatan rilis', zh: '開啟版本更新說明', en: 'Open release notes' })}
     >
       <span>v{APP_VERSION}</span>
       <span aria-hidden="true">｜</span>
-      <span className="inline-flex items-center gap-0.5 font-semibold text-gray-700">{text(APP_RELEASE_CODENAME)}<MengniDogMark /></span>
+      <span className="inline-flex items-center gap-0.5 font-semibold text-slate-700">{text(APP_RELEASE_CODENAME)}<MengniDogMark /></span>
       <span>· {text({ id: 'Commit ' + APP_GIT_SHA_SHORT, zh: '提交 ' + APP_GIT_SHA_SHORT, en: 'Commit ' + APP_GIT_SHA_SHORT })}</span>
       <span>· {text({ id: 'Dirilis ' + APP_RELEASE_DATE, zh: '發布於 ' + APP_RELEASE_DATE, en: 'Released ' + APP_RELEASE_DATE })}</span>
     </a>

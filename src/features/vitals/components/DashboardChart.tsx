@@ -10,7 +10,8 @@ import {
   ComposedChart, Line, Area, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ReferenceLine
 } from 'recharts'
 import type { BpRecord } from '../../../types/database'
-import { ALERT_BAR_CLASS, ALERT_SOFT_CHIP_CLASS, alertTone } from '../../../lib/alertPresentation'
+import { Icon } from '../../../components/ui/Icon'
+import { ALERT_BAR_CLASS, ALERT_ICON, ALERT_SOFT_CHIP_CLASS, alertLabelText, alertTone } from '../../../lib/alertPresentation'
 import { useBpEvaluator, type BpEvaluator } from '../hooks/useBpEvaluator'
 import { VITAL_COLORS } from '../../../lib/vitalPresentation'
 import { TZ } from '../../../lib/timezone'
@@ -21,6 +22,15 @@ import { formatMedicationDisplayName, type MedicationPlanChangeLogView } from '.
 
 dayjs.extend(utc)
 dayjs.extend(timezone)
+
+// 調藥標線的顏色（issue #1153）。Recharts 吃不到 Tailwind class，只能寫 hex，要手動跟 src/index.css 的 @theme 同步。
+// 原本停藥用 #ef4444（白底 3.76:1）、其他用 #10b981（2.54:1），10px 標籤都沒到 AA，而且紅色在這個 app
+// 專指收縮壓與危險——停藥標線用紅，照護者會以為那一天血壓出事。
+// - 加藥／改藥：brand-700 #047857（白底 5.48:1），§4.1 裡服藥圖線本來就走 brand。
+// - 停藥：ink-muted #475569（slate-600，白底 7.58:1），中性色表示「拿掉了」，不借警示色。
+// 兩者的區分本來就靠文字（← 停／改／加＋藥名）；顏色與虛線疏密只是第二層提示，不是唯一訊號。
+const MED_MARKER_COLOR = { add: '#047857', stop: '#475569' } as const
+const MED_MARKER_DASH = { add: '3 3', stop: '6 3' } as const
 
 // 數字色只負責指出指標種類；真正異常由 Badge 顯示，避免正常收縮壓被誤讀成紅色警報。
 const CustomBpDot = (props: any) => {
@@ -64,32 +74,34 @@ const CustomTooltip = ({ active, payload, locale, evaluator }: { active?: boolea
     const reading = evaluator.evaluateAt(systolic, diastolic, pulse, new Date(data.timestamp))
     const tone = alertTone(reading)
 
-    const statusText = localized(reading.labels, locale)
+    // 標籤 emoji 留給推播，tooltip 用 SVG 圖示＋純文字（issue #1153）。
+    const statusText = localized(alertLabelText(reading.labels), locale)
     const statusBg = `${ALERT_SOFT_CHIP_CLASS[tone]} ${ALERT_BAR_CLASS[tone]}`
 
     return (
-      <div className="min-w-[200px] space-y-2 rounded-xl border border-gray-200 bg-white p-3 text-sm shadow-lg ring-1 ring-black/5">
-        <div className="font-semibold text-gray-900 border-b border-gray-100 pb-1.5 flex justify-between items-center">
+      <div className="min-w-[200px] space-y-2 rounded-xl border border-slate-200 bg-white p-3 text-sm shadow-lg ring-1 ring-black/5">
+        <div className="font-semibold text-slate-900 border-b border-slate-100 pb-1.5 flex justify-between items-center">
           <span>{time}</span>
-          <span className="text-xs font-normal text-gray-500">{sessionName}</span>
+          <span className="text-xs font-normal text-slate-500">{sessionName}</span>
         </div>
         <div className="space-y-1.5 pt-0.5">
-          <div className="flex justify-between items-center text-gray-700">
+          <div className="flex justify-between items-center text-slate-700">
             <span>{localized({ id: 'Sistolik:', zh: '收縮壓：', en: 'Systolic' }, locale)}</span>
-            <VitalValue kind="systolic" value={systolic} className="font-bold text-gray-950" />
+            <VitalValue kind="systolic" value={systolic} className="font-bold text-slate-950" />
           </div>
-          <div className="flex justify-between items-center text-gray-700">
+          <div className="flex justify-between items-center text-slate-700">
             <span>{localized({ id: 'Diastolik:', zh: '舒張壓：', en: 'Diastolic:' }, locale)}</span>
-            <VitalValue kind="diastolic" value={diastolic} className="font-bold text-gray-950" />
+            <VitalValue kind="diastolic" value={diastolic} className="font-bold text-slate-950" />
           </div>
           {pulse != null && (
-            <div className="flex justify-between items-center text-gray-700 font-semibold">
+            <div className="flex justify-between items-center text-slate-700 font-semibold">
               <span>{localized({ id: 'Jantung:', zh: '心跳：', en: 'Heart rate' }, locale)}</span>
               <PulseReading pulse={pulse} className="font-bold" />
             </div>
           )}
         </div>
-        <div className={`mt-2 rounded-lg border py-1 text-center text-xs font-bold ${statusBg}`}>
+        <div className={`mt-2 flex items-center justify-center gap-1 rounded-lg border px-1.5 py-1 text-center text-xs font-bold ${statusBg}`}>
+          <Icon name={ALERT_ICON[tone]} className="h-3.5 w-3.5 shrink-0" />
           {statusText}
         </div>
       </div>
@@ -104,22 +116,20 @@ export function DashboardChart({
   days,
   subjectLabel,
   isOfflineData,
-  usesDarkColorScheme,
   medicationChanges = [],
 }: {
   records: BpRecord[]
   days: number
   subjectLabel: string
   isOfflineData: boolean
-  usesDarkColorScheme: boolean
   medicationChanges?: MedicationPlanChangeLogView[]
 }) {
   const { locale, text } = useI18n()
   const evaluator = useBpEvaluator()
 
-  const chartColors = usesDarkColorScheme
-    ? { systolic: VITAL_COLORS.systolic.dark, diastolic: VITAL_COLORS.diastolic.dark, pulse: VITAL_COLORS.pulse.dark }
-    : { systolic: VITAL_COLORS.systolic.light, diastolic: VITAL_COLORS.diastolic.light, pulse: VITAL_COLORS.pulse.light }
+  // 繁體中文註解：圖表畫在白卡上，所以一律用亮色識別值，不跟著 OS 深色模式換（issue #1152）。
+  // 暗色值（VITAL_COLORS.dark）在白底只有 2.5～2.8:1；等 app 真的有暗色表面再依表面切換。
+  const chartColors = { systolic: VITAL_COLORS.systolic.light, diastolic: VITAL_COLORS.diastolic.light, pulse: VITAL_COLORS.pulse.light }
 
   const chartData = [...records]
     .reverse()
@@ -190,19 +200,22 @@ export function DashboardChart({
         <p>{subjectLabel} · {text(common.days(days))} · {TZ} (UTC+8)</p>
       </div>
       <div className="mb-4 flex items-center justify-between">
-        <h2 id="trend-chart-title" className="text-base font-semibold tracking-tight text-gray-900">
+        <h2 id="trend-chart-title" className="text-base font-semibold tracking-tight text-slate-900">
           {text({ id: 'Grafik', zh: '圖表', en: 'Charts' })}
         </h2>
-        <div className="inline-flex items-center rounded-full bg-gray-50 px-2.5 py-1 text-xs font-medium text-gray-500 ring-1 ring-inset ring-gray-200">
+        <div className="inline-flex items-center rounded-full bg-slate-50 px-2.5 py-1 text-xs font-medium text-slate-500 ring-1 ring-inset ring-slate-200">
           {text({ id: `${records.length} catatan`, zh: `${records.length} 筆`, en: `${records.length} records` })}
         </div>
       </div>
       {isOfflineData && <p className="mb-2 text-xs font-bold text-amber-700">{text({ id: 'Data cache offline', zh: '離線快取資料', en: 'Offline cached data' })}</p>}
-      <p id="trend-chart-description" className="mb-2 text-xs text-gray-500">{text({ id: 'Garis lurus menghubungkan waktu ukur; tabel lengkap tersedia di bawah.', zh: '直線連接各量測時間；下方提供完整表格。', en: 'Straight lines connect measurement times; a full table is provided below.' })}</p>
+      <p id="trend-chart-description" className="mb-2 text-xs text-slate-500">{text({ id: 'Garis lurus menghubungkan waktu ukur; tabel lengkap tersedia di bawah.', zh: '直線連接各量測時間；下方提供完整表格。', en: 'Straight lines connect measurement times; a full table is provided below.' })}</p>
       <div role="img" aria-labelledby="trend-chart-title" aria-describedby="trend-chart-description">
         <ResponsiveContainer width="100%" height={260}>
           <ComposedChart data={chartData} margin={{ top: 10, right: 5, left: -10, bottom: 0 }}>
-            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e7eb" />
+            {/* 繁體中文註解：Recharts 吃不到 Tailwind class，中性色只能寫 hex，所以要手動跟設計系統同步（issue #1147）：
+                網格 #e2e8f0＝slate-200（原 #e5e7eb 是 gray-200）；兩條軸的單位標籤 #64748b＝slate-500，
+                白底對比 4.76:1（原 #9ca3af 只有 2.54:1）。下方調藥標線的顏色見檔頭 MED_MARKER_COLOR（#1153）。 */}
+            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
             {/* 繁體中文註解：保留首尾日期並提高字級，靠最小間距減少中間刻度，避免窄螢幕日期互相覆蓋。 */}
             <XAxis dataKey="shortTime" tick={{ fontSize: 10 }} interval="preserveStartEnd" minTickGap={24} tickMargin={6} />
             <YAxis
@@ -210,7 +223,7 @@ export function DashboardChart({
               domain={[(minimum: number) => (Number.isFinite(minimum) ? Math.min(40, minimum - 10) : 40), (maximum: number) => (Number.isFinite(maximum) ? Math.max(180, maximum + 10) : 180)]}
               tick={{ fontSize: 10 }}
               width={35}
-              label={{ value: 'mmHg', angle: -90, position: 'insideLeft', offset: 10, style: { fontSize: 9, fill: '#9ca3af' } }}
+              label={{ value: 'mmHg', angle: -90, position: 'insideLeft', offset: 10, style: { fontSize: 9, fill: '#64748b' } }}
             />
             <YAxis
               yAxisId="right"
@@ -218,20 +231,23 @@ export function DashboardChart({
               domain={[(minimum: number) => (Number.isFinite(minimum) ? Math.min(40, minimum - 10) : 40), (maximum: number) => (Number.isFinite(maximum) ? Math.max(120, maximum + 10) : 120)]}
               tick={{ fontSize: 10 }}
               width={35}
-              label={{ value: 'bpm', angle: 90, position: 'insideRight', offset: 10, style: { fontSize: 9, fill: '#9ca3af' } }}
+              label={{ value: 'bpm', angle: 90, position: 'insideRight', offset: 10, style: { fontSize: 9, fill: '#64748b' } }}
             />
             {uniqueAnnotations.map(anno => (
               <ReferenceLine
                 key={anno.id}
                 yAxisId="left"
                 x={anno.x}
-                stroke={anno.isStop ? 'rgba(239,68,68,0.5)' : 'rgba(16,185,129,0.5)'}
-                strokeDasharray="3 3"
-                label={{ 
-                  position: 'insideTopLeft', 
-                  value: anno.label, 
-                  fill: anno.isStop ? '#ef4444' : '#10b981', 
-                  fontSize: 10 
+                stroke={anno.isStop ? MED_MARKER_COLOR.stop : MED_MARKER_COLOR.add}
+                strokeOpacity={0.6}
+                strokeDasharray={anno.isStop ? MED_MARKER_DASH.stop : MED_MARKER_DASH.add}
+                // 標籤用不透明的實色：對比 ≥4.5:1 是對文字算的，線可以淡，字不行。
+                label={{
+                  position: 'insideTopLeft',
+                  value: anno.label,
+                  fill: anno.isStop ? MED_MARKER_COLOR.stop : MED_MARKER_COLOR.add,
+                  fontSize: 10,
+                  fontWeight: 600,
                 }}
               />
             ))}

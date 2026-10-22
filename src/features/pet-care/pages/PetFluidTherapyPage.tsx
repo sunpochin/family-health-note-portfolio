@@ -127,7 +127,7 @@ export function PetFluidTherapyPage({ patientId, userEmail }: {
     <section className="space-y-5 px-5 py-6">
       <form onSubmit={handleSubmit} className="space-y-4 rounded-2xl bg-white p-5 shadow-sm">
         <div>
-          <label className="block text-sm font-semibold text-gray-800">
+          <label className="block text-sm font-semibold text-slate-800">
             {text({ id: 'Volume cairan (ml)', zh: '液體體積（毫升）' ,en: "Fluid volume (ml)" })}
           </label>
           <input
@@ -136,20 +136,21 @@ export function PetFluidTherapyPage({ patientId, userEmail }: {
             step="50"
             value={formData.fluidVolumeMl}
             onChange={e => handleInputChange('fluidVolumeMl', e.target.value)}
-            placeholder="例：200"
-            className="mt-1 w-full rounded-xl border border-gray-300 px-3 py-2.5"
+            // 為什麼：placeholder 也是畫面上的系統文字，不能寫死中文，否則印尼文／英文使用者會在輸入框看到中文（#1094）。
+            placeholder={text({ id: 'Contoh: 200', zh: '例：200', en: 'e.g. 200' })}
+            className="mt-1 w-full rounded-xl border-2 border-control-border px-3 py-2.5"
             required
           />
         </div>
 
         <div>
-          <label className="block text-sm font-semibold text-gray-800">
+          <label className="block text-sm font-semibold text-slate-800">
             {text({ id: 'Lokasi injeksi', zh: '注射部位' ,en: "Injection site" })}
           </label>
           <select
             value={formData.injectionSite}
             onChange={e => handleInputChange('injectionSite', e.target.value)}
-            className="mt-1 w-full rounded-xl border border-gray-300 px-3 py-2.5"
+            className="mt-1 w-full rounded-xl border-2 border-control-border px-3 py-2.5"
           >
             <option value="">{text({ id: '(Opsional)', zh: '（可不填）' ,en: "(Optional)" })}</option>
             {/* 新紀錄一律寫 neck_only；舊 key 'neck' 只用於顯示歷史紀錄，不再提供選擇。 */}
@@ -160,7 +161,7 @@ export function PetFluidTherapyPage({ patientId, userEmail }: {
         </div>
 
         {message && (
-          <p className={`text-sm ${status === 'err' ? 'text-red-600' : 'text-green-600'}`}>
+          <p className={`text-sm ${status === 'err' ? 'text-red-600' : 'text-emerald-700'}`}>
             {message}
           </p>
         )}
@@ -168,7 +169,7 @@ export function PetFluidTherapyPage({ patientId, userEmail }: {
         <button
           type="submit"
           disabled={status === 'saving'}
-          className="w-full rounded-xl bg-indigo-700 px-4 py-3 text-sm font-bold text-white disabled:opacity-60"
+          className="w-full rounded-xl bg-brand-700 px-4 py-3 text-sm font-bold text-white disabled:opacity-60"
         >
           {text({ id: 'Simpan', zh: '儲存' ,en: "Save" })}
         </button>
@@ -176,17 +177,17 @@ export function PetFluidTherapyPage({ patientId, userEmail }: {
 
       <div className="rounded-2xl bg-white p-5 shadow-sm">
         {/* 今日紀錄標題與空狀態英文修正 */}
-        <h3 className="text-sm font-bold text-gray-800">{text({ id: 'Catatan hari ini', zh: '今天的紀錄' ,en: "Today's records" })}</h3>
+        <h3 className="text-sm font-bold text-slate-800">{text({ id: 'Catatan hari ini', zh: '今天的紀錄' ,en: "Today's records" })}</h3>
         {loading ? (
-          <p className="mt-2 text-sm text-gray-500">{text({ id: 'Memuat…', zh: '讀取中…' ,en: "Loading…" })}</p>
+          <p className="mt-2 text-sm text-slate-500">{text({ id: 'Memuat…', zh: '讀取中…' ,en: "Loading…" })}</p>
         ) : todayRecords.length === 0 ? (
-          <p className="mt-2 text-sm text-gray-500">{text({ id: 'Belum ada catatan hari ini.', zh: '今天還沒有紀錄。' ,en: "No records for today yet." })}</p>
+          <p className="mt-2 text-sm text-slate-500">{text({ id: 'Belum ada catatan hari ini.', zh: '今天還沒有紀錄。' ,en: "No records for today yet." })}</p>
         ) : (
           <ul className="mt-2 space-y-2">
             {todayRecords.map(record => (
-              <li key={record.id} className="flex items-center justify-between rounded-xl bg-gray-50 px-3 py-2 text-sm">
-                <span className="font-semibold text-gray-700">{text(injectionSiteLabel(record.injection_site))}</span>
-                <span className="font-bold text-indigo-700">{record.fluid_volume_ml} ml</span>
+              <li key={record.id} className="flex items-center justify-between rounded-xl bg-slate-50 px-3 py-2 text-sm">
+                <span className="font-semibold text-slate-700">{text(injectionSiteLabel(record.injection_site))}</span>
+                <span className="font-bold text-brand-700">{record.fluid_volume_ml} ml</span>
               </li>
             ))}
           </ul>

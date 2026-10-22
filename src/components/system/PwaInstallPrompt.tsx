@@ -147,13 +147,13 @@ function PwaInstallPromptWeb() {
 
   return (
     <section
-      className="fixed inset-x-3 bottom-[calc(env(safe-area-inset-bottom)+0.75rem)] z-[40] mx-auto max-w-md rounded-3xl border border-indigo-200 bg-white p-5 text-slate-900 shadow-2xl"
+      className="fixed inset-x-3 bottom-[calc(env(safe-area-inset-bottom)+0.75rem)] z-[40] mx-auto max-w-md rounded-3xl border border-brand-200 bg-white p-5 text-slate-900 shadow-2xl"
       role="dialog"
       aria-labelledby="pwa-install-title"
       aria-describedby="pwa-install-description"
     >
       <div className="flex items-start gap-3">
-        <div className="mt-0.5 flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-indigo-100 text-indigo-700" aria-hidden="true">
+        <div className="mt-0.5 flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-brand-50 text-brand-700" aria-hidden="true">
           <svg viewBox="0 0 24 24" className="h-6 w-6" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M12 16V4" /><path d="m7 9 5-5 5 5" /><path d="M5 13v5a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-5" /></svg>
         </div>
         <div className="min-w-0 flex-1">
@@ -165,7 +165,7 @@ function PwaInstallPromptWeb() {
           type="button"
           onClick={dismiss}
           aria-label={text({ id: 'Tutup petunjuk pemasangan', zh: '關閉安裝提示', en: 'Close install guidance' })}
-          className="absolute right-4 top-4 flex min-h-11 min-w-11 items-center justify-center rounded-xl text-2xl leading-none text-slate-500 transition hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-600"
+          className="absolute right-4 top-4 flex min-h-11 min-w-11 items-center justify-center rounded-xl text-2xl leading-none text-slate-500 transition hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-700 focus-visible:ring-offset-2"
         >×</button>
       </div>
 
@@ -174,7 +174,7 @@ function PwaInstallPromptWeb() {
           <ol className="mt-4 grid grid-cols-3 gap-2" aria-label={text({ id: 'Langkah pemasangan iOS', zh: 'iOS 安裝步驟', en: 'iOS install steps' })}>
             {[IOS_STEP_ONE, IOS_STEP_TWO, IOS_STEP_THREE].map((stepText, index) => (
               <li key={index} className="rounded-2xl bg-slate-50 p-3 text-center text-xs font-semibold leading-5 text-slate-700">
-                <span className="mx-auto flex h-10 w-10 items-center justify-center rounded-full bg-indigo-100 text-indigo-700"><StepIcon step={(index + 1) as 1 | 2 | 3} /></span>
+                <span className="mx-auto flex h-10 w-10 items-center justify-center rounded-full bg-brand-50 text-brand-700"><StepIcon step={(index + 1) as 1 | 2 | 3} /></span>
                 <span className="mt-2 block">{text(stepText)}</span>
               </li>
             ))}
@@ -187,8 +187,8 @@ function PwaInstallPromptWeb() {
 
       {showNativePrompt && (
         <div className="mt-4 grid grid-cols-2 gap-2">
-          <button type="button" onClick={dismiss} className="min-h-12 rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-bold text-slate-700 transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-600">{text(NOT_NOW_BUTTON)}</button>
-          <button type="button" onClick={() => void install()} disabled={isInstalling} className="min-h-12 rounded-xl bg-indigo-700 px-3 py-2 text-sm font-black text-white transition hover:bg-indigo-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-600 disabled:cursor-wait disabled:opacity-60">{text(isInstalling ? { id: 'Memasang…', zh: '安裝中…', en: 'Adding…' } : INSTALL_BUTTON)}</button>
+          <button type="button" onClick={dismiss} className="min-h-12 rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-bold text-slate-700 transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-700 focus-visible:ring-offset-2">{text(NOT_NOW_BUTTON)}</button>
+          <button type="button" onClick={() => void install()} disabled={isInstalling} className="min-h-12 rounded-xl bg-brand-700 px-3 py-2 text-sm font-black text-white transition hover:bg-emerald-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-700 focus-visible:ring-offset-2 disabled:cursor-wait disabled:opacity-60">{text(isInstalling ? { id: 'Memasang…', zh: '安裝中…', en: 'Adding…' } : INSTALL_BUTTON)}</button>
         </div>
       )}
     </section>

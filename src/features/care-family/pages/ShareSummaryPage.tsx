@@ -75,23 +75,23 @@ export function ShareSummaryPage() {
 
   return (
     // v2 內容較多，卡片放寬到 2xl；v1 仍是同一張卡片，只是內容少。
-    <main className="mx-auto flex min-h-dvh max-w-2xl flex-col justify-center bg-gray-50 px-5 py-10 text-gray-900 print:max-w-none print:bg-white print:px-0 print:py-0">
+    <main className="mx-auto flex min-h-dvh max-w-2xl flex-col justify-center bg-slate-50 px-5 py-10 text-slate-900 print:max-w-none print:bg-white print:px-0 print:py-0">
       {/* 第一次拿到連結的家人沒有任何已儲存的語言偏好，畫面預設中文；沒有這個切換器，
           印尼文使用者就完全無法把畫面換成看得懂的語言。 */}
       <div className="flex justify-end print:hidden"><LanguageSwitcher /></div>
       <div className="mt-3 rounded-3xl bg-white p-6 shadow-sm print:mt-0 print:rounded-none print:p-0 print:shadow-none">
-        <p className="text-xs font-bold uppercase tracking-widest text-gray-400">{text(SHARE_V2_LABELS.pageTitle)}</p>
+        <p className="text-xs font-bold uppercase tracking-widest text-slate-500">{text(SHARE_V2_LABELS.pageTitle)}</p>
 
         {state.status === 'loading' && (
-          <p className="mt-4 text-sm text-gray-500">{text(SHARE_V2_LABELS.loading)}</p>
+          <p className="mt-4 text-sm text-slate-500">{text(SHARE_V2_LABELS.loading)}</p>
         )}
 
         {state.status === 'invalid' && (
-          <p className="mt-4 text-sm text-gray-700">{text(SHARE_V2_INVALID)}</p>
+          <p className="mt-4 text-sm text-slate-700">{text(SHARE_V2_INVALID)}</p>
         )}
 
         {state.status === 'unavailable' && (
-          <p className="mt-4 text-sm text-gray-700">{text(SHARE_V2_UNAVAILABLE)}</p>
+          <p className="mt-4 text-sm text-slate-700">{text(SHARE_V2_UNAVAILABLE)}</p>
         )}
 
         {state.status === 'ready' && isShareSummaryV2(state.summary) && <ShareSummaryV2View summary={state.summary} />}
@@ -99,10 +99,10 @@ export function ShareSummaryPage() {
         {state.status === 'ready' && !isShareSummaryV2(state.summary) && (
           <div className="mt-4 space-y-4">
             <h1 className="text-2xl font-black">{localized(state.summary.patientAlias, locale)}</h1>
-            <p className="text-sm text-gray-500">{state.summary.summaryDate}（{state.summary.timezone}）</p>
+            <p className="text-sm text-slate-500">{state.summary.summaryDate}（{state.summary.timezone}）</p>
 
-            <div className="rounded-2xl border border-gray-200 p-4">
-              <p className="text-xs font-bold text-gray-500">{text({ id: 'Tekanan Darah', zh: '血壓', en: 'Blood pressure' })}</p>
+            <div className="rounded-2xl border border-slate-200 p-4">
+              <p className="text-xs font-bold text-slate-500">{text({ id: 'Tekanan Darah', zh: '血壓', en: 'Blood pressure' })}</p>
               {state.summary.bloodPressure ? (
                 <VitalReading
                   className="mt-1 text-xl"
@@ -111,11 +111,11 @@ export function ShareSummaryPage() {
                   pulse={state.summary.bloodPressure.pulse}
                 />
               ) : (
-                <p className="mt-1 text-sm text-gray-400">{text({ id: 'Belum ada catatan hari ini.', zh: '今天尚未記錄。', en: 'No records for today.' })}</p>
+                <p className="mt-1 text-sm text-slate-500">{text({ id: 'Belum ada catatan hari ini.', zh: '今天尚未記錄。', en: 'No records for today.' })}</p>
               )}
             </div>
 
-            <p className="text-xs text-gray-400">
+            <p className="text-xs text-slate-500">
               {text({ id: 'Halaman ini hanya baca dan tidak dapat digunakan untuk mengubah data.', zh: '這是唯讀頁面，無法用來修改任何資料。', en: 'This is a read-only page and cannot be used to modify data.' })}
             </p>
           </div>

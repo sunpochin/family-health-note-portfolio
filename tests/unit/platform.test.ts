@@ -13,13 +13,7 @@ const Capacitor = {
   getPlatform: () => platform,
 }
 
-const actualCapacitorCore = await import('@capacitor/core')
-// 繁體中文註解：Bun 的 mock.module 是全域生效的，若只匯出 Capacitor 會造成後續載入 @capacitor/browser
-// 時遺失 registerPlugin 等其它匯出而拋出 TypeError。
-mock.module('@capacitor/core', () => ({
-  ...actualCapacitorCore,
-  Capacitor,
-}))
+mock.module('@capacitor/core', () => ({ Capacitor }))
 
 const { getNativePlatform, isNativeApp, isStandalonePwa, readIsStandalonePwa } = await import('../../src/lib/platform')
 

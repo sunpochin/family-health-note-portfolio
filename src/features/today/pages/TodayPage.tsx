@@ -130,7 +130,8 @@ export function TodayPage({
       <section className="mb-4 rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
         <div className="flex items-center justify-between gap-2">
           <h2 className="text-lg font-black text-slate-900">{text({ id: 'Perlu diperhatikan', zh: '需要留意', en: 'Needs attention' })}</h2>
-          <button type="button" onClick={onOpenReminders} className="min-h-9 text-sm font-bold text-brand-700 underline decoration-brand-200 underline-offset-4">
+          {/* 觸控目標至少 44px（control-min）：看護單手、半夜操作時 36／40px 容易按錯，與 15 秒原則衝突（#1161）。 */}
+          <button type="button" onClick={onOpenReminders} className="min-h-11 text-sm font-bold text-brand-700 underline decoration-brand-200 underline-offset-4">
             {text({ id: 'Lihat semua', zh: '查看全部', en: 'View all' })}
           </button>
         </div>

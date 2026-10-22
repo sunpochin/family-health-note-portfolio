@@ -19,7 +19,12 @@ export interface DemoWeightRecord {
   measured_at: string
 }
 
-const STORAGE_KEY = 'jia-jian-log.demo-state.v1'
+// 為什麼 key 一路從 v1 換到 v3：v1／v2 的示範藥單與用藥異動已整份換成現在 demoData.ts 裡憑空構造的資料。
+// localStorage 快照不會跟著程式碼更新，只換 seed 的話，之前開過 /demo 的瀏覽器會一直顯示舊清單；
+// 所以種子內容每次整份換掉，就換一個新 key 讓既有訪客的展示狀態自然作廢，並在讀取時把所有舊 key
+// 直接刪掉，不留舊快照在裝置上（PR #1013 review）。試用資料本來就是可拋棄的，不做搬移。
+const STORAGE_KEY = 'jia-jian-log.demo-state.v3'
+const LEGACY_STORAGE_KEYS = ['jia-jian-log.demo-state.v1', 'jia-jian-log.demo-state.v2']
 
 export interface DemoState {
   version: 1
@@ -53,7 +58,7 @@ export interface DemoState {
 }
 
 export function isDemoMode() {
-  return typeof window !== 'undefined' && window.location?.pathname === '/demo'
+  return typeof window !== 'undefined' && window.location.pathname === '/demo'
 }
 
 function initialDemoState(): DemoState {
@@ -98,9 +103,21 @@ export function isPersistenceFailed(): boolean {
   return memoryStatePersistenceFailed
 }
 
+// 舊版 key 的快照一律清掉，不讀、不搬。失敗（隱私模式封鎖、storage 不可用）只當沒清到，不影響本次讀取。
+function scrubLegacyDemoState() {
+  for (const key of LEGACY_STORAGE_KEYS) {
+    try {
+      window.localStorage.removeItem(key)
+    } catch {
+      // 讀取路徑自己會處理 storage 被封鎖的情況；這裡不重複記 log。
+    }
+  }
+}
+
 export function loadState(): DemoState {
   if (typeof window !== 'undefined') {
     let storageReadFailed = false
+    scrubLegacyDemoState()
     try {
       const raw = window.localStorage.getItem(STORAGE_KEY)
       if (memoryState && memoryStatePersistenceFailed) {

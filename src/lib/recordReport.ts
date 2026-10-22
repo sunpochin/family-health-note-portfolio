@@ -15,7 +15,7 @@ import { careDateKey, careDayWindow } from './careDay'
 import { TRAJECTORY_DIRECTION_LABELS, type TrajectoryEvent } from './medicalTrajectory'
 import type { PreVisitSourceStatuses } from './preVisitSources'
 import type { PreVisitBriefItem } from './preVisitBrief'
-import { careTimelineEventText } from './careTimeline'
+import { careTimelineEventText, visitKindText } from './careTimeline'
 import { REMINDER_TYPE_META } from './careDueReminders'
 import { resolveMedicationCategory } from './medication/medicationAtcCategories'
 import { medicationSlotText } from './medication/medicationSchedule'
@@ -293,7 +293,17 @@ function formatTrajectoryEventLine(event: TrajectoryEvent): string {
   }
   const kindLabel = careTimelineEventText[event.kind]
   const details = event.details ? ` - ${event.details}` : ''
-  return `${date} | ${kindLabel.id}/${kindLabel.zh}: ${event.title}${details}`
+  // 與醫師版報告畫面一致：health_visit 的科別／就醫類型（#685 S3）也要進 GPT 複製文字，
+  // 否則同一份報告「看得到」的資訊與「複製出去」的資訊不一致（issue #1035）；兩欄選填，缺的不補佔位符。
+  // 刻意不帶院所（visit_institution）：院所＋精確日期是強再識別向量（ADR-009），而 Copy for GPT 的
+  // 隱私提示只說明「姓名已省略」；院所只留在使用者自己看的醫師版報告畫面與列印版（Codex review PR #1040）。
+  const sourceEntry = event.kind === 'health_visit' ? event.sourceEntry : undefined
+  const visitKind = sourceEntry?.visit_kind ? visitKindText[sourceEntry.visit_kind] : null
+  const visitStructure = [
+    sourceEntry?.visit_department ? `department / departemen / 科別: ${sourceEntry.visit_department}` : null,
+    visitKind ? `type / jenis / 類型: ${visitKind.en}/${visitKind.id}/${visitKind.zh}` : null,
+  ].filter(Boolean).join('; ')
+  return `${date} | ${kindLabel.id}/${kindLabel.zh}: ${event.title}${visitStructure ? ` (${visitStructure})` : ''}${details}`
 }
 
 function buildTrajectorySectionLines(trajectory: TrajectoryReportSection | undefined): string[] {

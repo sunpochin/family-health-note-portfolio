@@ -20,6 +20,7 @@ import {
   type MedicationTodayLog,
 } from '../../../lib/medication/medicationToday'
 import { useConfirm } from '../../../hooks/useConfirm'
+import { Icon } from '../../../components/ui/Icon'
 
 dayjs.extend(utc)
 dayjs.extend(timezone)
@@ -124,7 +125,7 @@ export function MedicationTodayCard({ userEmail }: { userEmail?: string }) {
             <h2 className="mt-0.5 text-lg font-black">{TODAY_MEDICATION_MVP.nameZh}</h2>
             <p className="mt-0.5 text-xs opacity-75">{text({ id: 'Hari perawatan', zh: '照護日', en: 'Care Day' })} · {today}</p>
           </div>
-          <span className="text-2xl leading-none">{log ? '✅' : '💊'}</span>
+          <Icon name={log ? 'check-circle' : 'pill'} className="h-7 w-7 shrink-0" />
         </div>
 
         <button
@@ -153,9 +154,9 @@ export function MedicationTodayCard({ userEmail }: { userEmail?: string }) {
             type="button"
             onClick={undoTaken}
             disabled={status === 'saving'}
-            className="mt-2 w-full text-xs font-semibold text-green-700 underline underline-offset-2 disabled:opacity-50"
+            className="mt-2 min-h-11 w-full text-xs font-semibold text-green-700 underline underline-offset-2 disabled:opacity-50"
           >
-            {/* 誤按取消按鈕英文翻譯修正 */}
+            {/* 誤按取消按鈕英文翻譯修正。此鈕是半夜誤按後的補救入口，原本只有一行字高，加 min-h-11 讓點擊區到 44px（#1198）。 */}
             {text({ id: 'Salah tekan, batalkan catatan hari perawatan ini', zh: '誤按，取消本照護日紀錄', en: 'Pressed by mistake? Cancel this care day’s record' })}
           </button>
         )}

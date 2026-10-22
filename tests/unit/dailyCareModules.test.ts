@@ -4,7 +4,7 @@
 主要關聯：src/lib/dailyCareModules.ts。
 */
 import { describe, expect, test } from 'bun:test'
-import { DAILY_CARE_MODULES, DEFAULT_DAILY_CARE_VISIBILITY, isModuleApplicableToSpecies, normalizeDailyCareVisibility, updateDailyCareVisibility, visibleDailyCareModules } from '../../src/lib/dailyCareModules'
+import { DAILY_CARE_MODULES, DEFAULT_DAILY_CARE_VISIBILITY, isModuleApplicableToSpecies, normalizeDailyCareVisibility, resolveDailyCareModuleOpen, resolveRequestedDailyCareSection, updateDailyCareVisibility, visibleDailyCareModules } from '../../src/lib/dailyCareModules'
 
 describe('daily care modules', () => {
   test('keeps every module visible by default except dementia care, fluid balance, visit questions and lab results, and repairs an all-off legacy value', () => {
@@ -54,6 +54,14 @@ describe('daily care modules', () => {
 
     const enabledModules = visibleDailyCareModules({ ...DEFAULT_DAILY_CARE_VISIBILITY, dementiaCare: true }, { canUseMedication: true, careRecipientType: 'human' }).map(module => module.id)
     expect(enabledModules).toContain('dementiaCare')
+  })
+
+  test('flags exactly the record-only modules as experimental, and every experimental module stays opt-in (issue #656)', () => {
+    // 實驗旗標決定頁面要不要顯示「目前僅提供紀錄」提示；有人新增純 CRUD 模組卻忘了標，就會在這裡被提醒。
+    const experimentalIds = DAILY_CARE_MODULES.filter(module => module.experimental).map(module => module.id)
+    expect(experimentalIds).toEqual(['dementiaCare', 'fluidBalance'])
+    // 實驗功能不得預設對任何病人開啟，否則「隱藏純 CRUD 模組」的目的就落空。
+    for (const id of experimentalIds) expect(DEFAULT_DAILY_CARE_VISIBILITY[id]).toBe(false)
   })
 
   test('does not allow the last visible module to be disabled', () => {
@@ -147,5 +155,38 @@ describe('daily care modules', () => {
     const petEndocrineModule = DAILY_CARE_MODULES.find(module => module.id === 'petEndocrine')!
     expect(isModuleApplicableToSpecies(petEndocrineModule, 'dog')).toBe(true)
     expect(isModuleApplicableToSpecies(petEndocrineModule, 'rabbit')).toBe(false)
+  })
+
+  test('resolveRequestedDailyCareSection only honours an outside request for a module the patient can actually see', () => {
+    // 外層請求（PWA 捷徑、今天頁、Siri 捷徑 issue #868）與可見性規則共用同一個判斷：
+    // 看不到的模組不能被請求硬切過去，否則會露出病人設定已關掉、或物種／權限不適用的區塊。
+    const visibleForHuman = visibleDailyCareModules(DEFAULT_DAILY_CARE_VISIBILITY, { canUseMedication: true, careRecipientType: 'human' })
+    expect(resolveRequestedDailyCareSection('bloodPressure', visibleForHuman)).toBe('bloodPressure')
+    expect(resolveRequestedDailyCareSection('medication', visibleForHuman)).toBe('medication')
+    expect(resolveRequestedDailyCareSection(undefined, visibleForHuman)).toBeNull()
+
+    const withoutMedicationPermission = visibleDailyCareModules(DEFAULT_DAILY_CARE_VISIBILITY, { canUseMedication: false, careRecipientType: 'human' })
+    expect(resolveRequestedDailyCareSection('medication', withoutMedicationPermission)).toBeNull()
+
+    const visibleForCat = visibleDailyCareModules(DEFAULT_DAILY_CARE_VISIBILITY, { canUseMedication: true, careRecipientType: 'cat' })
+    expect(resolveRequestedDailyCareSection('bloodPressure', visibleForCat)).toBeNull()
+    expect(resolveRequestedDailyCareSection('medication', visibleForCat)).toBe('medication')
+  })
+
+  test('resolveDailyCareModuleOpen opens a visible module, and sends a hidden one to the display settings card naming it (issue #752)', () => {
+    // 病人已在設定關掉血壓：不能讓照護頁靜默退到別的分頁，使用者完全看不出發生什麼事。
+    const withBloodPressureOff = visibleDailyCareModules({ ...DEFAULT_DAILY_CARE_VISIBILITY, bloodPressure: false }, { canUseMedication: true, careRecipientType: 'human' })
+    expect(resolveDailyCareModuleOpen('medication', withBloodPressureOff)).toEqual({ kind: 'openSection', moduleId: 'medication' })
+    expect(resolveDailyCareModuleOpen('bloodPressure', withBloodPressureOff)).toEqual({
+      kind: 'showDisplaySettings',
+      hash: '#daily-care-display-settings:bloodPressure',
+    })
+
+    const withoutMedicationPermission = visibleDailyCareModules(DEFAULT_DAILY_CARE_VISIBILITY, { canUseMedication: false, careRecipientType: 'human' })
+    expect(resolveDailyCareModuleOpen('medication', withoutMedicationPermission)).toEqual({
+      kind: 'showDisplaySettings',
+      hash: '#daily-care-display-settings:medication',
+    })
+    expect(resolveDailyCareModuleOpen('bloodPressure', withoutMedicationPermission)).toEqual({ kind: 'openSection', moduleId: 'bloodPressure' })
   })
 })

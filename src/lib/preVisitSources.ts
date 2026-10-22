@@ -35,13 +35,18 @@ export interface PreVisitSourceStatuses {
 // 這裡直接放寬到一個對長照病人也夠用的上限，避免報告漏印「這段期間到底改過幾次藥」。
 const MEDICATION_HISTORY_LIMIT = 200
 
+// 為什麼 visit_* 三欄一定要列在這裡：醫師版報告的軌跡段（TrajectorySection）靠 sourceEntry.visit_* 渲染
+// 科別／院所／就醫類型；select 漏掉它們時真實資料永遠是 undefined，畫面只在 demo 模式（本機種子資料）
+// 看起來正常，這種「只有正式環境壞」的缺漏最難被發現（issue #1035）。匯出供測試鎖住欄位清單。
+export const TIMELINE_ENTRY_COLUMNS = 'id, patient_id, event_type, title, details, occurred_at, reassess_on, created_by, created_at, medication_plan_id, medication_plan_change_log_id, visit_kind, visit_department, visit_institution'
+
 async function readTimelineEntriesInRange(patientId: string, sinceIso: string, untilIso: string): Promise<PreVisitSourceResult<CareTimelineEntry[]>> {
   if (isDemoMode() && isDemoPatientId(patientId)) {
     return { status: 'ok', data: entriesInReportPeriod(readDemoCareTimeline(patientId), sinceIso, untilIso) }
   }
   const { data, error } = await supabase
     .from('care_timeline_entries')
-    .select('id, patient_id, event_type, title, details, occurred_at, reassess_on, created_by, created_at, medication_plan_id, medication_plan_change_log_id')
+    .select(TIMELINE_ENTRY_COLUMNS)
     .eq('patient_id', patientId)
     .gte('occurred_at', sinceIso)
     .lte('occurred_at', untilIso)

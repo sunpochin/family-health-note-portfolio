@@ -1,5 +1,5 @@
 /*
-檔案用途：/demo 展示模式的藥物核心存取——藥單（plan）建立／調整／停用、服藥紀錄（dose log）與服用方式 B 層指示。
+檔案用途：/demo 展示模式的藥物核心存取——藥單（plan）建立／調整／停用（含同一顆藥多個時段的批次停用／調劑量）、服藥紀錄（dose log）與服用方式 B 層指示。
 所在層：src/lib/demoStorage；medication 核心領域，狀態透過 ./store 的共用 loadState／saveState 存取；
 PRN 頓服藥事件另見 ./medicationPrn，避免這個檔案同時混雜例行藥單與頓服藥兩種語意。
 主要關聯：由 lib/medication/medications.ts、lib/medication/medicationAdmin.ts、lib/medication/medicationInstructions.ts 經 demoStorage/index.ts 呼叫。
@@ -7,7 +7,7 @@ PRN 頓服藥事件另見 ./medicationPrn，避免這個檔案同時混雜例行
 import dayjs from 'dayjs'
 import type { MedicationCatalog, MedicationIntakeLog, MedicationPlan, MedicationPlanChangeLog, PatientMedicationInstruction } from '../../types/database'
 import { calendarDateKey, careDateKey } from '../careDay'
-import type { AdminMedicationPlan, MedicationCorrectionInput, MedicationOption, NewMedicationPlanInput } from '../medication/medicationAdmin'
+import type { AdminMedicationPlan, MedicationCorrectionInput, MedicationOption, MedicationPlanExpectedSnapshot, NewMedicationPlanInput } from '../medication/medicationAdmin'
 import type { MedicationPlanChangeLogView, MedicationPlanView } from '../medication/medications'
 import { DEMO_VISITOR_EMAIL, type DemoState, loadState, localId, saveState } from './store'
 
@@ -70,12 +70,11 @@ export function readDemoMedicationHistory(patientId: string, limit = 20): Medica
     })
 }
 
-function appendMedicationChange(state: DemoState, plan: MedicationPlan, action: MedicationPlanChangeLog['action'], reason: string, actorEmail: string, beforePlan?: MedicationPlan): DemoState {
+function appendMedicationChange(state: DemoState, plan: MedicationPlan, action: MedicationPlanChangeLog['action'], reason: string, actorEmail: string, beforePlan?: MedicationPlan, now = new Date().toISOString()): DemoState {
   const snapshot = (value: MedicationPlan) => ({
     plan_id: value.id, medication_id: value.medication_id, schedule_slot: value.schedule_slot, dose_amount: value.dose_amount,
     dose_count: value.dose_count, as_needed: value.as_needed, active: value.active,
   })
-  const now = new Date().toISOString()
   const change: MedicationPlanChangeLog = {
     id: localId('change'),
     patient_id: plan.patient_id,
@@ -175,6 +174,65 @@ export function deactivateDemoMedicationPlan(planId: string, patientId: string, 
   const nextPlan = { ...plan, active: false }
   const medicationPlans = state.medicationPlans.map(item => item.id === planId ? nextPlan : item)
   saveState(appendMedicationChange({ ...state, medicationPlans }, nextPlan, 'deactivate', reason, actorEmail))
+}
+
+// 對應正式 apply_medication_plan_batch_change（issue #1232）：同一顆藥的多個時段一次停用或調劑量。
+// 拒絕條件與錯誤訊息跟 RPC 一致，讓 /demo 也能重現「混到另一顆藥就整批不動」；
+// 全部驗證完才 saveState 一次，等同正式環境的整批 rollback。
+export function applyDemoMedicationPlanBatchChange(action: 'update' | 'deactivate', patientId: string, medicationId: string, planIds: string[], rawDoseAmount: number | null, reason = '', actorEmail = DEMO_VISITOR_EMAIL, expectedPlans?: MedicationPlanExpectedSnapshot[], expectAllSchedules = false): number {
+  // 比照 RPC 先捨入到 numeric(8,3)：否則 0.0004 在 demo 被接受、正式環境卻被拒絕；1.0004 在 demo 寫出變更、正式環境卻是沒變。
+  // 用指數字串位移而不是 x * 1000：0.5005 * 1000 在二進位浮點是 500.4999…，會捨成 0.5，
+  // 但 PostgreSQL 的 round(numeric, 3) 以十進位計算得到 0.501。'0.5005e3' 由字串解析，會精確得到 500.5。
+  // 1e-7 這類指數寫法會變成 NaN，下面的 > 0 檢查會把它當成缺少劑量拒絕；RPC 會把它捨成 0，一樣拒絕。
+  const doseAmount = rawDoseAmount === null ? null : Number(`${Math.round(Number(`${rawDoseAmount}e3`))}e-3`)
+  if (planIds.length < 1 || planIds.length > 11 || new Set(planIds).size !== planIds.length) throw new Error('Invalid medication plan batch change')
+  if (expectedPlans && expectedPlans.length !== planIds.length) throw new Error('Invalid medication plan batch change')
+  if (action === 'update' && (doseAmount === null || !(doseAmount > 0))) throw new Error('Medication plan batch change is incomplete')
+  if (action === 'deactivate' && doseAmount !== null) throw new Error('Invalid medication plan batch change')
+  const state = loadState()
+  const targets = state.medicationPlans.filter(plan => planIds.includes(plan.id) && plan.patient_id === patientId)
+  if (targets.length !== planIds.length || targets.some(plan => plan.medication_id !== medicationId || !plan.active)) {
+    throw new Error('Medication plan batch does not match this medication')
+  }
+  // 比照正式 RPC 在鎖列時比對 expectedPlans 快照（時段、劑量、dose_count、active、as_needed）：
+  // 防止過期寫入覆蓋其他照護者的新醫囑，任一不符整批拒絕。
+  if (expectedPlans) {
+    for (const expected of expectedPlans) {
+      const match = targets.find(item => item.id === expected.id)
+      if (
+        !match ||
+        match.schedule_slot !== expected.schedule_slot ||
+        match.dose_amount !== expected.dose_amount ||
+        match.dose_count !== expected.dose_count ||
+        match.active !== expected.active ||
+        match.as_needed !== expected.as_needed
+      ) {
+        throw new Error('Medication plan batch does not match this medication')
+      }
+    }
+  }
+  // 全選須與目前完整固定群組吻合；只比較 selected 會讓新增時段在「全部停用」後仍生效。
+  if (expectAllSchedules) {
+    const currentGroup = state.medicationPlans.filter(plan => plan.patient_id === patientId && plan.medication_id === medicationId && plan.active && !plan.as_needed)
+    if (currentGroup.length !== planIds.length || currentGroup.some(plan => !planIds.includes(plan.id))) {
+      throw new Error('Medication plan batch does not match this medication')
+    }
+  }
+  // 同一批共用一個時間戳，跟正式環境同一個 transaction 的 recorded_at 相同，時間線才能用同一組 key 摺疊。
+  const now = new Date().toISOString()
+  let nextState = state
+  let changed = 0
+  for (const plan of [...targets].sort((left, right) => left.id.localeCompare(right.id))) {
+    // 劑量已相同的時段不寫，避免時間線出現「1 顆 → 1 顆」的假變更（與 RPC 一致）。
+    if (action === 'update' && plan.dose_amount === doseAmount) continue
+    const nextPlan: MedicationPlan = action === 'update'
+      ? { ...plan, account_email: actorEmail.trim().toLowerCase(), dose_amount: doseAmount as number, display_order: Math.floor(Date.now() / 1_000) }
+      : { ...plan, active: false }
+    nextState = appendMedicationChange({ ...nextState, medicationPlans: nextState.medicationPlans.map(item => item.id === plan.id ? nextPlan : item) }, nextPlan, action, reason, actorEmail, plan, now)
+    changed += 1
+  }
+  if (changed > 0) saveState(nextState)
+  return changed
 }
 
 export function saveDemoMedicationDose(plan: MedicationPlanView, date: string, doseNumber: number, recordedByEmail: string): MedicationIntakeLog {

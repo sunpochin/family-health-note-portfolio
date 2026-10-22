@@ -3,13 +3,15 @@
 所在層：src/lib；只包裝原生 App／Browser plugin，不取代既有 Supabase auth 與 RLS。
 主要關聯：由 useAuth 與 GoogleSignInButton 呼叫，將 callback code 交回 Supabase session；
          iOS／Android 共用同一份 adapter，React 畫面只需改一處就能同時反映在兩個平台。
-         appUrlOpen 是 App 唯一的 URL 入口：先判 OAuth callback，不是才交給 nativeAppLinks.ts 的 https 白名單（issue #820）。
+         appUrlOpen 是 App 唯一的 URL 入口：先判 OAuth callback，再判 Siri 捷徑網址（nativeShortcuts.ts，issue #868），
+         都不是才交給 nativeAppLinks.ts 的 https 白名單（issue #820）。
 */
 import { App, type URLOpenListenerEvent } from '@capacitor/app'
 import { Browser } from '@capacitor/browser'
 import { supabase } from './supabase'
 import { isNativeApp } from './platform'
 import { openNativeAppLink } from './nativeAppLinks'
+import { handleNativeShortcutUrl } from './nativeShortcuts'
 
 export const NATIVE_AUTH_CALLBACK_URL = 'jia-jian-log://auth/callback'
 
@@ -90,6 +92,8 @@ async function exchangeNativeAuthCallback(event: URLOpenListenerEvent, fromLaunc
   if (!callback) {
     // 為什麼 OAuth 一定先判：OAuth callback 走自訂 scheme，app link 只收 https，兩者本來不會重疊；
     // 固定順序讓「一個 URL 只會被一條路徑處理」成為結構保證，而不是依賴兩份白名單剛好互斥。
+    // Siri 捷徑網址（jia-jian-log://record/…）host 與 OAuth 的 auth 不同，只開畫面不碰 token，認領後不再往下交。
+    if (handleNativeShortcutUrl(event.url, { fromLaunch })) return
     // 未知 URL 由 openNativeAppLink 靜默忽略，不寫 log（fragment 可能是 token）。
     await openNativeAppLink(event.url, { fromLaunch })
     return

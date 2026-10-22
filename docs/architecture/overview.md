@@ -41,7 +41,8 @@ App shell / session
 | 切換照護對象時，前一位的查詢比較晚回來 | `src/hooks/useLatestRequest.ts` | 過期結果若被回寫，畫面會把上一位的血壓標成目前對象的數值，直接違反「生理數值必須綁定 `patient_id`」的不變量。`begin()` 回傳的判定函式是唯一的回寫閘門。 |
 | Supabase／網路錯誤形狀不一致（`code`／`status`／原生 `TypeError`） | `src/lib/dataErrors.ts` | 過去有四份各自的 `'code' in error` 型別窄化，已經開始漂移——體溫少了「連線／設定有問題」這個分支。判斷收斂後兩邊行為自動一致。 |
 | 離線快取的 JSON 壞掉、儲存被停用或容量已滿 | `src/lib/localCache.ts` | `localStorage` 在 Safari 無痕模式會直接 throw，容量滿時 `setItem` 會丟 `QuotaExceededError`；這些都只該降級成「這次沒有離線備份」，不能讓剛成功的線上讀取失敗。`patientScopedCacheKey()` 讓快取分區在 key 層就綁定病人。 |
-| 血壓寫入遇到暫時性網路錯誤 | `src/lib/bloodPressurePendingQueue.ts`、`src/lib/bloodPressureRecords.ts` | pending queue 只收暫時性寫入失敗，並以病人／帳號 storage key 與固定 client UUID 去重；RLS／配額錯誤不重試，通知副作用也不跟著盲目重播。 |
+| 血壓寫入遇到暫時性網路錯誤 | `src/lib/bloodPressurePendingQueue.ts`、`src/lib/bloodPressureRecords.ts` | pending queue 只收暫時性寫入失敗，並以病人／帳號 storage key 與固定 client UUID 去重；RLS／配額錯誤不重試，通知副作用也不跟著盲目重播。補送涵蓋這個帳號所有照護對象，不只畫面上那位（issue #1125）；補送器 `src/features/vitals/hooks/useBloodPressureQueueCoordinator.ts` 掛在 App 殼層，登入後不論分頁都在（issue #1138）。 |
+| 服藥打卡遇到暫時性網路錯誤 | `src/lib/medication/medicationPendingQueue.ts`、`src/lib/pendingWriteQueue.ts` | 與血壓共用佇列基礎，但去重鍵是劑次本身 `(patient_id, plan_id, care_date, dose_number)`，對齊資料庫唯一索引；同一劑不論重按、重送或兩台手機各自離線打卡都只留一筆，衝突時伺服器那筆為準。 |
 
 `dataErrors` 的訊息函式一律回傳 `LocalizedText` 而不是已經選好語言的字串。這是刻意的型別設計：呼叫端只能透過 `text()`／`localized()` 顯示，因此憲法要求的「兩種語言都要有、畫面只顯示一種」在編譯期就被強制，不可能再出現把中印文用斜線串成一句丟到畫面上的寫法。同理，資料庫原始錯誤只進 `console`，畫面永遠只拿到看護能據以行動的雙語句子。
 

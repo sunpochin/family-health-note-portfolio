@@ -4,10 +4,12 @@
 主要關聯：使用 src/lib/i18n.tsx 的目前語系，並與 src/lib/auth.ts 的 WebView 偵測保持責任分離。
 */
 import { useI18n } from '../../lib/i18n'
+import { Icon } from '../ui/Icon'
 
+// 標題字串不再帶 ⚠️：提醒圖示改由下方的 <Icon> 畫（issue #1150），三個語系的標題文字同步拿掉 emoji。
 const WEBVIEW_WARNING_COPY = {
   id: {
-    title: '⚠️ Buka di Browser Eksternal',
+    title: 'Buka di Browser Eksternal',
     intro: 'Google login tidak tersedia di browser internal. Ketuk menu',
     menu: '(···)',
     connector: 'lalu pilih',
@@ -15,7 +17,7 @@ const WEBVIEW_WARNING_COPY = {
     period: '.',
   },
   zh: {
-    title: '⚠️ 在瀏覽器中開啟',
+    title: '在瀏覽器中開啟',
     intro: '應用內瀏覽器無法使用 Google 登入。請點擊右上角選單',
     menu: '(⋯)',
     connector: '並選擇',
@@ -23,7 +25,7 @@ const WEBVIEW_WARNING_COPY = {
     period: '。',
   },
  en: {
-    title: '⚠️ Open in Browser',
+    title: 'Open in Browser',
     intro: 'Google login is not available in the app browser. Tap the menu',
     menu: '(···)',
     connector: 'and select',
@@ -40,7 +42,10 @@ export function WebViewWarning() {
     <div className="mt-4 max-w-xs text-left rounded-2xl bg-amber-50 border border-amber-200 px-4 py-3 text-xs text-amber-800 flex flex-col gap-2">
       <div>
         {/* 繁體中文註解：內文依目前選定語系取單一文案，避免手機 WebView 同時堆疊兩種語言而壓縮操作指引。 */}
-        <span className="font-bold">{copy.title}</span>
+        <span className="flex items-center gap-1.5 font-bold">
+          <Icon name="alert-triangle" className="h-4 w-4 shrink-0" />
+          {copy.title}
+        </span>
         <p className="mt-0.5">
           {copy.intro} (<span className="font-bold">{copy.menu}</span>) {copy.connector}{' '}
           <span className="font-bold">{copy.action}</span>{copy.period}

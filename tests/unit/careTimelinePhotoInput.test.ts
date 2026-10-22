@@ -16,8 +16,13 @@ describe('trajectory entry form photo inputs', () => {
     expect(form).toContain('id="care-timeline-camera-photo-input"')
     expect(form).toContain('capture="environment"')
     expect(form).toContain('id="care-timeline-photo-input"')
-    expect(form).toContain('📷 {text({ id: \'Ambil foto\', zh: \'拍照\', en: \'Take Photo\' })}')
-    expect(form).toContain('🖼️ {text({ id: \'Pilih dari galeri\', zh: \'從相簿選取\', en: \'Select from album\' })}')
+    // 兩顆按鈕的 📷／🖼️ 已改成 <Icon>（issue #1150）；文字與圖示分開斷言，並確認原始碼裡不再有 emoji 圖示。
+    expect(form).toContain('<Icon name="camera"')
+    expect(form).toContain('{text({ id: \'Ambil foto\', zh: \'拍照\', en: \'Take Photo\' })}')
+    expect(form).toContain('<Icon name="image"')
+    expect(form).toContain('{text({ id: \'Pilih dari galeri\', zh: \'從相簿選取\', en: \'Select from album\' })}')
+    expect(form).not.toContain('📷')
+    expect(form).not.toContain('🖼️')
   })
 })
 

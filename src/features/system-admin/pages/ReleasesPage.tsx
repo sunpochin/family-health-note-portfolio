@@ -31,6 +31,7 @@ function sectionTitle(title: string, text: ReturnType<typeof useI18n>['text']) {
   return text(labels[title.toLowerCase()] ?? { id: title, zh: title, en: title })
 }
 
+// 為什麼補足 44px：手機上的獨立操作要留出足夠點擊面，降低漏點與誤觸。
 export function ReleasesPage() {
   const { text } = useI18n()
 
@@ -39,13 +40,13 @@ export function ReleasesPage() {
   }
 
   return (
-    <div className="min-h-dvh bg-gray-50 text-gray-900">
-      <header className="sticky top-0 z-10 border-b border-gray-200 bg-white px-4 py-3 shadow-xs">
+    <div className="min-h-dvh bg-slate-50 text-slate-900">
+      <header className="sticky top-0 z-10 border-b border-slate-200 bg-white px-4 py-3 shadow-xs">
         <div className="mx-auto flex max-w-2xl items-center justify-between">
           <button
             type="button"
             onClick={goHome}
-            className="flex min-h-11 items-center gap-1 text-sm font-bold text-gray-700 hover:text-gray-900 active:text-blue-600"
+            className="flex min-h-11 items-center gap-1 text-sm font-bold text-slate-700 hover:text-slate-900 active:text-brand-700"
           >
             <span aria-hidden="true">←</span>
             <span>{text({ id: 'Kembali ke Beranda', zh: '返回首頁', en: 'Back to Home' })}</span>
@@ -55,15 +56,15 @@ export function ReleasesPage() {
       </header>
 
       <main className="mx-auto max-w-2xl px-5 py-8">
-        <article className="space-y-6 rounded-3xl border border-gray-200 bg-white p-6 shadow-sm md:p-8">
+        <article className="space-y-6 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm md:p-8">
           <div>
-            <span className="inline-block rounded-lg bg-indigo-50 px-2.5 py-1 text-xs font-extrabold text-indigo-700">
+            <span className="inline-block rounded-lg bg-brand-50 px-2.5 py-1 text-xs font-extrabold text-brand-700">
               {text({ id: 'Rilis & informasi build', zh: '版本與建置資訊', en: 'Version and build information' })}
             </span>
-            <h1 className="mt-2 text-2xl font-black tracking-tight text-gray-900 md:text-3xl">
+            <h1 className="mt-2 text-2xl font-black tracking-tight text-slate-900 md:text-3xl">
               {text({ id: 'Catatan Rilis', zh: '版本更新說明', en: 'Release notes' })}
             </h1>
-            <p className="mt-2 text-sm leading-relaxed text-gray-600">
+            <p className="mt-2 text-sm leading-relaxed text-slate-600">
               {text({
                 id: 'Lihat perubahan di setiap rilis dan kenali build yang sedang berjalan di perangkat ini.',
                 zh: '查看每次版本的變更，也能確認這台裝置目前實際執行的版本。', en: 'You can also check the version of this device that is currently running by reviewing each version of the change.',
@@ -75,14 +76,14 @@ export function ReleasesPage() {
 
           <section aria-labelledby="release-history-title">
             <div className="flex flex-wrap items-end justify-between gap-3">
-              <h2 id="release-history-title" className="text-lg font-black text-gray-900">
+              <h2 id="release-history-title" className="text-lg font-black text-slate-900">
                 {text({ id: 'Riwayat rilis', zh: '版本歷史', en: 'Version History' })}
               </h2>
               <a
                 href={APP_GITHUB_RELEASES_URL}
                 target="_blank"
                 rel="noreferrer"
-                className="text-sm font-semibold text-blue-700 underline underline-offset-2"
+                className="text-sm font-semibold text-brand-700 underline underline-offset-2 inline-flex min-h-11 items-center"
               >
                 {text({ id: 'Rilis GitHub ↗', zh: 'GitHub 版本 ↗', en: 'GitHub Version ↗' })}
               </a>
@@ -92,7 +93,7 @@ export function ReleasesPage() {
               {RELEASE_NOTES.length > 0
                 ? RELEASE_NOTES.map(release => <ReleaseCard key={release.version + '-' + (release.date ?? 'undated')} release={release} />)
                 : (
-                  <div className="rounded-2xl border border-dashed border-gray-300 bg-gray-50 p-5 text-sm leading-relaxed text-gray-600">
+                  <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-5 text-sm leading-relaxed text-slate-600">
                     {text({
                       id: 'Release-please belum menulis entri versi. PR rilis berikutnya akan muncul di sini secara otomatis.',
                       zh: 'release-please 尚未寫入版本條目；之後的版本 PR 會自動顯示在這裡。', en: 'release-please has not yet written a version entry; subsequent version PRs will automatically appear here.',
@@ -102,7 +103,7 @@ export function ReleasesPage() {
             </div>
           </section>
 
-          <footer className="border-t border-gray-100 pt-5 text-center text-xs text-gray-400">
+          <footer className="border-t border-slate-100 pt-5 text-center text-xs text-slate-500">
             <ReleaseVersion />
           </footer>
         </article>
@@ -113,14 +114,14 @@ export function ReleasesPage() {
 
 function ReleaseCard({ release }: { release: ReleaseNote }) {
   return (
-    <article className="rounded-2xl border border-gray-200 bg-white p-4 shadow-xs">
+    <article className="rounded-2xl border border-slate-200 bg-white p-4 shadow-xs">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <h3 className="text-base font-black text-gray-900">
+        <h3 className="text-base font-black text-slate-900">
           {release.url
-            ? <a href={release.url} target="_blank" rel="noreferrer" className="text-blue-700 underline underline-offset-2">v{release.version} ↗</a>
+            ? <a href={release.url} target="_blank" rel="noreferrer" className="text-brand-700 underline underline-offset-2 inline-flex min-h-11 items-center">v{release.version} ↗</a>
             : 'v' + release.version}
         </h3>
-        {release.date && <time className="text-xs font-semibold text-gray-400">{release.date}</time>}
+        {release.date && <time className="text-xs font-semibold text-slate-500">{release.date}</time>}
       </div>
 
       <div className="mt-4 space-y-4">
@@ -147,13 +148,13 @@ function ReleaseSection({ release, section }: { release: ReleaseNote; section: R
 
   return (
     <section>
-      <h4 className="text-sm font-bold text-gray-800">{sectionTitle(section.title, text)}</h4>
-      <ul className="mt-2 list-disc space-y-1 pl-5 text-sm leading-relaxed text-gray-600">
+      <h4 className="text-sm font-bold text-slate-800">{sectionTitle(section.title, text)}</h4>
+      <ul className="mt-2 list-disc space-y-1 pl-5 text-sm leading-relaxed text-slate-600">
         {displayItems.map((item, index) => (
           <li key={section.title + '-' + index}>
             {text(item.text)}
             {!item.translated && (
-              <span className="ml-1 text-xs font-semibold text-gray-400">
+              <span className="ml-1 text-xs font-semibold text-slate-500">
                 ({text({ id: 'belum diterjemahkan', zh: '尚未翻譯', en: 'Untranslated' })})
               </span>
             )}

@@ -30,20 +30,12 @@ const fakeWindow = {
   clearTimeout: globalThis.clearTimeout.bind(globalThis),
 } as unknown as Window & typeof globalThis
 
-let activeViews: Array<{ unmount: () => void }> = []
-
 beforeEach(() => {
   values.clear()
   globalThis.window = fakeWindow
 })
 
-afterEach(async () => {
-  for (const view of activeViews) {
-    view.unmount()
-  }
-  activeViews = []
-  // 等待 60ms scroll timer 執行完畢，避免 timer 在 window 被刪除後非同步觸發
-  await new Promise(resolve => setTimeout(resolve, 70))
+afterEach(() => {
   if (originalWindow) globalThis.window = originalWindow
   else delete (globalThis as { window?: Window & typeof globalThis }).window
 })
@@ -52,7 +44,6 @@ const flush = () => new Promise(resolve => setTimeout(resolve, 0))
 
 async function renderForm() {
   const view = renderHook(() => useMedicationAdminForm({ patientId: DEMO_MEILING_PATIENT_ID, isOwnPatient: false }), { defaultContext: LOCALE_CONTEXT_VALUE })
-  activeViews.push(view)
   await flush()
   return view
 }

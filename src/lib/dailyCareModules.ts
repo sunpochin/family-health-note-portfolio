@@ -33,6 +33,10 @@ export type DailyCareModule = {
   label: LocalizedText
   compactLabel: LocalizedText
   applicableToSpecies?: ('human' | 'dog' | 'cat' | 'bird' | 'rabbit' | 'other')[]
+  // 「只進不出」的純紀錄模組（issue #656）：照護者要花力氣鍵入，產品卻還沒有跨日趨勢或門診報表回饋。
+  // 這類模組預設關閉，手動開啟後也要在頁面與設定卡明講「實驗功能」，管理使用者預期，而不是讓人以為記了就有分析。
+  // 等該模組真的做出趨勢圖或回診摘要，就移除這個旗標。
+  experimental?: boolean
 }
 
 // 頁籤與設定共用這份順序，避免使用者在兩個畫面看到不同的功能排列。
@@ -57,10 +61,10 @@ export const DAILY_CARE_MODULES: readonly DailyCareModule[] = [
   // 失智照護是人類專屬觀察項目，不套用物種清單以外的病人。且此模組刻意不放進「每人預設開啟」，
   // 見 DEFAULT_DAILY_CARE_VISIBILITY：只有照護者在設定頁主動開啟過的病人才會看到，避免沒有失智症狀的長者
   // 也被迫看到這三個分頁（issue #421 驗收條件：只在啟用此模組的病人身上出現）。
-  { id: 'dementiaCare', label: { id: 'Perawatan demensia', zh: '失智照護' ,en: 'Dementia care' }, compactLabel: { id: 'Demensia', zh: '失智照護' ,en: 'Dementia' }, applicableToSpecies: ['human'] },
-  // 術後體液平衡是特定照護需求（例如腦動脈瘤術後血鉀過低，護理師要求量化記錄），不是每位人類病人都需要，
+  { id: 'dementiaCare', label: { id: 'Perawatan demensia', zh: '失智照護' ,en: 'Dementia care' }, compactLabel: { id: 'Demensia', zh: '失智照護' ,en: 'Dementia' }, applicableToSpecies: ['human'], experimental: true },
+  // 術後體液平衡是特定照護需求（例如手術後電解質不穩、護理師要求量化記錄進出量），不是每位人類病人都需要，
   // 因此跟失智照護一樣預設關閉，只在照護者主動開啟後才出現；目前只服務人類病人。
-  { id: 'fluidBalance', label: { id: 'Asupan & keluaran cairan', zh: '體液平衡記錄' ,en: 'Fluid balance' }, compactLabel: { id: 'Cairan I/O', zh: '進出量' ,en: 'Fluid I/O' }, applicableToSpecies: ['human'] },
+  { id: 'fluidBalance', label: { id: 'Asupan & keluaran cairan', zh: '體液平衡記錄' ,en: 'Fluid balance' }, compactLabel: { id: 'Cairan I/O', zh: '進出量' ,en: 'Fluid I/O' }, applicableToSpecies: ['human'], experimental: true },
   // 到期提醒同時服務人與寵物；表單再依物種限制回診、疫苗與驅蟲類型，避免把提醒入口拆成兩套來源。
   { id: 'careReminders', label: { id: 'Pengingat jatuh tempo', zh: '到期提醒', en: 'Due reminders' }, compactLabel: { id: 'Pengingat', zh: '提醒', en: 'Reminders' }, applicableToSpecies: ['human', 'dog', 'cat', 'bird', 'rabbit', 'other'] },
   // 回診問題清單（issue #723）：跟失智照護／體液平衡一樣不是每位病人都需要，預設關閉；
@@ -124,6 +128,29 @@ export function isModuleApplicableToSpecies(module: Pick<DailyCareModule, 'appli
   if (!careRecipientType) return true // 未指定物種時顯示所有，向後相容舊資料。
   if (module.applicableToSpecies) return module.applicableToSpecies.includes(careRecipientType as any)
   return careRecipientType === 'human'
+}
+
+/**
+ * 外層（PWA 捷徑、今天頁的一步操作、Siri 捷徑 #868）要求打開的區塊；目標目前不可見就回 null，由呼叫端維持原本選到的區塊。
+ * 掛載時的初始選擇與「頁面已掛載後才收到請求」共用這一份判斷，可見性規則（權限、物種、病人設定）才不會有兩個版本。
+ */
+export function resolveRequestedDailyCareSection(requested: DailyCareModuleId | undefined, visibleModules: readonly Pick<DailyCareModule, 'id'>[]): DailyCareModuleId | null {
+  if (!requested) return null
+  return visibleModules.some(module => module.id === requested) ? requested : null
+}
+
+export type DailyCareModuleOpenAction =
+  | { kind: 'openSection', moduleId: DailyCareModuleId }
+  | { kind: 'showDisplaySettings', hash: string }
+
+/**
+ * 「打開某個照護模組」要做什麼（issue #752 今天頁的一步操作、issue #868 Siri 捷徑共用）：
+ * 模組可見就直接開；病人已在設定關掉它時，不能讓照護頁靜默退到別的分頁（使用者完全看不出發生什麼事），
+ * 而是帶去顯示設定卡並指名該項目。純函式，讓兩個分支都有測試。
+ */
+export function resolveDailyCareModuleOpen(moduleId: DailyCareModuleId, visibleModules: readonly Pick<DailyCareModule, 'id'>[]): DailyCareModuleOpenAction {
+  if (resolveRequestedDailyCareSection(moduleId, visibleModules)) return { kind: 'openSection', moduleId }
+  return { kind: 'showDisplaySettings', hash: buildDailyCareDisplaySettingsHash(moduleId) }
 }
 
 export function visibleDailyCareModules(preference: DailyCareVisibilityPreference, capabilities: { canUseMedication: boolean; careRecipientType?: string; useCustomTemplate?: boolean }): DailyCareModule[] {

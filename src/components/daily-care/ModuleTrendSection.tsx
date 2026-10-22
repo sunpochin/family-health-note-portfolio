@@ -53,7 +53,7 @@ export function ModuleTrendSection({ moduleId, titleId, children, showPeriodPick
           onClick={toggle}
           aria-expanded={expanded}
           aria-controls={`${moduleId}-trend-panel`}
-          className="flex min-h-14 w-full items-center justify-between gap-3 rounded-3xl px-4 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-600 focus-visible:ring-inset"
+          className="flex min-h-14 w-full items-center justify-between gap-3 rounded-3xl px-4 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-700 focus-visible:ring-inset"
         >
           <span className="text-base font-extrabold text-slate-950">{text(title)}</span>
           <span className="flex shrink-0 items-center gap-2 text-sm font-bold text-slate-600">
@@ -73,10 +73,10 @@ export function ModuleTrendSection({ moduleId, titleId, children, showPeriodPick
                   type="button"
                   aria-pressed={days === option}
                   onClick={() => selectDays(option)}
-                  className={`min-h-11 rounded-xl border px-3 py-2 text-sm font-semibold transition focus-visible:outline-2 focus-visible:outline-emerald-700 ${
+                  className={`min-h-11 rounded-xl border px-3 py-2 text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-700 focus-visible:ring-offset-2 ${
                     days === option
                       ? 'border-emerald-700 bg-emerald-700 text-white'
-                      : 'border-gray-200 bg-white text-gray-700 active:bg-gray-100'
+                      : 'border-slate-200 bg-white text-slate-700 active:bg-slate-100'
                   }`}
                 >
                   {text(common.days(option))}
@@ -84,8 +84,13 @@ export function ModuleTrendSection({ moduleId, titleId, children, showPeriodPick
               ))}
             </div>
           )}
-          {/* 圖表套件較重，收合時不載入；展開後的下載空檔用明確的載入文字說明，避免看起來當掉。 */}
-          <Suspense fallback={<p role="status" className="mt-3 text-sm text-slate-500">{text(common.loading)}</p>}>
+          {/* 圖表套件較重，收合時不載入；展開後的下載空檔以預留高度的骨架佔位，避免版面跳動（CLS）。 */}
+          <Suspense fallback={
+            <div role="status" className="mt-3 flex h-44 w-full items-center justify-center rounded-2xl bg-slate-50 text-sm font-medium text-slate-400">
+              <span className="mr-2 inline-block h-4 w-4 animate-spin rounded-full border-2 border-slate-300 border-t-transparent" aria-hidden="true" />
+              {text(common.loading)}
+            </div>
+          }>
             <div className="mt-3">{children(days)}</div>
           </Suspense>
         </div>

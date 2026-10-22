@@ -67,31 +67,31 @@ describe('medication admin duplicate prescriptions', () => {
   // 覆蓋既有醫囑是資料庫的預設行為（同一組 patient／medication／slot 會被靜默改寫），
   // 所以這裡固定住「畫面事先看得到哪幾筆會受影響」的判斷。
   const plans: AdminMedicationPlan[] = [
-    { id: 'plan-morning', account_email: 'care@example.com', patient_id: 'patient-1', medication_id: 'stilnox', schedule_slot: 'after_breakfast', dose_amount: 0.5, dose_count: 1, as_needed: false, display_order: 1, active: true },
-    { id: 'plan-bedtime', account_email: 'care@example.com', patient_id: 'patient-1', medication_id: 'stilnox', schedule_slot: 'bedtime', dose_amount: 1, dose_count: 1, as_needed: true, display_order: 2, active: true },
-    { id: 'plan-stopped', account_email: 'care@example.com', patient_id: 'patient-1', medication_id: 'stilnox', schedule_slot: 'after_lunch', dose_amount: 1, dose_count: 1, as_needed: false, display_order: 3, active: false },
-    { id: 'plan-other', account_email: 'care@example.com', patient_id: 'patient-1', medication_id: 'valdoxan', schedule_slot: 'bedtime', dose_amount: 0.5, dose_count: 1, as_needed: false, display_order: 4, active: true },
+    { id: 'plan-morning', account_email: 'care@example.com', patient_id: 'patient-1', medication_id: 'metformin', schedule_slot: 'after_breakfast', dose_amount: 0.5, dose_count: 1, as_needed: false, display_order: 1, active: true },
+    { id: 'plan-bedtime', account_email: 'care@example.com', patient_id: 'patient-1', medication_id: 'metformin', schedule_slot: 'bedtime', dose_amount: 1, dose_count: 1, as_needed: true, display_order: 2, active: true },
+    { id: 'plan-stopped', account_email: 'care@example.com', patient_id: 'patient-1', medication_id: 'metformin', schedule_slot: 'after_lunch', dose_amount: 1, dose_count: 1, as_needed: false, display_order: 3, active: false },
+    { id: 'plan-other', account_email: 'care@example.com', patient_id: 'patient-1', medication_id: 'lipitor', schedule_slot: 'bedtime', dose_amount: 0.5, dose_count: 1, as_needed: false, display_order: 4, active: true },
   ]
 
   test('lists only the active prescriptions of the same medicine', () => {
-    expect(listActiveMedicationPlansForMedication(plans, 'stilnox').map(plan => plan.id)).toEqual(['plan-morning', 'plan-bedtime'])
+    expect(listActiveMedicationPlansForMedication(plans, 'metformin').map(plan => plan.id)).toEqual(['plan-morning', 'plan-bedtime'])
     expect(listActiveMedicationPlansForMedication(plans, '')).toEqual([])
     expect(listActiveMedicationPlansForMedication(plans, 'unknown')).toEqual([])
   })
 
   test('excludes the prescription being edited so keeping its own meal time is not a conflict', () => {
-    expect(listActiveMedicationPlansForMedication(plans, 'stilnox', 'plan-morning').map(plan => plan.id)).toEqual(['plan-bedtime'])
-    expect(findMedicationPlanConflict(plans, 'stilnox', 'after_breakfast', 'plan-morning')).toBeNull()
+    expect(listActiveMedicationPlansForMedication(plans, 'metformin', 'plan-morning').map(plan => plan.id)).toEqual(['plan-bedtime'])
+    expect(findMedicationPlanConflict(plans, 'metformin', 'after_breakfast', 'plan-morning')).toBeNull()
   })
 
   test('finds the prescription that a new entry would overwrite', () => {
-    expect(findMedicationPlanConflict(plans, 'stilnox', 'after_breakfast')?.id).toBe('plan-morning')
+    expect(findMedicationPlanConflict(plans, 'metformin', 'after_breakfast')?.id).toBe('plan-morning')
     // 另一個時段是合法的第二次服用，不算覆蓋；已停用的舊 plan 也不能被當成現役醫囑。
-    expect(findMedicationPlanConflict(plans, 'stilnox', 'after_dinner')).toBeNull()
-    expect(findMedicationPlanConflict(plans, 'stilnox', 'after_lunch')).toBeNull()
+    expect(findMedicationPlanConflict(plans, 'metformin', 'after_dinner')).toBeNull()
+    expect(findMedicationPlanConflict(plans, 'metformin', 'after_lunch')).toBeNull()
   })
 
   test('flags moving an edited prescription onto a meal time held by the same medicine', () => {
-    expect(findMedicationPlanConflict(plans, 'stilnox', 'bedtime', 'plan-morning')?.id).toBe('plan-bedtime')
+    expect(findMedicationPlanConflict(plans, 'metformin', 'bedtime', 'plan-morning')?.id).toBe('plan-bedtime')
   })
 })

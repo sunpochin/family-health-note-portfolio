@@ -52,6 +52,13 @@ beforeEach(() => {
 })
 
 describe('fetchOpenNotificationDeliveryIncidents', () => {
+  test('accepts a reminder enqueue failure without needing a delivery generation', async () => {
+    // 漏排時尚無 delivery claim，世代 0 仍要顯示，不能被舊的種類白名單濾掉。
+    queryResult = { data: [{ id: 'enqueue', alert_kind: 'enqueue_failed', first_seen_at: 'a', last_seen_at: 'b', claim_generation_seen: 0 }], error: null }
+    expect(await fetchOpenNotificationDeliveryIncidents('11111111-1111-4111-8111-111111111111', fakeClient()))
+      .toEqual([{ id: 'enqueue', alertKind: 'enqueue_failed', firstSeenAt: 'a', lastSeenAt: 'b', generation: 0 }])
+  })
+
   test('selects only pointer/state columns, scoped to the patient and to open incidents, oldest first', async () => {
     queryResult = { data: [{ id: 'i1', alert_kind: 'failed_terminal', first_seen_at: 'a', last_seen_at: 'b', claim_generation_seen: 3 }, { id: 'i2', alert_kind: 'weird', first_seen_at: 'a', last_seen_at: 'b', claim_generation_seen: 1 }], error: null }
     const rows = await fetchOpenNotificationDeliveryIncidents('11111111-1111-4111-8111-111111111111', fakeClient())

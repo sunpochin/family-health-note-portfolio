@@ -94,8 +94,9 @@ export interface TimelineTrajectoryEvent {
   title: string
   details: string
   reassessOn: string | null
-  // 只有軌跡頁（buildCareTrajectoryFeed）需要完整原始 entry 來顯示照片與支援編輯／刪除；
-  // 醫師報告（buildMedicalTrajectory）與既有測試 fixture 不需要，因此設為選填而不強制每個呼叫端補上。
+  // 軌跡頁（buildCareTrajectoryFeed）用完整原始 entry 顯示照片與支援編輯／刪除；醫師報告
+  // （buildMedicalTrajectory）用它渲染 health_visit 的科別／院所／就醫類型（visit_*，issue #1035）。
+  // 既有測試 fixture 不帶，因此設為選填而不強制每個呼叫端補上。
   sourceEntry?: CareTimelineEntry
 }
 

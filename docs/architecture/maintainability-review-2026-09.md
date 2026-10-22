@@ -13,7 +13,7 @@
 - 日期：2026-09-17
 - 審查基準：`origin/staging` commit `85a6359`（195 支 migration、17 支 Edge Function、1 支 Vercel API route）
 - 審查模型：Fable 5.1（依 [`docs/ai/model-routing.md`](../ai/model-routing.md)「里程碑完成後的 architecture audit」）；證據蒐集以六個唯讀子代理分區掃描，§5 每項的關鍵證據都由主審查者再次直接開檔核對
-- 追蹤：issue [#848](https://github.com/portfolio-author/jia-jian-log/issues/848)（範圍與驗收）、[#871](https://github.com/portfolio-author/jia-jian-log/issues/871)（執行票）
+- 追蹤：issue [#848](https://github.com/demo-xq7/jia-jian-log/issues/848)（範圍與驗收）、[#871](https://github.com/demo-xq7/jia-jian-log/issues/871)（執行票）
 
 ## 0. ELI5（給完全不懂技術的人看）
 
@@ -81,7 +81,7 @@
 | A4 | staging／production 營運邊界：Cron 與 Function secret 全在 Dashboard、CI 不同步也不檢查、17 支 Function 只有 3 支對缺 secret fail-soft | **High**／中 | promotion 後某支 Function 在 production 因缺 secret 回 500，直到照護者漏收提醒才被發現 | `[Opus]`（CI／secret 邊界屬高風險類別） | #826、#808、#722 |
 | A5 | legacy 相容表從未 drop：3 張死體重表仍被 trigger 餵資料、偏好表凍結在 5 個 flag 卻雙向同步、`profiles`／`app_profiles` 雙身分、`delete_user_account` 手抄 9 次 | **Medium-High**／高 | 新模組 migration 忘了複製 `delete_user_account`，刪帳號留下該模組的健康資料；或下一次 policy 全域改寫又為死表多寫 6 條 | `[Opus / Astra]` | 無（新） |
 | A6 | 型別契約雙源：`supabase gen types` 快照 1,939 行無人 import、`createClient` 未型別化、手寫 `src/types/database/*` 才是真契約但沒有任何機制對照 migration | **Medium**／高 | migration 改欄位、手寫型別沒跟上，`tsc` 全綠但 runtime 拿到 `undefined` | `[Sonnet]` | #833（只補了產生說明）、#836 |
-| A7 | audit 覆蓋：全 repo 沒有任何 audit trigger，30 張病人級表只有 `medication_plans` 有異動史，四張 change-log 表兩張完全無人讀取，`household_members` 角色變更零痕跡 | **Medium**／高 | 家屬問「誰把媽媽的體重改掉」或「誰把看護降成 viewer」時無法回答 | 設計 `[Fable]`（要先決定「哪些表值得 audit」），實作 `[Opus / Astra]` | #847（CARE-LOOP 會決定資料模型）、#655 |
+| A7 | audit 覆蓋：全 repo 沒有任何 audit trigger，30 張病人級表只有 `medication_plans` 有異動史，四張 change-log 表兩張完全無人讀取，`household_members` 角色變更零痕跡 | **Medium**／高 | 家屬問「誰把被照護者的體重改掉」或「誰把看護降成 viewer」時無法回答 | 設計 `[Fable]`（要先決定「哪些表值得 audit」），實作 `[Opus / Astra]` | #847（CARE-LOOP 會決定資料模型）、#655 |
 | A8 | demo 平行層與 feature 直接查表：70 個檔案以全域 `pathname === '/demo'` 分支、沒有 adapter 契約；`src/features` 47 個 `supabase.from(` 只有 2 個檔案有競態防護 | **Medium**／高 | 新模組沒寫 demo 分支導致 `/demo` 打真 Supabase；或切換病人時舊回應覆寫新病人數值（違反 § 3.5 不變量） | `[Opus]`（跨 3 層以上） | component-refactor 延後第 3／4 項、#827 |
 | A9 | 文件漂移：`clinical-care-ops.md` 與 `personal-notifications.md` 都寫「規劃中」但已 shipped、兩份 feature 文件宣稱規劃文件不存在、README 是另一個產品、三個互不相容的「北極星」、程式碼引用不存在的 `CLAUDE.md` 設計鐵律 | **Medium**／高 | 下一個 Agent 依「規劃中」文件重做已完成功能，或依 README 判斷產品是血壓 tracker | `[Sonnet]`（#851 已開） | #851、#849、#850 |
 | A10 | 路由清單五處手抄、無 `popstate`、`supabase-public/` 死目錄 | **Low**／高 | 新公開頁在 sitemap／prerender／CSP header／robots 四處漏一處 | `[Sonnet]` | #806（症狀）、#441 |
@@ -286,7 +286,7 @@ F-5 四單位已讓 `care_access` 與 101 條下游 policy 的**授權**看 `aut
 
 **推測（半年後）**
 
-- 家屬或看護之間發生「是誰把媽媽昨天的體重／血壓改掉」「是誰把我從 caregiver 改成 viewer」的爭議時，資料庫無法回答；`medical-trajectory.md` 的醫療軌跡是給醫師看的，不是操作稽核。
+- 家屬或看護之間發生「是誰把長輩昨天的體重／血壓改掉」「是誰把我從 caregiver 改成 viewer」的爭議時，資料庫無法回答；`medical-trajectory.md` 的醫療軌跡是給醫師看的，不是操作稽核。
 - #847（CARE-LOOP）若引入 Concern → Outcome 的狀態流轉，沒有 audit 層就等於每一個新表要各自決定要不要留痕跡——會再長出第五、六張各自為政的 log 表。
 
 **處置選項**
@@ -335,7 +335,7 @@ F-5 四單位已讓 `care_access` 與 101 條下游 policy 的**授權**看 `aut
 - `docs/product/clinical-care-ops.md:4,17` 與 `TECHNICAL.md:357` 都寫「規劃中（2026-09-11）」，但 S1–S5（#684／#686／#685／#687／#688）已於 2026-09-13～14 全部合併（`CHANGELOG.md`、`src/lib/medicalTrajectory.ts`、`preVisitBrief.ts`、`20260914043552`、`20260914042410`、`src/lib/adapters/nhi/labs.ts`）；該文件 `:318` 仍把 S4 白名單列為 blocked 的開放決策，`src/lib/labResults.ts:2` 已 ship 同一份白名單。
 - `docs/features/medical-trajectory.md:27-32` 與 `pre-visit-brief.md:22-25` 各有一節「規劃文件缺口說明」宣稱 `clinical-care-ops.md`「實際不存在」；它自 2026-09-11 就存在且含被引用的 §4／§5.1／§5.2／§6／§10。兩份 feature 文件比規劃文件晚兩天建立。
 - **同樣的漂移還有一份 issue 原文沒點名的**：`docs/features/personal-notifications.md:9` 與 `TECHNICAL.md:318` 都寫「規劃中／尚未實作」，但 `personal_notification_outbox`、claim RPC、`personal-notification-drain`、`telegram-webhook`／`line-webhook`、`user_messaging_links` 全部已在 repo（見 A1）。
-- `README.md:15-33` 仍把產品描述為「看護輸入媽媽血壓」的單家庭血壓 tracker，功能清單沒有寵物、餐次、時間線、到期提醒、回診提問、醫療軌跡、lab、邀請、個人化通知、AI 藥單、原生殼；tech 表列 Cloudflare Tunnel（`:47,112-118`）。`docs/operations/portfolio-pipeline.md:43` 把 2026-09-07 已移除的 Cloudflare Worker寫成現行 stack。
+- `README.md:15-33` 仍把產品描述為「看護輸入長輩血壓」的單家庭血壓 tracker，功能清單沒有寵物、餐次、時間線、到期提醒、回診提問、醫療軌跡、lab、邀請、個人化通知、AI 藥單、原生殼；tech 表列 Cloudflare Tunnel（`:47,112-118`）。`docs/operations/portfolio-pipeline.md:43` 把 2026-09-07 已移除的 Cloudflare Worker寫成現行 stack。
 - 「北極星」三個互不相容的定義：A 成長指標「每週至少 3 天有紀錄的活躍家庭數」（`acquisition-and-distribution.md:217`）；B 三軸「省看護分鐘數、省溝通分鐘數、警報精準度」且「第 3 條＝危險血壓 100% 送達」（`mobile-capability-roadmap.md:68,118`）；C 程式碼註解引用「北極星設計鐵律第 3 條＝只有需要現在行動的事才推播」（`src/lib/careAnomalySignals.ts:14`）。B 與 C 的「第 3 條」內容不同。`demo-tutorial-expansion-plan.md:71` 說鐵律「對齊 `CLAUDE.md`」，`CLAUDE.md` 只有 16 行、沒有任何鐵律清單。
 - `TODO.md:62` 把 D1 北極星指標列為未勾選待辦，來源文件 `acquisition-and-distribution.md:209` 已寫「已完成（2026-09-06）」。`PLAN.md:9` 仍以退役產品名為標題；`PLAN.md`／`TODO.md`／`PRACTICE.md` 不被 `AGENTS.md`、`TECHNICAL.md`、`README.md`、`AGENT_MAP.md` 任何一個索引連結，卻被 6 份 `docs/` 文件當權威引用。
 - 結構面是健康的：`TECHNICAL.md` 74 個連結 0 個斷、`AGENT_MAP.md` 246 個路徑全部存在；5 份 `docs/` 孤兒檔（`docs/ai/devin-knowledge.md`、`docs/features/visit-questions.md`（`:3` 自稱被 TECHNICAL.md 指向，實際沒有）、`docs/operations/ai-security-review-{prompt,false-positives}.md`、`docs/references/drug-classification-sources.md`）。

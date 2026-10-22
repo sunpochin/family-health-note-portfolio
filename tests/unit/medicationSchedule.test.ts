@@ -43,9 +43,9 @@ describe('medication schedule', () => {
     expect(getMedicationSlotCollapseDefaults(slots, false)).toEqual(new Set(['after_breakfast', 'before_lunch']))
   })
 
-  test('sums dose amount times dose count across a slot, e.g. a potassium plan taken as 2 pills at once', () => {
+  test('sums dose amount times dose count across a slot, e.g. a calcium plan taken as 2 pills at once', () => {
     expect(medicationSlotQuantityText([
-      { dose_amount: 2, dose_count: 1, dosage_form: 'tablet' }, // Const-K：單次 2 顆
+      { dose_amount: 2, dose_count: 1, dosage_form: 'tablet' }, // Calcium：單次 2 顆
       { dose_amount: 1, dose_count: 1, dosage_form: 'tablet' }, // Bokey：單次 1 顆
     ])).toEqual({ id: '3 tablet', zh: '3 錠', en: '3 tablets' })
     expect(medicationSlotQuantityText([{ dose_amount: 1, dose_count: 2, dosage_form: 'tablet' }])).toEqual({ id: '2 tablet', zh: '2 錠', en: '2 tablets' })
@@ -68,7 +68,7 @@ describe('medication schedule', () => {
   })
 
   test('shows a quarter-tablet taper dose as a fraction instead of a decimal', () => {
-    // 媽媽從半顆降到 1/4 顆時，進度分數也要寫成「1/4」而不是「0.25」，跟半顆的規則一致。
+    // 照護對象從半顆降到 1/4 顆時，進度分數也要寫成「1/4」而不是「0.25」，跟半顆的規則一致。
     expect(medicationSlotQuantityProgressText(
       [{ dose_amount: 0.25, dosage_form: 'tablet' }],
       [{ dose_amount: 0.25, dosage_form: 'tablet' }],

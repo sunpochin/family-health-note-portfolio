@@ -14,7 +14,7 @@ import {
   fetchAdminUsers,
   setAccountEntitlement,
 } from '../../../lib/adminUsers'
-import { describeSaveError } from '../../../lib/dataErrors'
+import { describeSaveError, readErrorFields } from '../../../lib/dataErrors'
 
 // 每個 entitlement 開通後對應的資料庫值；取消勾選一律寫回 'none'。
 export const ENTITLEMENT_ON_VALUE: Record<EntitlementKey, string> = {
@@ -102,9 +102,17 @@ export function useAccountEntitlements() {
     } catch (err) {
       console.error('[admin set account entitlement error]', err)
       setUsers(current => current.map(row => (row.userId === user.userId ? { ...row, [field]: previousValue } : row)))
+      // 舊版管理頁在讀取點切換後收到 409 是預期的保護結果；告訴管理者改從家庭 Premium 開通。
+      const fallback = readErrorFields(err).status === 409
+        ? {
+            id: 'Fitur ini sekarang diatur melalui Premium keluarga. Buka tab Premium keluarga untuk memberikan akses.',
+            zh: '此功能現在由家庭 Premium 管理。請到「家庭 Premium」分頁開通。',
+            en: 'This feature is now managed through household Premium. Open the Household Premium tab to grant access.',
+          }
+        : { id: 'Gagal menyimpan status berlangganan.', zh: '無法儲存付費狀態。', en: 'Unable to save the subscription status.' }
       setEntitlementErrors(current => ({
         ...current,
-        [key]: describeSaveError(err, { id: 'Gagal menyimpan status berlangganan.', zh: '無法儲存付費狀態。', en: 'Unable to save the subscription status.' }),
+        [key]: describeSaveError(err, fallback),
       }))
     } finally {
       setEntitlementSaving(current => ({ ...current, [key]: false }))

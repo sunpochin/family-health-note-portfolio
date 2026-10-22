@@ -42,6 +42,6 @@ export const APP_HEADER_TITLE: LocalizedText = {
 }
 // 常數本體移到 canonicalUrl.ts，這裡轉出是為了讓既有頁面／測試的 import 路徑維持不變。
 export { APP_CANONICAL_URL }
-export const APP_GITHUB_RELEASES_URL = 'https://github.com/portfolio-author/jia-jian-log/releases'
+export const APP_GITHUB_RELEASES_URL = 'https://github.com/demo-xq7/jia-jian-log/releases'
 // 集中管理開發者個人網站網址，避免登入頁與條款頁寫死不同連結，便於日後統一維護。
-export const APP_AUTHOR_URL = 'https://portfolio-author.github.io/'
+export const APP_AUTHOR_URL = 'https://demo-xq7.github.io/'

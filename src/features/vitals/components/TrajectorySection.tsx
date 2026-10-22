@@ -53,7 +53,7 @@ export function TrajectorySection({ events, sourceStatus }: { events: Trajectory
 
   return (
     <div className="mt-4 rounded-xl border border-slate-200 bg-white p-3" aria-labelledby="trajectory-section-title">
-      <p id="trajectory-section-title" className="text-xs print:text-[10px] font-bold uppercase tracking-[0.16em] text-indigo-600">{text(SECTION_TITLE)}</p>
+      <p id="trajectory-section-title" className="text-xs print:text-[10px] font-bold uppercase tracking-[0.16em] text-brand-700">{text(SECTION_TITLE)}</p>
 
       {unavailableSources.length > 0 && (
         <ul className="mt-2 space-y-1">
@@ -85,7 +85,7 @@ function renderVisitStructureLine(sourceEntry: CareTimelineEntry | undefined, te
   if (!departmentAndKind && !sourceEntry.visit_institution) return null
   return (
     <>
-      {departmentAndKind && <p className="mt-0.5 text-xs print:text-[10px] font-semibold text-indigo-700">{departmentAndKind}</p>}
+      {departmentAndKind && <p className="mt-0.5 text-xs print:text-[10px] font-semibold text-brand-700">{departmentAndKind}</p>}
       {sourceEntry.visit_institution && <p className="mt-0.5 text-xs print:text-[10px] text-slate-500">{sourceEntry.visit_institution}</p>}
     </>
   )
@@ -104,10 +104,10 @@ function renderTrajectoryEventRow(event: TrajectoryEvent, locale: 'id' | 'zh' | 
     const doseText = event.doseAmount != null ? formatDoseAmountLocalized(event.doseAmount, event.dosageForm || 'tablet', locale) : null
     const slotLabel = event.scheduleSlot ? text(medicationSlotText(event.scheduleSlot)) : null
     return (
-      <li key={key} className="border-l-4 border-indigo-300 pl-2">
+      <li key={key} className="border-l-4 border-brand-200 pl-2">
         <div className="flex flex-wrap items-baseline gap-x-2">
           <time className="text-xs print:text-[10px] font-bold text-slate-500">{occurredLabel}</time>
-          <span className="rounded-full bg-indigo-50 px-2 py-0.5 text-xs print:text-[10px] font-bold text-indigo-800">{text(TRAJECTORY_DIRECTION_LABELS[event.direction])}</span>
+          <span className="rounded-full bg-brand-50 px-2 py-0.5 text-xs print:text-[10px] font-bold text-brand-700">{text(TRAJECTORY_DIRECTION_LABELS[event.direction])}</span>
         </div>
         <p className="mt-0.5 text-xs print:text-[11px] font-bold text-slate-900">{medicationName}</p>
         <p className="mt-0.5 text-xs print:text-[10px] text-slate-600">

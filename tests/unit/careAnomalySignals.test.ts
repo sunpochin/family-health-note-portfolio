@@ -160,7 +160,7 @@ describe('detectBpNightLowSignal', () => {
 })
 
 describe('describeAnomalySignal safety boundary', () => {
-  const forbiddenWords = ['診斷', '調藥', '病因', '腦動脈瘤', 'diagnos', 'ubah dosis', 'obat baru']
+  const forbiddenWords = ['診斷', '調藥', '病因', '冠心病', 'diagnos', 'ubah dosis', 'obat baru']
   const samples: AnomalySignal[] = [
     { kind: 'weight_drop', windowDays: 30, baselineWeightKg: 60, latestWeightKg: 57, dropPercent: 5 },
     { kind: 'missed_medication', consecutiveDays: 3 },

@@ -170,24 +170,25 @@ export function VisitQuestionsPage({ patientId, embedded = false, refreshKey = 0
       {!demoPatient && <>
         {errorMessage && <p role="alert" className="mb-3 rounded-xl bg-red-50 p-3 text-base font-semibold text-red-700">{text(errorMessage)}</p>}
 
-        <section className="mb-4 rounded-3xl border border-sky-200 bg-sky-50 p-4 shadow-sm">
-          <h3 className="text-base font-black text-sky-950">{text({ id: 'Pertanyaan baru', zh: '新增問題', en: 'New question' })}</h3>
+        <section className="mb-4 rounded-3xl border border-brand-200 bg-brand-50 p-4 shadow-sm">
+          <h3 className="text-base font-black text-slate-900">{text({ id: 'Pertanyaan baru', zh: '新增問題', en: 'New question' })}</h3>
           <div className="mt-3 flex flex-wrap gap-2">
             {VISIT_QUESTION_PRESETS.map(preset => (
-              <button key={preset.zh} type="button" onClick={() => setNewQuestion(text(preset))} className="min-h-9 rounded-xl border border-sky-300 bg-white px-3 text-xs font-bold text-sky-800 active:bg-sky-100">
+              // 觸控目標至少 44px（control-min）：看護單手、半夜操作時 36／40px 容易按錯，與 15 秒原則衝突（#1161）。
+              <button key={preset.zh} type="button" onClick={() => setNewQuestion(text(preset))} className="min-h-11 rounded-xl border border-slate-300 bg-white px-3 text-xs font-bold text-brand-700 active:bg-brand-50">
                 {text(preset)}
               </button>
             ))}
           </div>
           <div className="mt-3 flex flex-wrap items-start gap-2">
-            <textarea value={newQuestion} onChange={event => setNewQuestion(event.target.value)} rows={2} className="min-h-11 flex-1 rounded-xl border border-sky-300 bg-white px-3 py-2 text-base font-semibold text-slate-900" placeholder={text({ id: 'Tulis pertanyaan…', zh: '輸入想問的問題…', en: 'Write a question…' })} />
-            <button type="button" disabled={busyId === 'new' || !newQuestion.trim() || !patientReady} onClick={() => addQuestion(newQuestion)} className="min-h-11 rounded-2xl bg-sky-700 px-4 text-sm font-black text-white shadow-sm active:bg-sky-900 disabled:opacity-60">
+            <textarea value={newQuestion} onChange={event => setNewQuestion(event.target.value)} rows={2} className="min-h-11 flex-1 rounded-xl border-2 border-control-border bg-white px-3 py-2 text-base font-semibold text-slate-900" placeholder={text({ id: 'Tulis pertanyaan…', zh: '輸入想問的問題…', en: 'Write a question…' })} />
+            <button type="button" disabled={busyId === 'new' || !newQuestion.trim() || !patientReady} onClick={() => addQuestion(newQuestion)} className="min-h-11 rounded-2xl bg-brand-700 px-4 text-sm font-black text-white shadow-sm active:bg-emerald-800 disabled:opacity-60">
               {text({ id: '+ Tambah', zh: '＋ 新增', en: '＋ Add' })}
             </button>
           </div>
         </section>
 
-        {loading && <p className="py-12 text-center text-base text-gray-500">{text({ id: 'Memuat…', zh: '載入中…', en: 'Loading…' })}</p>}
+        {loading && <p className="py-12 text-center text-base text-slate-500">{text({ id: 'Memuat…', zh: '載入中…', en: 'Loading…' })}</p>}
 
         {!loading && openQuestions.length === 0 && <section className="rounded-3xl border border-dashed border-slate-300 bg-white p-6 text-center shadow-sm">
           <p className="text-sm font-medium leading-6 text-slate-600">{text({ id: 'Belum ada pertanyaan yang belum ditanyakan.', zh: '目前沒有待問的問題。', en: 'There are no open questions.' })}</p>
@@ -198,22 +199,24 @@ export function VisitQuestionsPage({ patientId, embedded = false, refreshKey = 0
             <li key={question.id} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
               {editingId === question.id
                 ? <div className="space-y-2">
-                  <textarea value={editDraft.question} onChange={event => setEditDraft(current => ({ ...current, question: event.target.value }))} rows={2} className="min-h-11 w-full rounded-xl border border-sky-300 bg-white px-3 py-2 text-base font-semibold text-slate-900" />
-                  <textarea value={editDraft.answer} onChange={event => setEditDraft(current => ({ ...current, answer: event.target.value }))} rows={2} className="min-h-11 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-base text-slate-900" placeholder={text({ id: 'Jawaban dokter (opsional)', zh: '醫師的回答（可留白）', en: "Doctor's answer (optional)" })} />
+                  <textarea value={editDraft.question} onChange={event => setEditDraft(current => ({ ...current, question: event.target.value }))} rows={2} className="min-h-11 w-full rounded-xl border-2 border-control-border bg-white px-3 py-2 text-base font-semibold text-slate-900" />
+                  <textarea value={editDraft.answer} onChange={event => setEditDraft(current => ({ ...current, answer: event.target.value }))} rows={2} className="min-h-11 w-full rounded-xl border-2 border-control-border bg-white px-3 py-2 text-base text-slate-900" placeholder={text({ id: 'Jawaban dokter (opsional)', zh: '醫師的回答（可留白）', en: "Doctor's answer (optional)" })} />
                   <div className="grid grid-cols-2 gap-2">
-                    <button type="button" onClick={closeEditForm} className="min-h-10 rounded-xl border border-slate-300 bg-white px-3 text-sm font-black text-slate-700 active:bg-slate-100">{text({ id: 'Batal', zh: '取消', en: 'Cancel' })}</button>
-                    <button type="button" disabled={busyId === question.id} onClick={() => saveEdit(question)} className="min-h-10 rounded-xl bg-sky-700 px-3 text-sm font-black text-white active:bg-sky-900 disabled:opacity-60">{text({ id: 'Simpan', zh: '儲存', en: 'Save' })}</button>
+                    {/* 觸控目標至少 44px（control-min）：看護單手、半夜操作時 36／40px 容易按錯，與 15 秒原則衝突（#1161）。 */}
+                    <button type="button" onClick={closeEditForm} className="min-h-11 rounded-xl border border-slate-300 bg-white px-3 text-sm font-black text-slate-700 active:bg-slate-100">{text({ id: 'Batal', zh: '取消', en: 'Cancel' })}</button>
+                    <button type="button" disabled={busyId === question.id} onClick={() => saveEdit(question)} className="min-h-11 rounded-xl bg-brand-700 px-3 text-sm font-black text-white active:bg-emerald-800 disabled:opacity-60">{text({ id: 'Simpan', zh: '儲存', en: 'Save' })}</button>
                   </div>
                 </div>
                 : <>
                   <p className="text-base font-black text-slate-900">{question.question}</p>
                   {question.answer && <p className="mt-1 text-sm font-medium text-slate-600">{text({ id: 'Jawaban: ', zh: '回答：', en: 'Answer: ' })}{question.answer}</p>}
-                  <p className="mt-1 text-xs font-medium text-slate-400">{text({ id: 'Ditulis oleh: ', zh: '提出者：', en: 'Added by: ' })}{question.created_by_email}</p>
+                  <p className="mt-1 text-xs font-medium text-slate-500">{text({ id: 'Ditulis oleh: ', zh: '提出者：', en: 'Added by: ' })}{question.created_by_email}</p>
                   <div className="mt-3 flex flex-wrap gap-2">
-                    <button type="button" disabled={busyId === question.id} onClick={() => openEditForm(question)} className="min-h-9 rounded-xl border border-slate-300 bg-white px-3 text-xs font-black text-slate-700 active:bg-slate-100">{text({ id: 'Ubah', zh: '編輯', en: 'Edit' })}</button>
-                    <button type="button" disabled={busyId === question.id} onClick={() => changeStatus(question, 'asked')} className="min-h-9 rounded-xl border border-emerald-300 bg-emerald-50 px-3 text-xs font-black text-emerald-800 active:bg-emerald-100">{text({ id: 'Sudah ditanyakan', zh: '已問', en: 'Asked' })}</button>
-                    <button type="button" disabled={busyId === question.id} onClick={() => changeStatus(question, 'skipped')} className="min-h-9 rounded-xl border border-slate-300 bg-white px-3 text-xs font-black text-slate-700 active:bg-slate-100">{text({ id: 'Lewati', zh: '略過', en: 'Skip' })}</button>
-                    <button type="button" disabled={busyId === question.id} onClick={() => removeQuestion(question)} className="min-h-9 rounded-xl border border-red-300 bg-red-50 px-3 text-xs font-black text-red-800 active:bg-red-100">{text({ id: 'Hapus', zh: '刪除', en: 'Delete' })}</button>
+                    {/* 觸控目標至少 44px（control-min）：看護單手、半夜操作時 36／40px 容易按錯，與 15 秒原則衝突（#1161）。 */}
+                    <button type="button" disabled={busyId === question.id} onClick={() => openEditForm(question)} className="min-h-11 rounded-xl border border-slate-300 bg-white px-3 text-xs font-black text-slate-700 active:bg-slate-100">{text({ id: 'Ubah', zh: '編輯', en: 'Edit' })}</button>
+                    <button type="button" disabled={busyId === question.id} onClick={() => changeStatus(question, 'asked')} className="min-h-11 rounded-xl border border-emerald-300 bg-emerald-50 px-3 text-xs font-black text-emerald-800 active:bg-emerald-100">{text({ id: 'Sudah ditanyakan', zh: '已問', en: 'Asked' })}</button>
+                    <button type="button" disabled={busyId === question.id} onClick={() => changeStatus(question, 'skipped')} className="min-h-11 rounded-xl border border-slate-300 bg-white px-3 text-xs font-black text-slate-700 active:bg-slate-100">{text({ id: 'Lewati', zh: '略過', en: 'Skip' })}</button>
+                    <button type="button" disabled={busyId === question.id} onClick={() => removeQuestion(question)} className="min-h-11 rounded-xl border border-red-300 bg-red-50 px-3 text-xs font-black text-red-800 active:bg-red-100">{text({ id: 'Hapus', zh: '刪除', en: 'Delete' })}</button>
                   </div>
                 </>}
             </li>
@@ -228,17 +231,19 @@ export function VisitQuestionsPage({ patientId, embedded = false, refreshKey = 0
                 <span className="font-bold text-slate-800">{question.question}</span>
                 {' · '}{text(VISIT_QUESTION_STATUS_META[question.status].label)}
                 {question.answer && <p className="mt-1">{text({ id: 'Jawaban: ', zh: '回答：', en: 'Answer: ' })}{question.answer}</p>}
-                <p className="mt-1 text-xs text-slate-400">{text({ id: 'Ditulis oleh: ', zh: '提出者：', en: 'Added by: ' })}{question.created_by_email}</p>
+                <p className="mt-1 text-xs text-slate-500">{text({ id: 'Ditulis oleh: ', zh: '提出者：', en: 'Added by: ' })}{question.created_by_email}</p>
                 <div className="mt-2 flex flex-wrap gap-2">
-                  <button type="button" disabled={busyId === question.id} onClick={() => openEditForm(question)} className="font-bold text-sky-700 underline">{text({ id: 'Ubah', zh: '編輯', en: 'Edit' })}</button>
-                  <button type="button" disabled={busyId === question.id} onClick={() => changeStatus(question, 'open')} className="font-bold text-sky-700 underline">{text({ id: 'Aktifkan lagi', zh: '重新開啟', en: 'Reopen' })}</button>
+                  {/* 觸控目標至少 44px（control-min）：看護單手、半夜操作時 36／40px 容易按錯，與 15 秒原則衝突（#1161）。 */}
+                  <button type="button" disabled={busyId === question.id} onClick={() => openEditForm(question)} className="inline-flex min-h-11 items-center font-bold text-brand-700 underline">{text({ id: 'Ubah', zh: '編輯', en: 'Edit' })}</button>
+                  <button type="button" disabled={busyId === question.id} onClick={() => changeStatus(question, 'open')} className="inline-flex min-h-11 items-center font-bold text-brand-700 underline">{text({ id: 'Aktifkan lagi', zh: '重新開啟', en: 'Reopen' })}</button>
                 </div>
                 {editingId === question.id && <div className="mt-2 space-y-2">
-                  <textarea value={editDraft.question} onChange={event => setEditDraft(current => ({ ...current, question: event.target.value }))} rows={2} className="min-h-11 w-full rounded-xl border border-sky-300 bg-white px-3 py-2 text-base font-semibold text-slate-900" />
-                  <textarea value={editDraft.answer} onChange={event => setEditDraft(current => ({ ...current, answer: event.target.value }))} rows={2} className="min-h-11 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-base text-slate-900" placeholder={text({ id: 'Jawaban dokter (opsional)', zh: '醫師的回答（可留白）', en: "Doctor's answer (optional)" })} />
+                  <textarea value={editDraft.question} onChange={event => setEditDraft(current => ({ ...current, question: event.target.value }))} rows={2} className="min-h-11 w-full rounded-xl border-2 border-control-border bg-white px-3 py-2 text-base font-semibold text-slate-900" />
+                  <textarea value={editDraft.answer} onChange={event => setEditDraft(current => ({ ...current, answer: event.target.value }))} rows={2} className="min-h-11 w-full rounded-xl border-2 border-control-border bg-white px-3 py-2 text-base text-slate-900" placeholder={text({ id: 'Jawaban dokter (opsional)', zh: '醫師的回答（可留白）', en: "Doctor's answer (optional)" })} />
                   <div className="grid grid-cols-2 gap-2">
-                    <button type="button" onClick={closeEditForm} className="min-h-10 rounded-xl border border-slate-300 bg-white px-3 text-sm font-black text-slate-700 active:bg-slate-100">{text({ id: 'Batal', zh: '取消', en: 'Cancel' })}</button>
-                    <button type="button" disabled={busyId === question.id} onClick={() => saveEdit(question)} className="min-h-10 rounded-xl bg-sky-700 px-3 text-sm font-black text-white active:bg-sky-900 disabled:opacity-60">{text({ id: 'Simpan', zh: '儲存', en: 'Save' })}</button>
+                    {/* 觸控目標至少 44px（control-min）：看護單手、半夜操作時 36／40px 容易按錯，與 15 秒原則衝突（#1161）。 */}
+                    <button type="button" onClick={closeEditForm} className="min-h-11 rounded-xl border border-slate-300 bg-white px-3 text-sm font-black text-slate-700 active:bg-slate-100">{text({ id: 'Batal', zh: '取消', en: 'Cancel' })}</button>
+                    <button type="button" disabled={busyId === question.id} onClick={() => saveEdit(question)} className="min-h-11 rounded-xl bg-brand-700 px-3 text-sm font-black text-white active:bg-emerald-800 disabled:opacity-60">{text({ id: 'Simpan', zh: '儲存', en: 'Save' })}</button>
                   </div>
                 </div>}
               </li>

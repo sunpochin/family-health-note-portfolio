@@ -52,11 +52,8 @@ export function DailyCareSectionTabs({ modules, activeModule, onSelect }: {
       ? (currentIndex - 1 + visibleModules.length) % visibleModules.length
       : (currentIndex + 1) % visibleModules.length
     onSelect(visibleModules[nextIndex].id)
-    // 繁體中文註解：測試環境（bun test）或無 DOM 執行環境可能未定義 document 或將其模擬為空物件，
-    // 透過 globalThis.document 安全判斷 getElementById 是否為函式，避免 ReferenceError 與 TypeError。
-    if (typeof globalThis.document?.getElementById === 'function') {
-      globalThis.document.getElementById(`daily-care-${visibleModules[nextIndex].id}-tab`)?.focus()
-    }
+    // 測試環境（bun test）沒有真的 DOM，只有瀏覽器才需要手動把 focus 移過去。
+    if (typeof document !== 'undefined') document.getElementById(`daily-care-${visibleModules[nextIndex].id}-tab`)?.focus()
   }
 
   const selectFromSheet = (moduleId: DailyCareModuleId) => {
@@ -125,11 +122,12 @@ export function DailyCareSectionTabs({ modules, activeModule, onSelect }: {
           <div className="max-h-[70vh] w-full overflow-y-auto rounded-t-3xl bg-white p-4 shadow-2xl sm:max-w-sm sm:rounded-3xl">
             <div className="mb-3 flex items-center justify-between gap-3">
               <h2 className="text-base font-black text-ink">{text({ id: 'Modul lainnya', zh: '更多模組', en: 'More modules' })}</h2>
+              {/* 關閉鈕 44×44（control-min）：位在 sheet 角落，40px 單手容易按錯（#1161）。 */}
               <button
                 type="button"
                 onClick={() => setMoreSheetOpen(false)}
                 aria-label={text({ id: 'Tutup', zh: '關閉', en: 'Close' })}
-                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-slate-100 text-xl font-black text-ink-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-700"
+                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-slate-100 text-xl font-black text-ink-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-700"
               >
                 ×
               </button>

@@ -48,11 +48,26 @@ export function isConnectionError(error: unknown): boolean {
   return error instanceof TypeError || code === 'PGRST301' || code === 'ENOTFOUND' || code === 'TypeError'
 }
 
+/**
+ * supabase-js 的 fetch 斷線（issue #1116）。postgrest-js 2.x 不會把 fetch 的 TypeError 往外丟，
+ * 而是在內部 catch 後回傳 `{ message: 'TypeError: Failed to fetch', code: '' }`、status 0
+ * （Safari 是 'TypeError: Load failed'，Firefox 是 'TypeError: NetworkError …'，逾時中止是 'AbortError: …'）。
+ * 只認 `instanceof TypeError` 時，真正離線的寫入會被當成永久失敗、進不了離線佇列。
+ * 刻意不併進 isConnectionError：那個判斷同時決定畫面顯示「連線或伺服器設定有問題，請通知家屬」，
+ * 看護只是剛好沒訊號時叫她去找家人是誤導；這裡只回答「要不要排隊重送」。
+ */
+export function isFetchTransportFailure(error: unknown): boolean {
+  if (error instanceof TypeError) return true
+  const { message, code, status } = readErrorFields(error)
+  // status 0 與空 code 一起要求：PostgREST／資料庫錯誤一定帶 HTTP 狀態或錯誤碼，不會被誤認成斷線。
+  return status === 0 && code === '' && /^(TypeError|FetchError|AbortError): /.test(message)
+}
+
 /** 只有傳輸／暫時伺服器失敗適合自動排隊；權限、配額與資料驗證錯誤重試不會改變結果。 */
 export function isRetryableWriteError(error: unknown): boolean {
   if (isPermissionError(error)) return false
   const { status } = readErrorFields(error)
-  return isConnectionError(error) || status === 408 || status === 429 || status >= 500
+  return isConnectionError(error) || isFetchTransportFailure(error) || status === 408 || status === 429 || status >= 500
 }
 
 /**

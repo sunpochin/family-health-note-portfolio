@@ -9,6 +9,7 @@ import { localized, type LocalizedText, useI18n } from '../../lib/i18n'
 import { isNativeApp } from '../../lib/platform'
 import { canApplyPwaUpdate, canCheckForPwaUpdate, PWA_UPDATE_CHECK_INTERVAL_MS } from '../../lib/pwaUpdate'
 import { usePwaUpdateGuard } from '../../lib/pwaUpdateGuard'
+import { Icon } from '../ui/Icon'
 
 export function PwaUpdatePrompt() {
   // 原生殼的 dist/ 是 build 時打包的快照；Service Worker 在原生 WebView 的行為未定義，永遠檢查不到新版本，
@@ -122,7 +123,7 @@ function PwaUpdatePromptWeb() {
       aria-describedby="pwa-update-description"
     >
       <div className="flex items-start gap-3">
-        <span className="mt-0.5 text-2xl" aria-hidden="true">🔄</span>
+        <Icon name="refresh" className="mt-0.5 h-6 w-6 shrink-0 text-info-700" />
         <div>
           <h2 id="pwa-update-title" className="font-black">
             {translate({ id: 'Versi baru tersedia', zh: '已有新版本', en: 'New version available' })}

@@ -81,12 +81,10 @@ function joinRecommendations(parts: LocalizedText[]): LocalizedText {
   }
 }
 
-// Mother has a history of hypotension and osteoporosis: low diastolic risks
-// myocardial infarction (coronary perfusion happens during diastole) and a
-// low-BP dizzy spell risks a fall. This function used to only check the high
-// side, so a reading like 85/48 silently showed "normal" — see ROADMAP.md P0.1.
-// Low-side thresholds mirror the danger-low/warning-low bands in
-// appscript/blood_pressure_bot_docs.md.
+// 為什麼低壓端也要判定：有低血壓病史或骨質疏鬆的長輩，舒張壓過低會影響冠狀動脈灌流
+//（冠脈灌流發生在舒張期），低血壓造成的頭暈也容易跌倒。這個函式原本只檢查高壓端，
+// 像 85/48 這種讀值會被靜默顯示成「正常」。低壓端門檻對應 danger-low／warning-low 兩個區間。
+// （通用臨床理由，不描述任何特定使用者。）
 export function evaluateReading(
   systolic: number,
   diastolic: number,

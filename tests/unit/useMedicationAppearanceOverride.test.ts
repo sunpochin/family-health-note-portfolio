@@ -97,7 +97,7 @@ describe('useMedicationAppearanceOverride 表單預填（迴歸：漏填共用�
   test('還原成共用外觀後，照片與備註同樣退回共用值，不是清空', async () => {
     // 先讓 hook 看到已有一筆覆蓋列。
     overridesListResponse = {
-      data: [{ patient_id: 'patient-1', medication_id: 'med-1', appearance_color: 'yellow', appearance_shape: null, appearance_photo_url: 'photos/override.webp', appearance_note: '這人的備註', updated_by: 'caregiver02884@example.test', updated_at: '2026-09-15T00:00:00.000Z' }],
+      data: [{ patient_id: 'patient-1', medication_id: 'med-1', appearance_color: 'yellow', appearance_shape: null, appearance_photo_url: 'photos/override.webp', appearance_note: '這人的備註', updated_by: 'caregiver@example.test', updated_at: '2026-09-15T00:00:00.000Z' }],
       error: null,
     }
     const hook = renderHook(() => useMedicationAppearanceOverride('patient-1', medication, true))

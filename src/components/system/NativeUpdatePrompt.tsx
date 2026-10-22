@@ -9,6 +9,7 @@ import { APP_CANONICAL_URL, APP_VERSION } from '../../lib/appInfo'
 import { getNativePlatform, isNativeApp } from '../../lib/platform'
 import { shouldShowNativeUpdatePrompt } from '../../lib/nativeVersionCheck'
 import { usePwaUpdateGuard } from '../../lib/pwaUpdateGuard'
+import { Icon } from '../ui/Icon'
 
 export function NativeUpdatePrompt() {
   // 原生殼的 dist/ 是 build 時打包的快照，Service Worker 更新流程在原生殼內明確 no-op（issue #812）；
@@ -78,7 +79,7 @@ function NativeUpdatePromptNative() {
       aria-describedby="native-update-description"
     >
       <div className="flex items-start gap-3">
-        <span className="mt-0.5 text-2xl" aria-hidden="true">🔄</span>
+        <Icon name="refresh" className="mt-0.5 h-6 w-6 shrink-0 text-info-700" />
         <div className="min-w-0 flex-1">
           <h2 id="native-update-title" className="font-black">
             {text({ id: 'Versi App baru tersedia', zh: '有新版本 App', en: 'A new app version is available' })}

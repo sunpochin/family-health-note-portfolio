@@ -46,10 +46,43 @@ describe('demo story data coverage', () => {
   test('the 90-day Meiling story includes the hypertensive crisis and the recovery arc', () => {
     const records = getFallbackDemoBpRecords(90, DEMO_MEILING_PATIENT_ID)
     expect(records.every(record => record.patient_id === DEMO_MEILING_PATIENT_ID)).toBe(true)
-    // 這一筆是故事裡的高血壓危象；缺了它，示範就看不到「先複測再通報」的流程。
-    expect(records.some(record => record.systolic === 220 && record.diastolic === 110)).toBe(true)
+    // 這一筆是故事裡的高血壓危象（構造值，對應 demoData 時間軸的「先複測再通報」事件）；缺了它，示範就看不到那個流程。
+    expect(records.some(record => record.systolic === 196 && record.diastolic === 104)).toBe(true)
     expect(records.some(record => record.systolic >= 160)).toBe(true)
     expect(records.some(record => record.systolic <= 112)).toBe(true)
+  })
+
+  test('timeline entries quote single readings that exist in the generated series on the same day', () => {
+    // 大事記與血壓圖是同一個故事的兩個視角；敘述引用的讀值若在圖上找不到，示範就自相矛盾（PR #1013 review）。
+    const records = getFallbackDemoBpRecords(90, DEMO_MEILING_PATIENT_ID)
+    const timeline = getFallbackDemoCareTimeline()
+    const quoted: Record<string, Array<[number, number]>> = {
+      'demo-timeline-2': [[104, 52]],
+      'demo-timeline-4': [[142, 90]],
+      'demo-timeline-6': [[196, 104], [158, 92], [152, 90]],
+    }
+    for (const [entryId, pairs] of Object.entries(quoted)) {
+      const entry = timeline.find(candidate => candidate.id === entryId)
+      if (!entry) throw new Error(`Expected timeline entry ${entryId}`)
+      const sameDay = records.filter(record => Math.abs(Date.parse(record.measured_at) - Date.parse(entry.occurred_at)) < 86_400_000)
+      for (const [systolic, diastolic] of pairs) {
+        // 讀值要同時出現在敘述文字與同一天的紀錄裡，之後改劇本時漏改任一邊都會被抓到。
+        expect(entry.details).toContain(`${systolic}/${diastolic} mmHg`)
+        expect(sameDay.some(record => record.systolic === systolic && record.diastolic === diastolic)).toBe(true)
+      }
+    }
+  })
+
+  test('the crisis evening keeps the first reading, the 5-minute recheck and the follow-up reading in order', () => {
+    // 首測 → 休息 5 分鐘複測（blood-pressure-spec 的 danger_high 規則）→ 聯絡門診後 10 分鐘的追蹤紀錄。
+    // 第三筆不是任何規則要求的重測，這裡只鎖住故事的時間線，讓敘述文字與圖上的紀錄不會各走各的。
+    const crisis = getFallbackDemoBpRecords(90, DEMO_MEILING_PATIENT_ID)
+      .filter(record => record.id.startsWith('demo-bp-meiling-15-e'))
+      .sort((left, right) => Date.parse(left.measured_at) - Date.parse(right.measured_at))
+    expect(crisis.map(record => [record.systolic, record.diastolic])).toEqual([[196, 104], [158, 92], [152, 90]])
+    const minutesApart = (index: number) => (Date.parse(crisis[index + 1]!.measured_at) - Date.parse(crisis[index]!.measured_at)) / 60_000
+    expect(minutesApart(0)).toBe(5)
+    expect(minutesApart(1)).toBe(10)
   })
 
   test('the Chen story records one morning reading every other day', () => {

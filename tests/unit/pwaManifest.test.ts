@@ -10,7 +10,7 @@ import { describe, expect, test } from 'bun:test'
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { buildEnglishManifestOverrides, buildLocalizedManifestOverrides, buildPwaManifestName, buildPwaManifestShortName, buildPwaScreenshotManifestEntries, buildProvenancePlugin, localizedManifestPlugin, publicRoutePrerenderPlugin, shareMetaPlugin, sitemapPlugin } from '../../vite.config'
+import { PWA_THEME_COLOR, buildEnglishManifestOverrides,buildLocalizedManifestOverrides, buildPwaManifestName, buildPwaManifestShortName, buildPwaScreenshotManifestEntries, buildProvenancePlugin, localizedManifestPlugin, publicRoutePrerenderPlugin, shareMetaPlugin, sitemapPlugin } from '../../vite.config'
 import { APP_HOME_SCREEN_TITLE } from '../../src/lib/homeScreenTitle'
 
 describe('PWA manifest home-screen title stays in sync with APP_HOME_SCREEN_TITLE', () => {
@@ -37,6 +37,14 @@ describe('PWA manifest home-screen title stays in sync with APP_HOME_SCREEN_TITL
     expect(overrides.lang).toBe('en')
     expect(overrides.description).toContain('family health')
     expect(overrides.shortcuts.map(shortcut => shortcut.name)).toEqual(['Record blood pressure', "Today's medication"])
+  })
+
+  test('index.html theme-color matches the manifest colour and is the page surface, not red', () => {
+    const html = readFileSync(join(import.meta.dir, '..', '..', 'index.html'), 'utf8')
+    const themeColor = html.match(/<meta name="theme-color" content="([^"]+)"/)?.[1]
+    const surface = readFileSync(join(import.meta.dir, '..', '..', 'src', 'index.css'), 'utf8').match(/--color-surface:\s*(#[0-9a-fA-F]{6})/)?.[1]
+    expect(themeColor?.toLowerCase()).toBe(PWA_THEME_COLOR)
+    expect(PWA_THEME_COLOR).toBe(surface?.toLowerCase())
   })
 
   test('each manifest locale points at screenshots with matching copy', () => {

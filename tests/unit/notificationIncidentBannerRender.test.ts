@@ -31,6 +31,18 @@ function render(locale: 'zh' | 'id' | 'en', props: Partial<Parameters<typeof Not
 }
 
 describe('NotificationIncidentBanner', () => {
+  test('shows enqueue failures in each locale and preserves mixed delivery warnings', () => {
+    const failure: NotificationDeliveryIncident = { ...incident('enqueue-1'), alertKind: 'enqueue_failed', generation: 0 }
+    for (const [locale, expected] of [['id', 'belum masuk antrean'], ['zh', '未能排入家人通知'], ['en', 'could not be queued']] as const) {
+      const onlyEnqueue = textContent(render(locale, { incidents: [failure] }))
+      expect(onlyEnqueue).toContain(expected)
+      expect(onlyEnqueue).not.toMatch(/enqueue-1|2026-|@|mmHg/)
+      const mixed = textContent(render(locale, { incidents: [failure, incident('delivery-1')] }))
+      expect(mixed).toContain(expected)
+      expect(mixed).toContain(locale === 'zh' ? '可能沒有送到' : locale === 'id' ? 'mungkin tidak sampai' : 'may not have been delivered')
+    }
+  })
+
   test('renders nothing when there is no incident and the check succeeded', () => {
     expect(render('zh')).toBeNull()
   })

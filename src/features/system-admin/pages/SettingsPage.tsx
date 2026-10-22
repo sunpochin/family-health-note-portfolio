@@ -21,6 +21,7 @@ import { MedicationDisplaySettings } from '../../../components/settings/Medicati
 import { CaregiverDensitySettings } from '../../../components/settings/CaregiverDensitySettings'
 import { DailyCareDisplaySettings } from '../../../components/settings/DailyCareDisplaySettings'
 import { ReadingScaleSettings } from '../../../components/settings/ReadingScaleSettings'
+import { CurrentAccountIdentity } from '../../../components/settings/CurrentAccountIdentity'
 import { AppLockSettings } from '../../../components/settings/AppLockSettings'
 import { PersonalNotificationSettings } from '../../../components/settings/PersonalNotificationSettings'
 import { CareAnomalyAlertSettingsPanel } from '../../../components/settings/CareAnomalyAlertSettings'
@@ -65,6 +66,7 @@ export type SettingsPageProps = {
   onToggleCaregiverDensityMode: (enabled: boolean) => Promise<void>
 }
 
+// 為什麼補足 44px：手機上的獨立操作要留出足夠點擊面，降低漏點與誤觸。
 export function SettingsPage({
   activeSubject,
   onChangeActiveSubject,
@@ -182,18 +184,20 @@ export function SettingsPage({
   }
 
   return (
-    <section className="min-h-full px-5 pt-5 pb-6 text-gray-900">
+    <section className="min-h-full px-5 pt-5 pb-6 text-slate-900">
       <TabHeader title="settings" />
 
       {/* 編輯個人顯示名稱 */}
-      <div className="mt-4 rounded-2xl border border-gray-200 bg-white p-4">
-        <h2 className="font-bold text-gray-900">{text({ id: 'Nama Tampilan Saya', zh: '我的顯示名稱', en: 'My Display Name' })}</h2>
-        <p className="mt-1 text-sm text-gray-500">
+      <div className="mt-4 rounded-2xl border border-slate-200 bg-white p-4">
+        <h2 className="font-bold text-slate-900">{text({ id: 'Nama Tampilan Saya', zh: '我的顯示名稱', en: 'My Display Name' })}</h2>
+        <p className="mt-1 text-sm text-slate-500">
           {text({ id: 'Nama ini akan ditampilkan di laporan dan pilihan subjek.', zh: '此名稱將顯示在頁面與選單中（預設為 Email 帳號前綴）。', en: 'This name will be displayed on pages and menus (default is email account prefix).' })}
         </p>
+        {/* 多個登入帳號可共用同一位病人；這裡把帳號與「我自己」分兩行標清，避免把病人名誤認為登入身分。 */}
+        <CurrentAccountIdentity userEmail={userEmail} patients={availablePatients} isDemoMode={isDemoMode} />
         <form onSubmit={handleSaveName} className="mt-4 flex flex-col gap-1">
           {/* 放大鏡／低視力使用者也需要看得到這個 label，不能只靠會消失的 placeholder。 */}
-          <label htmlFor="settings-display-name" className="text-xs font-semibold text-gray-500">{text({ id: 'Nama tampilan', zh: '顯示名稱', en: 'Display name' })}</label>
+          <label htmlFor="settings-display-name" className="text-xs font-semibold text-slate-500">{text({ id: 'Nama tampilan', zh: '顯示名稱', en: 'Display name' })}</label>
           <div className="flex gap-2">
             <input
               id="settings-display-name"
@@ -202,26 +206,26 @@ export function SettingsPage({
               maxLength={100}
               value={editingName}
               onChange={e => setEditingName(e.target.value)}
-              className="min-w-0 flex-1 rounded-xl border border-gray-300 px-3 py-2 text-sm"
+              className="min-w-0 flex-1 rounded-xl border-2 border-control-border px-3 py-2 text-sm"
               placeholder={text({ id: 'Nama Anda', zh: '請輸入顯示名稱', en: 'Enter display name' })}
             />
             <button
               type="submit"
               disabled={savingName}
-              className="rounded-xl bg-blue-600 px-4 py-2 text-sm font-bold text-white disabled:opacity-60"
+              className="rounded-xl bg-brand-700 px-4 py-2 text-sm font-bold text-white disabled:opacity-60 min-h-11"
             >
               {text({ id: 'Simpan', zh: '儲存', en: 'Save' })}
             </button>
           </div>
         </form>
         {/* 一開始就掛載空的 live region，只更新文字；已經有內容才掛載的話部分讀屏器不會播報。 */}
-        <p role="status" aria-live="polite" className="mt-2 min-h-4 text-xs font-semibold text-gray-600">{nameMessage}</p>
+        <p role="status" aria-live="polite" className="mt-2 min-h-4 text-xs font-semibold text-slate-600">{nameMessage}</p>
       </div>
 
       {/* 設定頁原本是十幾張卡片一路往下排，捲動距離長到照護者很難記得「哪個設定在哪裡」。
           改用可折疊分類：預設收合，只留標題與一行說明，需要時再展開，裡面的既有卡片與行為完全不變。 */}
       <CollapsibleSection
-        icon="👪"
+        icon="users"
         title={{ id: 'Orang yang dirawat & keluarga', zh: '照護對象與家人', en: 'Care recipients & family' }}
         description={{ id: 'Tambah hewan, undang keluarga & pasien, tautan berbagi, dan buku panduan', zh: '新增寵物、邀請家人與被照顧者、分享連結、交接手冊', en: 'Add pets, invite family & patients, share links, and the handover guide' }}
       >
@@ -234,15 +238,15 @@ export function SettingsPage({
 
         {/* 換看護時用來當場列印的一頁雙語交接手冊；只針對目前操作對象，避免誤選到別人的資料。 */}
         {activePatientId && (
-          <div className="mt-6 rounded-2xl border border-gray-200 bg-white p-4">
-            <h2 className="font-bold text-gray-900">{text({ id: 'Buku Panduan Serah Terima Perawatan', zh: '換看護交接手冊', en: 'Caregiver Handover Handbook' })}</h2>
-            <p className="mt-1 text-sm text-gray-500">
+          <div className="mt-6 rounded-2xl border border-slate-200 bg-white p-4">
+            <h2 className="font-bold text-slate-900">{text({ id: 'Buku Panduan Serah Terima Perawatan', zh: '換看護交接手冊', en: 'Caregiver Handover Handbook' })}</h2>
+            <p className="mt-1 text-sm text-slate-500">
               {text({ id: 'Cetak satu halaman berisi jadwal obat, alergi, rutinitas, dan kontak darurat untuk pengasuh baru.', zh: '列印一頁包含服藥時間、禁忌、慣用作息與緊急聯絡人，交給新看護第一天使用。', en: 'Print a single page with medication schedules, precautions, daily routines, and emergency contacts for a new caregiver.' })}
             </p>
             <button
               type="button"
               onClick={() => setViewingCareHandbook(true)}
-              className="mt-3 min-h-11 rounded-xl border border-gray-300 bg-white px-4 py-2 text-sm font-bold text-gray-800"
+              className="mt-3 min-h-11 rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-bold text-slate-800"
             >
               {text({ id: 'Buat Buku Panduan', zh: '產生交接手冊', en: 'Generate Handbook' })}
             </button>
@@ -250,22 +254,23 @@ export function SettingsPage({
         )}
 
         {canConfigureActiveSubject && (
-          <section className="mt-6 rounded-2xl border border-gray-200 bg-white p-4" aria-labelledby="active-subject-heading">
-            <h2 id="active-subject-heading" className="font-bold text-gray-900">{text({ id: 'Orang yang aktif', zh: '目前操作對象', en: 'Active person' })}</h2>
-            <p className="mt-1 text-sm text-gray-500">{text({ id: 'Orang yang sama digunakan di semua tab dan di setiap perangkat.', zh: '所有分頁都使用同一個人，並同步到所有裝置。', en: 'All tabs use the same person and sync to all devices.' })}</p>
+          <section className="mt-6 rounded-2xl border border-slate-200 bg-white p-4" aria-labelledby="active-subject-heading">
+            <h2 id="active-subject-heading" className="font-bold text-slate-900">{text({ id: 'Orang yang aktif', zh: '目前操作對象', en: 'Active person' })}</h2>
+            <p className="mt-1 text-sm text-slate-500">{text({ id: 'Orang yang sama digunakan di semua tab dan di setiap perangkat.', zh: '所有分頁都使用同一個人，並同步到所有裝置。', en: 'All tabs use the same person and sync to all devices.' })}</p>
             {/* 改用其他分頁共用的 SubjectSwitcher。原本這裡是一套只在這一頁出現的 radio 卡片，
                 等於同一件事有兩種外觀與兩種互動方式，照護者難以建立「要換人就去哪裡」的穩定習慣。
                 共用同一個元件也符合〈介面元件化規範〉。 */}
             <div className="mt-4">
               <SubjectSwitcher patientId={activeSubject} patients={availablePatients} onSelect={onChangeActiveSubject} />
             </div>
-            <p className="mt-4 rounded-xl bg-gray-100 px-3 py-2 text-xs text-gray-500">{text({ id: 'Hanya orang yang diizinkan akun ini yang dapat dipilih untuk dirawat.', zh: '只能選擇這個帳號已有照護權限的人。', en: 'Only select people who already have permission to care for this account.' })}</p>
+            {/* slate-100 底上的 12px 說明字用 slate-600：對照表的 slate-500 疊在 slate-100 只有 4.35:1，未達 AA（#1148）。 */}
+            <p className="mt-4 rounded-xl bg-slate-100 px-3 py-2 text-xs text-slate-600">{text({ id: 'Hanya orang yang diizinkan akun ini yang dapat dipilih untuk dirawat.', zh: '只能選擇這個帳號已有照護權限的人。', en: 'Only select people who already have permission to care for this account.' })}</p>
           </section>
         )}
       </CollapsibleSection>
 
       <CollapsibleSection
-        icon="🎛️"
+        icon="sliders"
         title={{ id: 'Preferensi tampilan & notifikasi', zh: '顯示與提醒偏好', en: 'Display & notification preferences' }}
         description={{ id: 'Tampilan perawatan harian, tampilan obat, dan notifikasi pribadi', zh: '每日照護顯示、服藥顯示方式與個人化通知', en: 'Daily care display, medication display, and personal notifications' }}
         defaultOpen={shouldOpenDisplayPreferences}
@@ -310,13 +315,13 @@ export function SettingsPage({
       <AppLockSettings />
 
       {/* 資料匯出、合規條款與刪除帳號設定 */}
-      <div className="mt-6 rounded-2xl border border-gray-200 bg-white p-4 space-y-3">
-        <h2 className="font-bold text-gray-900">{text({ id: 'Data & Privasi', zh: '資料與隱私', en: 'Data & Privacy' })}</h2>
+      <div className="mt-6 rounded-2xl border border-slate-200 bg-white p-4 space-y-3">
+        <h2 className="font-bold text-slate-900">{text({ id: 'Data & Privasi', zh: '資料與隱私', en: 'Data & Privacy' })}</h2>
         <div className="flex flex-col gap-3 pt-1">
           <button
             type="button"
             onClick={handleReplayTutorial}
-            className="text-left text-sm text-indigo-700 underline font-semibold"
+            className="text-left text-sm text-brand-700 underline font-semibold min-h-11"
           >
             {text({ id: 'Putar Ulang Panduan', zh: '重播教學導覽', en: 'Replay Tutorial' })}
           </button>
@@ -324,28 +329,29 @@ export function SettingsPage({
           <button
             type="button"
             onClick={() => setIsExportModalOpen(true)}
-            className="text-left text-sm text-gray-700 underline font-semibold"
+            className="text-left text-sm text-slate-700 underline font-semibold min-h-11"
           >
             {text({ id: 'Ekspor Data (CSV)', zh: '匯出個人資料 (CSV)', en: 'Export Personal Data (CSV)' })}
           </button>
 
-          <a href="/privacy" className="text-left text-sm text-gray-700 underline font-semibold">
+          <a href="/privacy" className="text-left text-sm text-slate-700 underline font-semibold inline-flex min-h-11 items-center">
             {text({ id: 'Kebijakan Privasi', zh: '隱私權條款', en: 'Privacy Policy' })}
           </a>
 
-          <a href="/terms" className="text-left text-sm text-gray-700 underline font-semibold">
+          <a href="/terms" className="text-left text-sm text-slate-700 underline font-semibold inline-flex min-h-11 items-center">
             {text({ id: 'Syarat & Ketentuan', zh: '服務條款', en: 'Terms of Service' })}
           </a>
 
           {/* Release notes 不讀健康資料，放在同一區讓照護者可安全查看版本變更。 */}
-          <a href="/releases" className="text-left text-sm text-gray-700 underline font-semibold">
+          <a href="/releases" className="text-left text-sm text-slate-700 underline font-semibold inline-flex min-h-11 items-center">
             {text({ id: 'Catatan Rilis', zh: '版本更新說明', en: 'Release notes' })}
           </a>
 
+          {/* 帳號刪除會進入不可逆確認；入口也維持 44px，避免看護誤觸或難以開啟確認。 */}
           <button
             type="button"
             onClick={() => setIsDeleteModalOpen(true)}
-            className="text-left text-sm font-bold text-red-600 underline mt-2"
+            className="mt-2 inline-flex min-h-11 items-center text-left text-sm font-bold text-red-600 underline"
           >
             {text({ id: 'Hapus Akun', zh: '刪除帳號', en: 'Delete Account' })}
           </button>
@@ -356,7 +362,7 @@ export function SettingsPage({
       <button
         type="button"
         onClick={() => signOut()}
-        className="mt-6 w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm font-semibold text-gray-600 active:bg-gray-50"
+        className="mt-6 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-600 active:bg-slate-50"
       >
         {text({ id: 'Keluar', zh: '登出', en: 'Sign out' })}
       </button>

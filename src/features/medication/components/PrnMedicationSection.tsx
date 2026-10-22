@@ -163,18 +163,21 @@ export function PrnMedicationSection({ plans, events, assessments, careDate, onR
     }
   }
 
+  // 設計系統 #1146：PRN 是「需要時才用」的獨立紀錄，不是每天要打卡的主流程，所以整塊用中性 slate 容器，
+  // 唯一的主色（brand）只留給動作鈕。原本整塊 violet 是第三個主色，且跟打卡的「已服用（綠）／尚未服用（黃）」搶辨識；
+  // 「尚未評估」膠囊也刻意用白底細框、不借用 warn——它不是「尚未服用」，不能讓看護誤以為漏打卡。
   return (
-    <section className="space-y-4 rounded-3xl border border-violet-200 bg-violet-50 p-4 shadow-sm" aria-labelledby="prn-medication-title">
+    <section className="space-y-4 rounded-3xl border border-slate-200 bg-slate-50 p-4 shadow-sm" aria-labelledby="prn-medication-title">
       <div className="flex items-start justify-between gap-3">
         <div>
           {/* PRN 標題英文修正 */}
-          <p className="text-sm font-bold text-violet-800">{text({ id: 'Obat bila perlu (PRN)', zh: '需要時服用（PRN）', en: 'As needed (PRN)' })}</p>
-          <h2 id="prn-medication-title" className="mt-1 text-xl font-black text-violet-950">{text({ id: 'Catatan penggunaan terpisah', zh: '獨立使用紀錄', en: 'Separate usage history' })}</h2>
-          <p className="mt-2 text-sm font-medium leading-6 text-violet-900">{text({ id: 'Jumlah dan waktu diambil dari kejadian penggunaan yang benar-benar dicatat.', zh: '使用次數與時間只來自實際記錄的使用事件。', en: 'Usage counts and times are based on actual recorded usage events only.' })}</p>
+          <p className="text-sm font-bold text-slate-600">{text({ id: 'Obat bila perlu (PRN)', zh: '需要時服用（PRN）', en: 'As needed (PRN)' })}</p>
+          <h2 id="prn-medication-title" className="mt-1 text-xl font-black text-slate-900">{text({ id: 'Catatan penggunaan terpisah', zh: '獨立使用紀錄', en: 'Separate usage history' })}</h2>
+          <p className="mt-2 text-sm font-medium leading-6 text-slate-700">{text({ id: 'Jumlah dan waktu diambil dari kejadian penggunaan yang benar-benar dicatat.', zh: '使用次數與時間只來自實際記錄的使用事件。', en: 'Usage counts and times are based on actual recorded usage events only.' })}</p>
         </div>
-        <span className="shrink-0 rounded-full bg-white px-3 py-1 text-sm font-black tabular-nums text-violet-900">{activeEventCount} {text({ id: 'kali', zh: '次', en: 'times' })}</span>
+        <span className="shrink-0 rounded-full bg-white px-3 py-1 text-sm font-black tabular-nums text-slate-700">{activeEventCount} {text({ id: 'kali', zh: '次', en: 'times' })}</span>
       </div>
-      <p className="rounded-2xl border border-violet-200 bg-white/70 p-3 text-sm font-semibold leading-6 text-violet-950">
+      <p className="rounded-2xl border border-slate-200 bg-white/70 p-3 text-sm font-semibold leading-6 text-slate-900">
         {text({ id: 'Periksa label obat atau instruksi dokter sebelum setiap penggunaan. Aplikasi tidak menghitung waktu penggunaan berikutnya atau batas dosis.', zh: '每次使用前請核對藥袋或醫囑；系統不會計算下次使用時間或最大劑量。', en: 'Check the bag or order before each use; the system will not calculate the time of the next use or the maximum dose.' })}
       </p>
       {sectionError && <p role="alert" className="rounded-xl bg-red-50 p-3 text-sm font-semibold text-red-700">{text(sectionError)}</p>}
@@ -186,7 +189,7 @@ export function PrnMedicationSection({ plans, events, assessments, careDate, onR
           const status = getPrnDailyStatus(plan.id, events, assessments)
           const assessmentBusy = busyKey === `assessment:${plan.id}`
           return (
-            <article key={plan.id} className="rounded-2xl border border-violet-200 bg-white p-4">
+            <article key={plan.id} className="rounded-2xl border border-slate-200 bg-white p-4">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
                   <h3 className="text-lg font-black text-slate-950">{formatMedicationDisplayName(plan.medication, locale)}</h3>
@@ -196,7 +199,7 @@ export function PrnMedicationSection({ plans, events, assessments, careDate, onR
                     details={`${formatMedicationLabel(plan.medication.brand_name, plan.medication.strength_mg, plan.medication.strength_label)} · ${plan.dose_amount} ${doseUnitLabel(prnDoseUnitForDosageForm(plan.medication.dosage_form), locale)}`}
                   />
                 </div>
-                <span className={`shrink-0 rounded-full px-3 py-1 text-xs font-black ${status === 'used' ? 'bg-emerald-100 text-emerald-900' : status === 'not_needed' ? 'bg-slate-100 text-slate-700' : 'bg-violet-100 text-violet-900'}`}>
+                <span className={`shrink-0 rounded-full px-3 py-1 text-xs font-black ${status === 'used' ? 'bg-emerald-100 text-emerald-900' : status === 'not_needed' ? 'bg-slate-100 text-slate-700' : 'border border-slate-300 bg-white text-slate-700'}`}>
                   {status === 'used'
                     ? text({ id: `${activeEvents.length} kali hari ini · terakhir ${dayjs(activeEvents[0].taken_at).tz(CARE_DAY_TIMEZONE).format('HH:mm')}`, zh: `今天 ${activeEvents.length} 次・最後 ${dayjs(activeEvents[0].taken_at).tz(CARE_DAY_TIMEZONE).format('HH:mm')}`, en: `${activeEvents.length} uses today · last at ${dayjs(activeEvents[0].taken_at).tz(CARE_DAY_TIMEZONE).format('HH:mm')}` })
                     : status === 'not_needed'
@@ -217,13 +220,15 @@ export function PrnMedicationSection({ plans, events, assessments, careDate, onR
                         <p className="text-sm font-black text-slate-900">
                           {dayjs(item.taken_at).tz(CARE_DAY_TIMEZONE).format('HH:mm')} · {item.dose_amount} {doseUnitLabel(item.dose_unit, locale)} · {text(effect)}
                         </p>
+                        {/* 「作廢」是不可逆操作的入口，原本只有一行字高；inline-flex + min-h-11 讓點擊區到 44px（#1198）。 */}
                         {item.status === 'active'
-                          ? <button type="button" disabled={Boolean(busyKey)} onClick={() => { setVoidTarget(item); setVoidReason(''); setFormError(null) }} className="shrink-0 text-xs font-black text-red-700 underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-600">{text({ id: 'Batalkan', zh: '作廢', en: 'Void' })}</button>
+                          ? <button type="button" disabled={Boolean(busyKey)} onClick={() => { setVoidTarget(item); setVoidReason(''); setFormError(null) }} className="inline-flex min-h-11 shrink-0 items-center text-xs font-black text-red-700 underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-700">{text({ id: 'Batalkan', zh: '作廢', en: 'Void' })}</button>
                           : <span className="shrink-0 text-xs font-black text-slate-600">{text({ id: 'Dibatalkan', zh: '已作廢', en: 'Voided' })}</span>}
                       </div>
                       <p className="mt-1 text-sm text-slate-700">{item.reason}</p>
                       {item.status === 'active' && <label className="mt-2 block text-xs font-bold text-slate-700">{text({ id: 'Penilaian efek', zh: '效果評估', en: 'Effect Evaluation' })}
-                        <select value={item.effect_status} disabled={Boolean(busyKey)} onChange={event => void setEffect(item, event.target.value as PrnMedicationEffectStatus)} className="mt-1 min-h-10 w-full rounded-lg border border-slate-300 bg-white px-2 text-sm font-bold">
+                        {/* 療效 select 是半夜補記時最常點的控制，高度提高到 44px（#1198）。 */}
+                        <select value={item.effect_status} disabled={Boolean(busyKey)} onChange={event => void setEffect(item, event.target.value as PrnMedicationEffectStatus)} className="mt-1 min-h-11 w-full rounded-lg border-2 border-control-border bg-white px-2 text-sm font-bold">
                           {(['pending', 'helped', 'not_helped', 'unknown'] as const).map(status => <option key={status} value={status}>{text(formatPrnEffectStatus(status))}</option>)}
                         </select>
                       </label>}
@@ -235,49 +240,49 @@ export function PrnMedicationSection({ plans, events, assessments, careDate, onR
               </div>
 
               <div className="mt-4 grid gap-2 sm:grid-cols-2">
-                <button type="button" disabled={Boolean(busyKey)} onClick={() => openRecordForm(plan)} className="min-h-12 rounded-xl bg-violet-700 px-4 text-base font-black text-white shadow-sm active:bg-violet-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-600 focus-visible:ring-offset-2">
+                <button type="button" disabled={Boolean(busyKey)} onClick={() => openRecordForm(plan)} className="min-h-12 rounded-xl bg-brand-700 px-4 text-base font-black text-white shadow-sm active:bg-emerald-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-700 focus-visible:ring-offset-2">
                   {/* 記錄使用按鈕英文修正 */}
                   {text({ id: 'Catat penggunaan', zh: '記錄使用', en: 'Record use' })}
                 </button>
                 {status === 'not_needed'
-                  ? <button type="button" disabled={Boolean(busyKey)} onClick={() => void setAssessment(plan.id, 'not_assessed')} className="min-h-12 rounded-xl border border-slate-300 bg-white px-4 text-sm font-black text-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-600 focus-visible:ring-offset-2">{assessmentBusy ? text(common.loading) : text({ id: 'Kembalikan ke belum dinilai', zh: '恢復為尚未評估', en: 'Revert to Not Evaluated' })}</button>
-                  : status === 'not_assessed' && <button type="button" disabled={Boolean(busyKey)} onClick={() => void setAssessment(plan.id, 'not_needed')} className="min-h-12 rounded-xl border border-violet-300 bg-white px-4 text-sm font-black text-violet-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-600 focus-visible:ring-offset-2">{assessmentBusy ? text(common.loading) : text({ id: 'Tandai tidak diperlukan hari ini', zh: '標記今天未需要', en: 'Flag not required today' })}</button>}
+                  ? <button type="button" disabled={Boolean(busyKey)} onClick={() => void setAssessment(plan.id, 'not_assessed')} className="min-h-12 rounded-xl border border-slate-300 bg-white px-4 text-sm font-black text-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-700 focus-visible:ring-offset-2">{assessmentBusy ? text(common.loading) : text({ id: 'Kembalikan ke belum dinilai', zh: '恢復為尚未評估', en: 'Revert to Not Evaluated' })}</button>
+                  : status === 'not_assessed' && <button type="button" disabled={Boolean(busyKey)} onClick={() => void setAssessment(plan.id, 'not_needed')} className="min-h-12 rounded-xl border border-slate-300 bg-white px-4 text-sm font-black text-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-700 focus-visible:ring-offset-2">{assessmentBusy ? text(common.loading) : text({ id: 'Tandai tidak diperlukan hari ini', zh: '標記今天未需要', en: 'Flag not required today' })}</button>}
               </div>
             </article>
           )
         })}
       </div>
 
-      <dialog ref={recordDialogRef} onCancel={event => { event.preventDefault(); if (!busyKey.startsWith('record:')) { setRecordingPlan(null); setRecordForm(null) } }} className="m-auto w-[calc(100%-2rem)] max-w-lg rounded-3xl border border-violet-200 bg-white p-0 text-slate-900 shadow-2xl backdrop:bg-slate-950/55" aria-labelledby="prn-record-title">
+      <dialog ref={recordDialogRef} onCancel={event => { event.preventDefault(); if (!busyKey.startsWith('record:')) { setRecordingPlan(null); setRecordForm(null) } }} className="m-auto w-[calc(100%-2rem)] max-w-lg rounded-3xl border border-slate-200 bg-white p-0 text-slate-900 shadow-2xl backdrop:bg-slate-950/55" aria-labelledby="prn-record-title">
         {recordingPlan && recordForm && <form method="dialog" onSubmit={submitRecord} className="p-6">
           {/* PRN 記錄對話框標題與提示英文修正 */}
-          <h2 id="prn-record-title" className="text-xl font-black text-violet-950">{text({ id: 'Catat penggunaan PRN', zh: '記錄 PRN 使用', en: 'Record PRN use' })}</h2>
+          <h2 id="prn-record-title" className="text-xl font-black text-slate-900">{text({ id: 'Catat penggunaan PRN', zh: '記錄 PRN 使用', en: 'Record PRN use' })}</h2>
           <p className="mt-2 text-sm font-semibold text-slate-700">{formatMedicationDisplayName(recordingPlan.medication, locale)} · {text({ id: 'Periksa label obat atau instruksi dokter.', zh: '請核對藥袋或醫囑。', en: 'Please verify against the medication label or prescription instructions.' })}</p>
           <div className="mt-5 space-y-4">
             <label className="block text-sm font-black">{text({ id: 'Waktu penggunaan sebenarnya', zh: '實際使用時間', en: 'Actual time of use' })}
-              <input required type="datetime-local" value={recordForm.takenAt} onChange={event => setRecordForm(current => current ? { ...current, takenAt: event.target.value } : current)} className="mt-2 min-h-12 w-full rounded-xl border border-slate-300 px-3 text-base font-bold focus:border-violet-600 focus:outline-none focus:ring-2 focus:ring-violet-200" />
+              <input required type="datetime-local" value={recordForm.takenAt} onChange={event => setRecordForm(current => current ? { ...current, takenAt: event.target.value } : current)} className="mt-2 min-h-12 w-full rounded-xl border-2 border-control-border px-3 text-base font-bold focus:border-brand-700 focus:outline-none focus:ring-2 focus:ring-brand-700" />
             </label>
             <label className="block text-sm font-black">{text({ id: 'Jumlah sebenarnya', zh: '實際使用量', en: 'Actual usage' })}
-              <span className="mt-2 flex items-center gap-2"><input required min="0.001" step="0.001" type="number" value={recordForm.doseAmount} onChange={event => setRecordForm(current => current ? { ...current, doseAmount: Number(event.target.value) } : current)} className="min-h-12 w-full rounded-xl border border-slate-300 px-3 text-base font-bold focus:border-violet-600 focus:outline-none focus:ring-2 focus:ring-violet-200" /><span className="shrink-0 text-sm font-black text-slate-600">{doseUnitLabel(recordForm.doseUnit, locale)}</span></span>
+              <span className="mt-2 flex items-center gap-2"><input required min="0.001" step="0.001" type="number" value={recordForm.doseAmount} onChange={event => setRecordForm(current => current ? { ...current, doseAmount: Number(event.target.value) } : current)} className="min-h-12 w-full rounded-xl border-2 border-control-border px-3 text-base font-bold focus:border-brand-700 focus:outline-none focus:ring-2 focus:ring-brand-700" /><span className="shrink-0 text-sm font-black text-slate-600">{doseUnitLabel(recordForm.doseUnit, locale)}</span></span>
             </label>
             <label className="block text-sm font-black">{text({ id: 'Alasan atau gejala', zh: '使用原因或症狀', en: 'Causes or symptoms of use' })}
-              <textarea required value={recordForm.reason} onChange={event => setRecordForm(current => current ? { ...current, reason: event.target.value } : current)} rows={2} className="mt-2 w-full rounded-xl border border-slate-300 px-3 py-3 text-base font-medium focus:border-violet-600 focus:outline-none focus:ring-2 focus:ring-violet-200" />
+              <textarea required value={recordForm.reason} onChange={event => setRecordForm(current => current ? { ...current, reason: event.target.value } : current)} rows={2} className="mt-2 w-full rounded-xl border-2 border-control-border px-3 py-3 text-base font-medium focus:border-brand-700 focus:outline-none focus:ring-2 focus:ring-brand-700" />
             </label>
             <label className="block text-sm font-black">{text({ id: 'Efek / penilaian sementara', zh: '效果／目前評估', en: 'Effectiveness/Current Evaluation' })}
-              <select value={recordForm.effectStatus} onChange={event => setRecordForm(current => current ? { ...current, effectStatus: event.target.value as PrnMedicationEffectStatus } : current)} className="mt-2 min-h-12 w-full rounded-xl border border-slate-300 bg-white px-3 text-base font-bold focus:border-violet-600 focus:outline-none focus:ring-2 focus:ring-violet-200">
+              <select value={recordForm.effectStatus} onChange={event => setRecordForm(current => current ? { ...current, effectStatus: event.target.value as PrnMedicationEffectStatus } : current)} className="mt-2 min-h-12 w-full rounded-xl border-2 border-control-border bg-white px-3 text-base font-bold focus:border-brand-700 focus:outline-none focus:ring-2 focus:ring-brand-700">
                 {(['pending', 'helped', 'not_helped', 'unknown'] as const).map(status => <option key={status} value={status}>{text(formatPrnEffectStatus(status))}</option>)}
               </select>
             </label>
             <label className="block text-sm font-black">{text({ id: 'Catatan (opsional)', zh: '備註（選填）', en: 'Note (optional)' })}
-              <textarea value={recordForm.notes} onChange={event => setRecordForm(current => current ? { ...current, notes: event.target.value } : current)} rows={2} className="mt-2 w-full rounded-xl border border-slate-300 px-3 py-3 text-base font-medium focus:border-violet-600 focus:outline-none focus:ring-2 focus:ring-violet-200" />
+              <textarea value={recordForm.notes} onChange={event => setRecordForm(current => current ? { ...current, notes: event.target.value } : current)} rows={2} className="mt-2 w-full rounded-xl border-2 border-control-border px-3 py-3 text-base font-medium focus:border-brand-700 focus:outline-none focus:ring-2 focus:ring-brand-700" />
             </label>
           </div>
           {formError && <p role="alert" className="mt-4 rounded-xl bg-red-50 p-3 text-sm font-semibold text-red-700">{text(formError)}</p>}
           {/* 免責聲明與儲存按鈕英文修正 */}
           <p className="mt-4 text-xs font-semibold leading-5 text-slate-600">{text({ id: 'Catatan ini menyimpan kejadian penggunaan; aplikasi tidak memberi saran medis atau menghitung dosis berikutnya.', zh: '這會保存實際使用事件；系統不提供醫療建議，也不計算下次劑量。', en: 'This records actual usage events; the system does not provide medical advice or calculate next doses.' })}</p>
           <div className="mt-6 grid grid-cols-[.8fr_1.2fr] gap-3">
-            <button type="button" disabled={busyKey.startsWith('record:')} onClick={() => { setRecordingPlan(null); setRecordForm(null) }} className="min-h-14 rounded-2xl border border-slate-300 bg-white px-4 text-base font-black text-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-600">{text({ id: 'Kembali', zh: '返回', en: 'Back' })}</button>
-            <button type="submit" disabled={Boolean(busyKey)} className="min-h-14 rounded-2xl bg-violet-700 px-4 text-base font-black text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-600 focus-visible:ring-offset-2">{busyKey.startsWith('record:') ? text({ id: 'Menyimpan…', zh: '儲存中…', en: 'Saving...' }) : text({ id: 'Simpan catatan', zh: '儲存紀錄', en: 'Save record' })}</button>
+            <button type="button" disabled={busyKey.startsWith('record:')} onClick={() => { setRecordingPlan(null); setRecordForm(null) }} className="min-h-14 rounded-2xl border border-slate-300 bg-white px-4 text-base font-black text-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-700">{text({ id: 'Kembali', zh: '返回', en: 'Back' })}</button>
+            <button type="submit" disabled={Boolean(busyKey)} className="min-h-14 rounded-2xl bg-brand-700 px-4 text-base font-black text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-700 focus-visible:ring-offset-2">{busyKey.startsWith('record:') ? text({ id: 'Menyimpan…', zh: '儲存中…', en: 'Saving...' }) : text({ id: 'Simpan catatan', zh: '儲存紀錄', en: 'Save record' })}</button>
           </div>
         </form>}
       </dialog>
@@ -287,13 +292,13 @@ export function PrnMedicationSection({ plans, events, assessments, careDate, onR
           <h2 id="prn-void-title" className="text-xl font-black text-red-900">{text({ id: 'Batalkan catatan PRN?', zh: '作廢這筆 PRN 紀錄？', en: 'Void this PRN record?' })}</h2>
           <p className="mt-3 text-sm font-semibold leading-6 text-slate-700">{dayjs(voidTarget.taken_at).tz(CARE_DAY_TIMEZONE).format('YYYY-MM-DD HH:mm')} · {voidTarget.dose_amount} {doseUnitLabel(voidTarget.dose_unit, locale)}</p>
           <label className="mt-4 block text-sm font-black">{text({ id: 'Alasan pembatalan', zh: '作廢原因', en: 'Reason for voiding' })}
-            <textarea required value={voidReason} onChange={event => setVoidReason(event.target.value)} rows={3} className="mt-2 w-full rounded-xl border border-slate-300 px-3 py-3 text-base font-medium focus:border-red-600 focus:outline-none focus:ring-2 focus:ring-red-200" />
+            <textarea required value={voidReason} onChange={event => setVoidReason(event.target.value)} rows={3} className="mt-2 w-full rounded-xl border-2 border-control-border px-3 py-3 text-base font-medium focus:border-brand-700 focus:outline-none focus:ring-2 focus:ring-brand-700" />
           </label>
           {formError && <p role="alert" className="mt-4 rounded-xl bg-red-50 p-3 text-sm font-semibold text-red-700">{text(formError)}</p>}
           <p className="mt-4 text-xs font-semibold leading-5 text-slate-600">{text({ id: 'Catatan lama akan tetap terlihat sebagai dibatalkan; buat catatan baru jika perlu mencatat penggunaan yang benar.', zh: '原紀錄會保留為已作廢；若需更正，請另外建立新使用紀錄。', en: 'The original record will be retained as obsolete; if you need to correct it, please create a new usage record.' })}</p>
           <div className="mt-6 grid grid-cols-[.8fr_1.2fr] gap-3">
-            <button type="button" onClick={() => setVoidTarget(null)} className="min-h-14 rounded-2xl border border-slate-300 bg-white px-4 text-base font-black text-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-600">{text({ id: 'Kembali', zh: '返回', en: 'Back' })}</button>
-            <button type="submit" disabled={Boolean(busyKey)} className="min-h-14 rounded-2xl bg-red-700 px-4 text-base font-black text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-700 focus-visible:ring-offset-2">{busyKey.startsWith('void:') ? text({ id: 'Membatalkan…', zh: '作廢中…', en: 'Voiding...' }) : text({ id: 'Batalkan catatan', zh: '作廢紀錄', en: 'Retire Record' })}</button>
+            <button type="button" onClick={() => setVoidTarget(null)} className="min-h-14 rounded-2xl border border-slate-300 bg-white px-4 text-base font-black text-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-700">{text({ id: 'Kembali', zh: '返回', en: 'Back' })}</button>
+            <button type="submit" disabled={Boolean(busyKey)} className="min-h-14 rounded-2xl bg-red-700 px-4 text-base font-black text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-700 focus-visible:ring-offset-2">{busyKey.startsWith('void:') ? text({ id: 'Membatalkan…', zh: '作廢中…', en: 'Voiding...' }) : text({ id: 'Batalkan catatan', zh: '作廢紀錄', en: 'Retire Record' })}</button>
           </div>
         </form>}
       </dialog>

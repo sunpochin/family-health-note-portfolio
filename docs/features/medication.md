@@ -6,6 +6,8 @@
 
 # 服藥 / Medication
 
+血壓條件用藥的醫囑版本、當日整顆藥暫停、隔日重測、補記／更正與資料庫防線見 [血壓當日暫停契約](./medication-blood-pressure-hold.md)（#1258）。
+
 ## 產品邊界
 
 服藥頁是每日照護工作區，不把尚未確認的醫囑猜成固定時段。固定藥按 plan 逐顆勾選；PRN 不計入固定時段完成判斷。完成卡只在當下成功操作後顯示，重新載入或切換病人不重播舊提示。
@@ -25,6 +27,30 @@ PRN 顯示在固定藥之外的獨立區塊，不產生黃色「尚未服用」�
 每日服藥的「今天」固定採 `Asia/Taipei` 04:00–隔日 04:00 的照護日。凌晨 00:00–03:59 的睡前藥仍保留 `taken_at` 真實時間，但會歸在前一個照護日；05:00 起床則已屬新照護日。這是照護工作區的分組規則，不是醫囑、提醒時間或醫療上的服藥建議。
 
 `medication_intake_logs.care_date` 是每日卡片、查詢與跨裝置去重的 canonical 欄位；`taken_on` 保留既有日曆日相容性，`taken_at` 永遠是稽核用的實際時間。結構化藥單與舊版單顆藥各自以照護日建立唯一鍵，避免 02:00 重新繞過去重。資料庫 trigger 會依 `taken_at` 重算 `care_date`，避免舊版 PWA 或手動請求送入錯誤日期。歷史衝突在 migration 期間會停止並要求人工判斷，不靜默刪除或合併服藥紀錄。
+
+## 離線打卡佇列
+
+補送競態與逾時（PR #1271）：服藥佇列只在本機同一劑仍等於這次送出的快照時清除；另一分頁在請求途中改成撤回或重新打卡的版本會留下來，由下一輪按原本規則補送。這個比較由服藥 adapter 提供，共用佇列預設行為不變，血壓補上 `notified` 旗標後仍正常完成清理。刻意不只廣播「正在送」來阻擋撤回：未更新的分頁或延遲訊號仍可能寫入撤回，完成清理本身保留新意圖才能避免遺失。
+
+每筆補送的 INSERT、唯一鍵衝突後的 GET、撤回 DELETE 共用可中止請求，15 秒未確認即中止；換帳號或 provider 卸載會立即中止並釋放 Web Lock。中止不代表伺服器一定沒寫入，原劑次／撤回標記留在原帳號桶，下次靠既有唯一鍵與精確撤回條件重試。拒絕結果立即更新對應病人的同步錯誤，成功也立即清除該病人舊錯誤，不等待後續病人的請求；同輪同病人已有失敗時，後面的成功不會掩蓋它。
+
+服藥打卡遇到連線中斷、408／429 或暫時性 5xx 時，這一劑不再只顯示「同步失敗」要看護重按，而是先存進這支手機的離線佇列；權限與資料錯誤不進佇列，因為重送也不會成功；本機儲存寫不進去時照舊顯示錯誤，不假裝已記錄。登入並完成必要同意後，`MedicationQueueProvider` 常駐於 App 殼層（也包住邀請等待畫面、設定精靈與帳號設定畫面），因此恢復連線、回前景、iOS bfcache 還原或原生殼回前景時，不必先打開服藥區段就會自動補送（issue #1228；觸發器仍與血壓共用 `src/hooks/usePendingWriteFlush.ts`）。
+
+跟血壓佇列最大的不同是去重：血壓兩次量測就是兩筆，服藥同一劑同一個照護日只能一筆。所以佇列項目的 id 不是隨機 UUID，而是劑次本身 `(patient_id, plan_id, care_date, dose_number)`，與既有唯一索引 `idx_medication_intake_logs_patient_plan_care_date_unique` 同一組欄位，不需要新的 migration 或 `client_request_id` 欄位。同一劑重複入列保留第一次（藥是在第一次按下時吃的）。真正的去重仍以資料庫為準：兩台手機各自離線打卡時前端看不到對方，補送撞到唯一鍵就讀回已存在的那筆（server-wins）。
+
+- **服藥時間**：`taken_at` 是按下去那一刻，補送沿用同一個時間。資料庫 trigger 依 `taken_at` 重算 `care_date`，所以 03:50 打卡、幾小時後才送出的那一劑仍歸在前一個照護日。
+- **自己還是別人**：補送讀回的那筆若帳號與 `taken_at` 都相同，就是自己上一次「其實已寫入、只是回應遺失」的請求，不提示；否則是別的裝置或家人先記錄，狀態列會說明「已由其他裝置或家人先記錄，畫面以先記錄的時間為準」，避免看護以為打卡不見了而再給一次藥。不做合併 UI。
+- **畫面**：待同步的劑次算作已服用（進度、完成提示都算），藥卡改虛線框並標「待同步・點擊取消」；頁面顯示與血壓共用的 `PendingSyncStatus`「N 筆紀錄等待同步」。讀取當天紀錄後會與佇列對帳，伺服器已有的劑次直接移出佇列，同一劑永遠只顯示伺服器那筆，不會算兩次。
+- **撤回**：離線時按錯可以撤回，藥卡立刻回到「尚未服用」。佇列裡那筆不是直接刪掉，而是改成撤回標記：排進佇列的原因可能是「伺服器其實已寫入、只是回應遺失」，只刪本機會讓伺服器留著「已服用」、真的漏服也不會被發現。撤回標記連線後刪掉伺服器上「自己那次打卡」寫入的那筆（帳號＋`taken_at` 都要對得上，別的裝置或家人記錄的同一劑不會被誤刪；沒有就刪到 0 列）；送達前畫面先把自己那筆藏起來。撤回後又重新打卡時先丟掉撤回標記，伺服器上若已有自己那筆就保留它（藥確實吃了，時間記第一次打卡）。正在送出的那一劑例外：結果回來前無法確定伺服器有沒有收到，藥卡與確認鍵都先停用並顯示原因。確認視窗開著時那一劑剛好補送完成，視窗會自動關掉，不拿舊的確認去刪伺服器上（可能是別人記錄）的那筆。
+- **讀取與補送同時發生**：讀取當天紀錄要依序打好幾個請求；這段期間完成的補送／撤回會在讀取完成時重新套上去，不會被可能較舊的讀取結果蓋掉而讓藥卡顯示成沒吃。
+- **分區與補送範圍**：storage key 依病人與帳號分區。每輪會補送此登入帳號在本機佇列中的所有病人，畫面上這位優先；每筆寫入仍帶自己的 `patient_id`，並由既有 RLS 驗證。登入者若在某筆請求等待期間登出、切換帳號或讓 App 殼層卸載佇列 provider，舊輪次會在下一劑前停止，避免新 session 接手送出舊帳號的打卡或撤回。畫面只讀取目前病人的待同步劑次與錯誤／衝突提示，補送結果也只併進目前畫面的病人與照護日；按「現在同步」會啟動同一個帳號範圍的補送。
+- **常駐與跨分頁**：App 殼層的協調器才註冊自動補送觸發器；服藥頁 hook 只從 context 讀狀態並提供打卡操作。Web Locks 讓同一輪只由一個分頁執行；每筆補送成功後立即更新殼層與目前畫面，因此後續病人的請求即使停住，已完成的劑次也不會留在畫面。另一分頁移除目前病人的佇列項目時，storage 事件會讓掛著的服藥畫面重讀伺服器，保留 server-wins 的實際記錄與操作者時間；server-wins 衝突數量及其關閉狀態則透過依登入帳號過濾的 BroadcastChannel 同步，受限環境退回短暫 storage 訊號。跨分頁提示帶穩定劑次 id 去重，避免一個分頁對帳、另一個分頁補送時把同一衝突算兩次。提示只在分頁間傳遞、不另存成永久佇列，避免下次開啟時出現已過期的衝突提醒。
+- **撤回與重新打卡共用鎖**：重新打卡在同一 Web Lock 內把撤回原子替換成完整的待送打卡意圖；不先清空再做 foreground POST，因為別頁若在 POST 完成前讀到空日資料，就會誤以為這一劑可再次給藥。替換成功後畫面維持已服用待同步，釋放鎖才主動重試，確保 true→true 的 pending 狀態不沿用長退避。另一頁尚在 DELETE、鎖不支援／被拒絕或 storage 寫入失敗時保留標記，清楚提示；一般冪等補送仍保留不支援 Web Locks 時的 single-flight 降級。頁面等待前停用重按，回來後確認帳號與病人／照護日。
+- **受控事實的舊標記清理**：條件用藥 taken／correction RPC 成功後立即重讀已確認事實，將捕捉到的舊撤回交給常駐殼層等 Web Lock；服藥頁卸載不會丟掉清理工作。只移除仍與捕捉快照相同的標記，不影響等待期間的新撤回／打卡；帳號世代改變則停止舊工作。storage 失敗的清理保留在當次登入的殼層，背景／手動重試先接手清理，再送一般佇列，不能讓 hold guard 永久拒絕舊 DELETE。清理警示與日讀取分離，明確說明事實已儲存、本機標記待清理；讀取成功不抹掉警示，成功清理才消除。若 storage 失敗後整個 App 重開，記憶中的工作已遺失：只有 DELETE 回傳精確 `P0001 / medication_hold_confirmation_required` 時，才用同一 abort／15 秒 deadline 回讀符合原病人、plan、照護日、劑次、操作者與實際時間、且有非空 `hold_event_id` 的 intake；此欄位由既有資料庫 guard 與不可直寫的 taken event 同交易驗證。成功恢復回傳的是已服用事實，提示取消未生效、須走「更正」並填原因；不能回傳撤回成功。空資料、範圍不符、沒有受控事件、權限／網路／中止錯誤都保留標記。若清理再次失敗，恢復證明由殼層保留，下次只清本機、不重送 DELETE；只要仍是同一舊快照，就直接把受控事實投影成已服用，不讓撤回把它藏掉，也不等待藥單 holdContext 刷新。新意圖仍由快照比較保護，畫面按帳號／病人／照護日隔離。之後本頁清理成功時先交棒實際 intake，再清殼層投影；別頁只移除標記時則保留「已服用」投影並鎖定等完整日讀取，不能退回舊撤回。後來成功的完整日讀取會退休該帳號／病人／照護日的舊恢復投影，但保留只做本機清理的工作；避免別裝置已更正後，殼層再把舊事實重播回來。已被 peer 改掉或移除的標記不算本頁新確認，走外部重讀交棒；讀取途中剛收到的新確認則由頁面既有緩衝重放。普通時間衝突與受控更正提示分別計數、同帳號跨分頁去重及關閉。沒有 schema／RPC／RLS 變更。
+- **跨頁畫面交棒**：storage／online／pageshow 的共同刷新入口在 drain 時帶原始劑次給畫面 hook，保留只屬於目前帳號／病人／照護日的 provisional 快照；它不再計入待送數量，但仍呈現已知服藥／撤回狀態，並停用所有等待重讀的劑次（含條件藥）。只有完整當日伺服器讀取成功才清除，讀取失敗不會把已服用翻成未服用；局部補記對帳不算完整讀取。不採用「先移掉投影再重讀」，因為讀取延遲／失敗會誤導重複給藥。兩分頁正式 hooks＋supabase-js 回歸在 `tests/unit/medicationQueueCrossTab.test.ts`。
+
+
+佇列邏輯在 `src/lib/medication/medicationPendingQueue.ts`（建立在共用的 `src/lib/pendingWriteQueue.ts` 上），頁面狀態在 `src/features/medication/hooks/useMedicationPendingDoses.ts`。衝突案例測試在 `tests/unit/medicationPendingQueue.test.ts`（假 Supabase 模擬唯一索引與 care_date trigger），hook 行為在 `tests/unit/useMedicationPendingDoses.test.ts`。頁面層的四個安全分支（只有可重送的錯誤才排佇列、撤回待同步劑次絕不呼叫伺服器刪除、確認視窗在那一劑補送完成或被取代時自己關閉、讀取當天紀錄期間回來的補送結果會重新套用）鎖在 `tests/unit/medicationPageOfflineQueue.test.ts`；改動 `MedicationPage` 這幾段時，那支測試失敗就代表可能掉打卡或誤刪伺服器紀錄。佇列只在讀到藥單之後的打卡才派得上用場；離線時開 App 讀不到藥單就沒有藥卡可按，這是 ADR-004「不做完整 offline-first」的範圍界線。
 
 ## 服藥次數回顧
 
@@ -54,9 +80,9 @@ PRN 顯示在固定藥之外的獨立區塊，不產生黃色「尚未服用」�
 
 `care_due_reminders` 是獨立的 patient-scoped 排程資料，不把尚未確認的處方頻率猜成提醒日期。藥量提醒由照護者輸入領藥日與天數計算到期日；它只描述時間與數量，不提供診斷或調藥建議。提醒管理沿用 `care_access.can_manage_medication`，通知 delivery 另存 audit，避免重送或刪除歷史時失去可追溯性。
 
-服藥頁的病人切換必須先通過 `care_access.patient_id`。媽媽帳號不能把家庭內寵物當成自己的 patient；若舊版留下 Momo 的 access，修復 migration 會撤銷它，資料庫 trigger 也會阻止未來再寫入。這避免媽媽在誤選後看到 Momo 的驅蟲藥並把錯誤按鍵變成服藥紀錄。
+服藥頁的病人切換必須先通過 `care_access.patient_id`。病人本人帳號不能把家庭內寵物當成自己的 patient；若舊版留下寵物的 access，修復 migration 會撤銷它，資料庫 trigger 也會阻止未來再寫入。這避免病人本人在誤選後看到狗的驅蟲藥並把錯誤按鍵變成服藥紀錄。
 
-媽媽藥單不能以 caregiver 登入信箱作主鍵；portfolio-author 需要代為照護，而 caregiver 不應讀到 portfolio-author 個人藥。新查詢與 RLS 以 patient／plan 身分篩選，舊 RPC 可保留轉接以支援資料庫先於前端升級。
+被照護者的藥單不能以看護登入信箱作主鍵；家屬需要代為照護，而看護不應讀到家屬自己的藥單。新查詢與 RLS 以 patient／plan 身分篩選，舊 RPC 可保留轉接以支援資料庫先於前端升級。
 
 ## 目錄與 TFDA
 
@@ -67,13 +93,13 @@ PRN 顯示在固定藥之外的獨立區塊，不產生黃色「尚未服用」�
 
 未驗證自訂藥允許保留照護價值，但 UI 必須清楚標示 `unverified`，不能拿照片、劑量或相互作用做推測。TFDA 同步只更新公共主檔；若既有補償 migration 仍未套用，照護畫面可能維持舊名稱／外觀，需依下方「TFDA 同步完成閘門」處理。官方外觀圖仍由本站 `/api/tfda-appearance-image` 代理提供；前端 adapter 只接受精確 TFDA 圖片路徑或既有 Supabase Storage URL，未知外站不渲染，避免為了顯示目錄圖片而開放或直連任意外站。代理的好處不是隱藏公開圖片或圖片 path，而是讓 TFDA 看到本站伺服器的請求，不直接看到照護者裝置的 IP／User-Agent；本站仍看得到 proxy 請求，這是減少第三方裝置識別，不是匿名化。
 
-`scripts/import-tfda-drug-products.ts` 除了藥證主檔（dataset 37）與外觀（dataset 42），也同步 TFDA「藥品藥理治療分類 ATC 碼」公開資料集（政府資料開放平臺 dataset #9119，export URL 沿用同一慣例的 dataset 41），寫入 `tfda_drug_atc_classifications`（複合主鍵 `tfda_license_number, atc_code`，因複方藥常對應多個碼；`is_primary` 欄位對照官方「主或次項」標示，只有主項才代表這顆藥的主要功能），再由 `refresh_official_medication_atc()` 回填 `medications.atc_code`（優先採用官方標示的主項分類，同為主項或都缺標示時才退回字母序最小值）。ATC 碼本身不直接顯示；`src/lib/medication/medicationAtcCategories.ts` 用一份靜態雙語對照表（前綴匹配，如 `C09` 對應「降血壓藥（ACE抑制劑／ARB）」）把它轉成照護者看得懂的「主要功能」標籤。這個標籤現在顯示在 `MedicationNameHeading` 的藥名正下方（跟藥名同字級、桃紅色粗體，取代舊版藏在色塊旁邊的小字藍底徽章，方便長輩一眼看到），每日服藥打卡卡片裡的 `MedicationAppearance` 因此改用 `showCategory={false}` 隱藏原位置避免重複；排藥／PRN 頓服等沒有搭配 `MedicationNameHeading` 的畫面則仍由 `MedicationAppearance` 就地顯示。改分類措辭只需改對照表，不必跑 migration；沒有官方 ATC 資料或對照表沒收錄的分類一律不顯示，不用猜測的標籤誤導照護判斷。
+`scripts/import-tfda-drug-products.ts` 除了藥證主檔（dataset 37）與外觀（dataset 42），也同步 TFDA「藥品藥理治療分類 ATC 碼」公開資料集（政府資料開放平臺 dataset #9119，export URL 沿用同一慣例的 dataset 41），寫入 `tfda_drug_atc_classifications`（複合主鍵 `tfda_license_number, atc_code`，因複方藥常對應多個碼；`is_primary` 欄位對照官方「主或次項」標示，只有主項才代表這顆藥的主要功能），再由 `refresh_official_medication_atc()` 回填 `medications.atc_code`（優先採用官方標示的主項分類，同為主項或都缺標示時才退回字母序最小值）。ATC 碼本身不直接顯示；`src/lib/medication/medicationAtcCategories.ts` 用一份靜態雙語對照表（前綴匹配，如 `C09` 對應「降血壓藥（ACE抑制劑／ARB）」）把它轉成照護者看得懂的「主要功能」標籤。這個標籤現在顯示在 `MedicationNameHeading` 的藥名正下方（跟藥名同字級、深灰（`text-slate-700`）粗體——原本的桃紅 fuchsia 已於設計系統 #1146 退役，改靠「紅色藥名 vs 深灰分類」＋獨立一行區隔——取代舊版藏在色塊旁邊的小字藍底徽章，方便長輩一眼看到），每日服藥打卡卡片裡的 `MedicationAppearance` 因此改用 `showCategory={false}` 隱藏原位置避免重複；排藥／PRN 頓服等沒有搭配 `MedicationNameHeading` 的畫面則仍由 `MedicationAppearance` 就地顯示。改分類措辭只需改對照表，不必跑 migration；沒有官方 ATC 資料或對照表沒收錄的分類一律不顯示，不用猜測的標籤誤導照護判斷。
 
 這個回填函式一開始刻意**不**比照 `refresh_official_medication_appearances()` 額外要求 `verification_status = 'official'`：實測發現 `apply_medication_plan_change`（見 `20260821030000_guard_shared_medication_catalog_writes.sql`）不論藥品是否從官方目錄搜尋加入，一律把 `verification_status` 寫成 `'unverified'`；`'official'` 這個狀態目前只有極少數幾筆最早期手動處理過的藥品才有。ATC 分類是純附加資訊、不會覆蓋任何使用者可能自己修正過的欄位（跟外觀顏色／形狀不同），因此不需要額外要求驗證狀態。`20260915111000_relax_medication_appearance_refresh_to_catalog_source_link.sql`（規劃文件 [`docs/product/shared-medication-catalog.md`](../product/shared-medication-catalog.md) §5.7）之後，外觀回填也放寬到同一條件：拿掉 `verification_status = 'official'` 限制、外觀四欄改成 `COALESCE(medications.x, 官方值)` 只補 NULL、不覆蓋任何人已登錄的值，安全性改由「只補空欄位」把關，而不是靠驗證狀態擋下。
 
-**`20260828020047_backfill_generic_medication_atc_codes.sql` 是第二條、人工維護的回填路徑**，跟上面 `refresh_official_medication_atc()` 走的 TFDA 同步表是兩回事：涵蓋的是只知道學名成分、從未連結過任何 TFDA 商品（`diphenidol-25`／`famotidine-20`／`mirtazapine-30` 這類「學名／商品未確認」項目，見 `20260711030000_add_mother_medication_plans.sql`），或已連結官方藥證但該許可證在 `tfda_drug_atc_classifications` 裡剛好沒有 ATC 資料的藥品。這些藥的 WHO ATC 碼是照該成分（不是特定包裝／外觀）的公認藥理分類手動查證後直接寫死在 migration 裡，只在 `atc_code IS NULL` 時才寫入，不會覆蓋已由官方同步算出的結果。之所以能安全略過驗證狀態，是因為 ATC 標籤描述的是「這個成分是什麼藥效」，跟需要核對外觀照片才能顯示的「這顆藥長什麼樣子」是不同等級的風險；但這代表 `medications.atc_code` 目前有兩個彼此獨立的資料來源，之後若要重新同步或除錯分類不準，要記得檢查是不是命中了這條手動路徑。
+**`20260828020047_backfill_generic_medication_atc_codes.sql` 是第二條、人工維護的回填路徑**，跟上面 `refresh_official_medication_atc()` 走的 TFDA 同步表是兩回事：涵蓋的是只知道學名成分、從未連結過任何 TFDA 商品（早期種子裡只填了成分名、「學名／商品未確認」的項目），或已連結官方藥證但該許可證在 `tfda_drug_atc_classifications` 裡剛好沒有 ATC 資料的藥品。這些藥的 WHO ATC 碼是照該成分（不是特定包裝／外觀）的公認藥理分類手動查證後直接寫死在 migration 裡，只在 `atc_code IS NULL` 時才寫入，不會覆蓋已由官方同步算出的結果。之所以能安全略過驗證狀態，是因為 ATC 標籤描述的是「這個成分是什麼藥效」，跟需要核對外觀照片才能顯示的「這顆藥長什麼樣子」是不同等級的風險；但這代表 `medications.atc_code` 目前有兩個彼此獨立的資料來源，之後若要重新同步或除錯分類不準，要記得檢查是不是命中了這條手動路徑。
 
-**連結官方藥證用的是 `catalog_source`／`catalog_source_id`，不是 `drug_product_id`**：`20260827050000_relax_atc_refresh_to_drug_product_link.sql` 第一版誤以為一般藥品會有 `drug_product_id` 這個外鍵，把回填條件改成只要求它連結；但實測正式環境重新同步後回填數量完全沒變（仍是 12 筆）才發現 `apply_medication_plan_change` 從來不會寫入 `drug_product_id`——這個欄位只有 `link_mother_medications_to_tfda.sql`／`link_bokey_official_product.sql` 這類早期一次性手動遷移才會設定。使用者從官方目錄搜尋加入藥品時，實際寫入的是 `catalog_source = 'tfda'` 與 `catalog_source_id`（TFDA 授權字號，見 `src/lib/medication/medicationCatalogRegistry.ts` 的 `TfdaCatalogProvider.sourceId`）。`20260827060000_fix_atc_refresh_to_use_catalog_source_link.sql` 改成同時比對三種可能連結來源（`drug_product_id` 相容舊資料、舊版 `tfda_license_number` 欄位、`catalog_source = 'tfda'` 時的 `catalog_source_id`），一般搜尋加入的藥品才真正吃得到分類；`refresh_official_medication_appearances()` 原本只認 `drug_product_id`，有同樣「一般藥品幾乎回填不到」的問題，`20260915111000_relax_medication_appearance_refresh_to_catalog_source_link.sql` 照抄同一套三種來源優先順序與 CTE 寫法（避免 070000 修過的 `UPDATE ... FROM LATERAL` 42P10 錯誤）補上。
+**連結官方藥證用的是 `catalog_source`／`catalog_source_id`，不是 `drug_product_id`**：`20260827050000_relax_atc_refresh_to_drug_product_link.sql` 第一版誤以為一般藥品會有 `drug_product_id` 這個外鍵，把回填條件改成只要求它連結；但實測正式環境重新同步後回填數量完全沒變（仍是 12 筆）才發現 `apply_medication_plan_change` 從來不會寫入 `drug_product_id`——這個欄位只有早期幾支一次性的手動連結 migration 才會設定。使用者從官方目錄搜尋加入藥品時，實際寫入的是 `catalog_source = 'tfda'` 與 `catalog_source_id`（TFDA 授權字號，見 `src/lib/medication/medicationCatalogRegistry.ts` 的 `TfdaCatalogProvider.sourceId`）。`20260827060000_fix_atc_refresh_to_use_catalog_source_link.sql` 改成同時比對三種可能連結來源（`drug_product_id` 相容舊資料、舊版 `tfda_license_number` 欄位、`catalog_source = 'tfda'` 時的 `catalog_source_id`），一般搜尋加入的藥品才真正吃得到分類；`refresh_official_medication_appearances()` 原本只認 `drug_product_id`，有同樣「一般藥品幾乎回填不到」的問題，`20260915111000_relax_medication_appearance_refresh_to_catalog_source_link.sql` 照抄同一套三種來源優先順序與 CTE 寫法（避免 070000 修過的 `UPDATE ... FROM LATERAL` 42P10 錯誤）補上。
 
 實際欄位名稱已在 2026-08-27 第一次真正對外部執行同步時，由 GitHub Actions log 的 `[tfda atc sample fields]` 確認為：`許可證字號`／`代碼`／`中文分類名稱`／`英文分類名稱`／`主或次項`（`toAtcClassifications()` 仍保留候選欄位清單當保險，TFDA 之後若調整命名，命中失敗只會讓那次同步跳過 ATC 分類，不會讓整個匯入失敗）。
 
@@ -97,7 +123,7 @@ PRN 顯示在固定藥之外的獨立區塊，不產生黃色「尚未服用」�
 
 ### 單次劑量步距與分數顯示
 
-單次劑量（`dose_amount`）下拉選單步距是 1/4 顆（`0.25`），下限也是 `0.25`，上限維持 9；`validDoseAmount()`（`src/lib/medication/medicationAdminFormHelpers.ts`）與新增／調整藥單表單的下拉選單（`MedicationAdminFormFields.tsx` 的 `DOSE_OPTIONS`）共用這個步距。原本步距是半顆（`0.5`），2026-09 因應照護對象減藥需要更細的量而改細，讓照護者能選到 1/4、3/4 顆。
+單次劑量（`dose_amount`）下拉選單步距是 1/4 顆（`0.25`），下限也是 `0.25`，上限維持 9；`validDoseAmount()`（`src/lib/medication/medicationAdminFormHelpers.ts`）與新增／調整藥單表單的下拉選單（`MedicationAdminFormFields.tsx` 的 `DOSE_OPTIONS`）共用這個步距。原本步距是半顆（`0.5`），2026-09 因應長輩減藥時常見的 1/4 顆用量而改細，讓照護者能選到 1/4、3/4 顆。
 
 零頭劑量一律顯示分數（¼／½／¾），不顯示成 `0.25`／`0.75` 這種小數，否則照護者容易誤讀成看不出來要怎麼分藥的數字：下拉選單標籤是 `doseOptionLabel()`；儲存後的顯示（藥單摘要、每週藥單、藥品詳情、服藥打卡分數）共用 `formatDoseAmount()` / `formatDoseAmountLocalized()` 內部匯出的 `formatDoseCountLabel()`，之後如果要再加更細的步距（例如 1/8），也只需要改這一個函式。目前規則刻意只在 1/4、3/4 兩種分數上跟整數合併顯示（例如 `1¼`）；單獨半顆（`0.5`）也顯示 `½`，但合併超過一顆的半顆（例如 `1.5`）維持顯示小數，這是既有測試鎖定的既定行為，未一併擴大。
 
@@ -156,9 +182,9 @@ PRN 顯示在固定藥之外的獨立區塊，不產生黃色「尚未服用」�
 
 登入帳號的閱讀密度偏好寫入 `user_settings`，以 `auth.uid()` 作為唯一帳號鍵並由 RLS 限制只能讀寫自己的設定，因此在手機、平板與桌機登入同一帳號時會同步。找不到設定列時預設展開；若資料庫尚未完成 migration 或暫時讀取失敗，畫面仍安全地回到展開模式並提示使用者。`/demo` 沒有登入身分，才使用 localStorage 作為展示模式的本機備援，不會把展示資料送進 Supabase。
 
-`/demo` 的展示對象清單第一位永遠是「李阿姨」（`DEMO_LEE_PATIENT_ID`，見 `src/lib/demoData.ts`／`src/lib/auth.ts`），藥單對照真實案例的七項服藥（Bokey、BRILINTA、Exforge、Lipitor、Nebilet、Calcium plus + Vitamin D biomedicine、Diphenidol），分在「早餐後」「晚餐前」兩個時段。她不依賴任何登入帳號或真實 Supabase 資料，因此可以在 staging 隨時重現四個服藥分頁與藥名顯示規則（英文優先、紅色醒目）供驗證，且不會因為真實照護資料異動而消失。展示對象預設仍是王美玲（`ownPatientId`），她的血壓／體溫故事線維持不變；李阿姨只保證服藥資料存在。
+`/demo` 的展示對象清單第一位永遠是「李阿姨」（`DEMO_LEE_PATIENT_ID`，見 `src/lib/demoData.ts`／`src/lib/auth.ts`），藥單是憑空組出來的七項示範服藥（Pantoloc、Norvasc、Concor、Crestor、Diovan、Caltrate、氧化鎂），分在「早餐後」「晚餐前」兩個時段；這份清單刻意不對應任何一位真實使用者的處方（藥單＋劑量＋時段的組合本身就能辨識一個人的治療內容），之後只能在虛構清單上加減，不得回填真實藥單。她不依賴任何登入帳號或真實 Supabase 資料，因此可以在 staging 隨時重現四個服藥分頁與藥名顯示規則（英文優先、紅色醒目）供驗證，且不會因為真實照護資料異動而消失。展示對象預設仍是王美玲（`ownPatientId`），她的血壓／體溫故事線維持不變；李阿姨只保證服藥資料存在。
 
-登入真帳號（不經過 `/demo`）驗證時，同一個「李阿姨」也存在於 `scripts/seed-staging.ts` 種下的真實 Staging Supabase 資料（原本命名為「王阿姨」，改名對應 `/demo` 的展示對象），她的 `patient_id` 是固定的 `33333333-3333-4333-a333-333333333333`，`admin@careapp.local`／`demo.caregiver@example.test`／`demo.mother@example.test` 三個核心照護帳號都已透過 `care_access` 授權可存取，並加入 Bokey／BRILINTA／Exforge 三筆藥單（`plan-bokey-wa`／`plan-brilinta-wa`／`plan-exforge-wa`）。這是兩套完全獨立的資料來源：`/demo` 只讀本機 fallback 資料，`seed-staging.ts` 則要由具備 `STAGING_SUPABASE_SERVICE_ROLE_KEY` 的人手動執行 `bun run seed:staging` 才會寫入 Staging 資料庫（見 `scripts/verify-staging-data.ts` 驗證腳本），改完本檔仍要重新執行種子腳本才會反映到畫面上。
+登入真帳號（不經過 `/demo`）驗證時，同一個「李阿姨」也存在於 `scripts/seed-staging.ts` 種下的真實 Staging Supabase 資料（原本命名為「王阿姨」，改名對應 `/demo` 的展示對象），她的 `patient_id` 是固定的 `33333333-3333-4333-a333-333333333333`，主要家屬、看護、病人本人三個核心照護帳號都已透過 `care_access` 授權可存取，並加入三筆匿名示範藥單（品項見該腳本；staging 種子與 `/demo` 的示範藥單各自維護，兩邊都只能放虛構清單）。這是兩套完全獨立的資料來源：`/demo` 只讀本機 fallback 資料，`seed-staging.ts` 則要由具備 `STAGING_SUPABASE_SERVICE_ROLE_KEY` 的人手動執行 `bun run seed:staging` 才會寫入 Staging 資料庫（見 `scripts/verify-staging-data.ts` 驗證腳本），改完本檔仍要重新執行種子腳本才會反映到畫面上。
 
 取消已記錄的服藥資料必須先顯示 App 內的確認視窗，清楚列出藥品與原本的記錄時間，並提供語意明確的「返回」與「取消紀錄」按鈕。確認取消後，原藥卡要等同步結束並重新可操作才恢復鍵盤焦點，避免焦點落在停用控制項。完成提示只能說明「已記錄為服用」，不能聲稱系統已確認病人實際吞服；這會保留照護紀錄的可稽核語意。
 
@@ -180,7 +206,7 @@ PRN 顯示在固定藥之外的獨立區塊，不產生黃色「尚未服用」�
 
 - 帳號自己的 patient 若沒有任何 `care_access` 列，預設 `canManageMedication = true`（見 `src/lib/auth.ts` 的 `profileForEmail`）——這是給一般自行管理健康資料的使用者的合理預設。
 - 被照顧者透過「被照顧者邀請」流程（`create_household_patient_invitation` → `accept_patient_care_invitation`，見 `20260814040000_add_patient_care_invitations.sql`）加入時，接受邀請當下就會明確寫入 `can_record = true、can_manage_medication = false` 的 `care_access` 列，蓋掉上面的預設值，讓她能查看服藥打卡／每週藥單與服藥進度，但看不到「排藥」「變更藥物」。
-- 照護者也可以在「家庭成員與照護授權」（`HouseholdMemberManagement` → `set_household_patient_access` RPC）畫面，針對任何成員、任何 patient（含成員自己的 patient）逐一勾選「可調整藥單」，隨時開放或收回，同樣不需要改動任何程式碼。
+- 家人（兄弟姐妹、看護）的「調整藥單」權限在「設定 → 邀請家人一起照護」建立邀請時逐項勾選，owner 確認加入後生效；已加入者只能用「撤銷此病人權限」收回，要改變能力位需撤銷後重新邀請（`docs/product/family-invitations.md`）。原本能事後逐人勾選的「家庭成員與照護授權」畫面（`HouseholdMemberManagement`）自 2026-07-30 起沒有掛載點，已於 #1173 移除；`set_household_patient_access` RPC 仍在資料庫，前端目前沒有呼叫端。
 - 若被照顧者的帳號是在邀請流程上線前就建立、還沒有這筆明確 `care_access` 列，則走一次性資料修正（例如 `20260820102714_backfill_care_recipient_medication_access.sql`）補上，而不是在應用程式邏輯裡加 email 判斷。
 
 切換病人或日期時，藥單卡片的收合預設必須等新對象的 plans 真正載入後才初始化；舊 plans 只能暫留作畫面過渡，不能決定新對象第一個待辦時段。複方藥與保健品的管理、確認與日常畫面都優先沿用已核對的 `strength_label`，避免把複方成分相加成錯誤的單一 mg 數字。
@@ -191,9 +217,43 @@ PRN 顯示在固定藥之外的獨立區塊，不產生黃色「尚未服用」�
 
 調整藥單只能透過 `apply_medication_plan_change`。資料庫在同一 transaction 產生唯一一筆 `medication_plan_change_logs`，action 明確為 `create`、`update` 或 `deactivate`，並保存 before／after snapshot、操作人、記錄時間與生效時間。`reason` 是補充說明，不再被用來猜 action。
 
-每筆 change log 同 transaction 投影一筆 system-generated `care_timeline_entries`，由 FK `medication_plan_change_log_id` 與 partial unique index 強制一對一；timeline 也帶快照 projection，因此 plan 停用或藥品目錄改名後，歷史仍能顯示當時藥名與劑量。此 system event 不消耗每日兩筆手動照護筆記配額，也不能由一般 UI/RLS 修改或刪除；修正應再做一次補償性 plan mutation。
+每筆 change log 同 transaction 投影一筆 system-generated `care_timeline_entries`，由 FK `medication_plan_change_log_id` 與 partial unique index 強制一對一；timeline 也帶快照 projection，因此 plan 停用或藥品目錄改名後，歷史仍能顯示當時藥名與劑量。此 system event 不消耗每日手動大事記配額（預設 9，#1058），也不能由一般 UI/RLS 修改或刪除；修正應再做一次補償性 plan mutation。
 
 既有舊 log 的 `upsert` 會在 migration 中依同一 plan 的時間順序保守轉成 `create`／`update`，並標記部分快照；不重建時間線、不刪除歷史，避免把未知的舊事件偽造得比實際更精確。新 UI 的時間線表單不再提供 `medication_change` 或任意藥單關聯；尚未套用的醫師指示請使用 `doctor_instruction`，真正調藥請到藥單管理。
+
+### 同一顆藥多個時段一次停用／調劑量（issue #1232）
+
+一天三次／四次的藥，在 `medication_plans` 是同一個 `medication_id` 底下的三、四筆醫囑（每個時段一筆）。醫師停藥或調劑量時若要逐筆操作，漏掉一個時段，服藥打卡就會繼續顯示那一筆，這是錯誤的用藥指示。`apply_medication_plan_batch_change(p_action, p_patient_id, p_medication_id, p_plan_ids[], p_dose_amount, p_reason, p_effective_at, p_expected_plans, p_expect_all_schedules)`（`20261008062002_add_medication_plan_batch_change.sql`，升級於 `20261014102619_medication_plan_batch_version_check.sql`）把這件事收成一次操作：
+
+- **只有 `update`（改單次劑量）與 `deactivate`**。換時段每筆各不相同，批次新增也沒有「同一顆藥」可以對齊，兩者都仍走單筆 RPC。
+- **整批原子性**：同一個 transaction 內逐筆呼叫 `apply_medication_plan_change`，任何一筆失敗整批 rollback。前端必須用 `applyMedicationPlanBatchChange()`（`src/lib/medication/medicationAdmin.ts`），不可迴圈呼叫單筆 API：每次 `supabase.rpc()` 是各自的 transaction，中途失敗會留下「早午停了、晚上還在」。這跟下方「多時段批次寫入」的新增流程刻意不同；新增失敗只會少一筆，停藥失敗則會多留一筆仍在生效的醫囑。
+- **授權先於鎖列**：先以 `current_care_access(p_patient_id).can_manage_medication` 驗證（錯誤訊息逐字沿用單筆 RPC），再以 `patient_id` 限定、`ORDER BY id` 取 `FOR UPDATE` 鎖，避免兩位照護者同時批次調整時 deadlock。混入另一顆藥、別的病人、已停用、不存在、重複或 NULL 的 `plan_id` 一律整批拒絕，錯誤訊息不指出是哪一筆，免得被拿來探測別的病人的 plan。上限 11 筆，等於時段 CHECK 的數量。比對「同一顆藥」之前，先跟單筆 RPC 一樣沿 `merged_into_medication_id` 解析到 canonical id：舊 PWA 分頁送來已被合併的舊 id 時，批次不能比逐筆操作更容易失敗。migration 結尾也照慣例 `NOTIFY pgrst, 'reload schema'`，部署後前端可以馬上呼叫新函式。
+- **鎖列時樂觀並發比對（快照核對）**：`p_expected_plans` 接收前端送出確認時的各時段醫囑快照（`id`、`schedule_slot`、`dose_amount`、`dose_count`、`active`、`as_needed`）。在以 `ORDER BY id FOR UPDATE` 鎖定列後，逐筆嚴格比對快照與資料庫最新狀態；若任一欄位不符（例如另一位照護者已更新劑量或停用），立即拋出 `Medication plan batch does not match this medication` 整批拒絕並 rollback，防止舊畫面送出的過期批次覆寫新醫囑。未傳入或為 NULL 時維持相容舊簽名。
+- **只動醫囑，不碰共用目錄**：批次一律不帶 `p_brand_name`，所以絕不會 upsert 跨病人共用的 `medications`。每筆的 `dose_count`、時段、PRN 原樣帶回，醫囑內容只有劑量會變。注意目前單筆「調整」的前端固定送 `dose_count = 1`，批次不能照抄，否則會把「一個時段核對兩次」的醫囑改成一次。單筆 RPC 的 update 也會把 `account_email` 改成操作者、`display_order` 改成現在時間，這跟單筆調整相同；因此實際改到的時段會在服藥打卡的排序中往後移。
+- **劑量先捨入到欄位精度 `numeric(8,3)`** 再檢查與比較：否則 1.0004 會寫出假的「1 → 1」，0.0004 會通過 `> 0` 後撞上 CHECK。**劑量已相同的時段略過**，不寫出「1 顆 → 1 顆」的假變更。回傳值是實際寫入筆數，0 代表沒有需要改的時段。
+- **稽核仍是一筆醫囑一筆 log**。同一批的 log 與時間線投影共用同一個 `(patient_id, medication_id, actor_user_id, recorded_at)`：既有 RPC 的 `recorded_at` 是 `now()`，也就是 transaction 開始時間，同一 transaction 內完全相同。之後時間線要把一批摺成一條，就用這組 key。`tests/unit/medicationPlanBatchChangeMigration.test.ts` 鎖住既有 RPC 仍然用 `now()`；改成 `clock_timestamp()` 會讓測試失敗，屆時必須同步改這裡的設計。
+- **生效時間**：`p_effective_at` 原樣傳給單筆 RPC，預設 `now()`。今天已記錄的服藥（`medication_intake_logs`）是獨立資料列，不會因為醫囑改變而被改寫。
+- **全選的群組契約**：新版 UI 全選時送 `p_expect_all_schedules = true`；鎖定與比對所選列後、任何寫入前，再以同一 `patient_id` 與 canonical `medication_id` 查詢 active、非 PRN 的完整 ID 集合。與確認的 ID 集合不符就整批拒絕，重新顯示最新清單，不會默默留下別人新加的固定時段。部分選取或舊呼叫預設 false，只驗所選醫囑，未選或新增加的時段不受影響。群組查詢快照是此判定的線性化點；與批次重疊且判定後才提交的新增，可視為批次之後的新醫囑，不宣稱所有寫入入口共用群組鎖。替代方案「只在前端重新讀一次」仍有跨裝置競態，因此不採用。
+- `/demo` 的 `applyDemoMedicationPlanBatchChange()` 採相同的拒絕條件與錯誤訊息，全部驗證完才寫一次 localStorage。
+
+不採用的做法：
+
+- **藥物療程（regimen）父表**：要 backfill、補 RLS，還會和 `medication_plans` 變成兩個事實來源。「同一顆藥」本來就能由 `medication_id` 推出。
+- **`medication_plan_change_logs.batch_id` 欄位**：change log 有 `prevent_medication_plan_change_log_mutation_trigger`，寫入後不能 UPDATE，無法事後補上。要寫進去只能整支重寫 22 參數、約 250 行的 `apply_medication_plan_change`，爆炸半徑遠大於這個功能；天然的 transaction 時間戳已足以識別同一批。
+
+排藥頁的固定藥卡提供「整顆藥」入口（`MedicationPlanBatchForm`／`useMedicationPlanBatchForm`）。`groupPlansByMedication()` 以 `(patient_id, medication_id)` 分組，只納入 active 且非 PRN 的醫囑；保留原有餐次清單，避免改變照護者排藥時的掃讀順序。開啟時預設全選各時段，新的單次劑量先留白，要求照護者依醫囑明確選擇；選單與單筆表單共用 `DOSE_OPTIONS`／`validDoseAmount()` 的 ¼ 步距。停用不需選劑量，未勾選的時段不送入 RPC。
+
+送出前沿用 `useConfirm`，列出病人、藥品、每個勾選時段的「原劑量 → 新劑量／停用」、原因與「立即生效；今天已記錄的服藥不受影響」。確認與送出期間共用排藥頁的寫入鎖，並以同步 ref 擋下快速連點。確認前後重查本機病人、有效醫囑、時段與劑量；切換病人時沿用頁面的 `key={selectedPatientId}` 卸載表單，舊確認不得繼續寫入，舊請求不得回填新表單。但已送出的結果仍通知父層重新讀取：使用者可能在停藥尚未回應時切回打卡頁，不能讓卸載防護把藥單更新通知一併吞掉。
+
+每次操作只呼叫一次批次 API（帶入確認時的 `expectedPlans` 快照），不使用單筆迴圈、離線佇列或自動重試。成功後重讀排藥與服藥清單；寫入成功但重讀失敗要明講已完成。失敗或網路結果不明也先重讀再核對，不宣稱一定沒有寫入。`medicationErrorStatus()` 提供三個批次錯誤的 zh／id／en 提示，清單不匹配時要求重新讀取並核對。回傳 0 則說明劑量已相同，沒有新增變更。
+
+驗證：`tests/unit/medicationPlanGroups.test.ts`、`useMedicationPlanBatchForm.test.ts`、`medicationPlanBatchChange.test.ts` 驗證病人分組、取消、競態、單次送出、快照比對及失敗狀態；`tests/medicationBatch.spec.ts` 以攔截網路的虛構資料驗證 375px 手機、三語、全停用、部分調量與分頁切換後刷新。這些瀏覽器測試不取代既有 SQL 原子性／授權測試；staging 真實資料庫的三時段驗收仍需在獲准寫入測試資料時執行。時間線同批摺疊依 #1232 最新交接屬可選項，維持每筆醫囑各自顯示。
+
+**並發安全與資料庫升級（PR #1288）**：`20261014102619_medication_plan_batch_version_check.sql` 已完成資料庫層的鎖列樂觀比對。送出時由 `useMedicationPlanBatchForm` 鎖定當下確認的 `expectedPlans` 快照陣列，在同一 transaction 的 `FOR UPDATE` 鎖內比對舊劑量、時段、dose_count、active 與 as_needed，任一差異整批拒絕；全選另比對完整固定時段群組。不可用「送出前先重讀一次」代替。部分選取的未勾選時段維持不變。Staging 真實資料庫三時段回歸驗收需於獲准寫入測試資料時執行；promotion 至 main 前需依 § 3.2 列出此 migration。
+
+結果提示遵守 `useSaveStatus` 與 Rule C（讀／寫狀態分離）：只在 `ok`／`err` 顯示；另一筆單筆或新增寫入開始時清空舊批次結果，寫完也不再出現。自己的批次送出則保留其狀態機。錯誤使用警示語意，避免舊成功訊息被誤讀。結果反饋獨立於表單 `disabled`／載入狀態，即使重讀失敗或唯讀，仍維持可見，避免照護者在無提示下誤重送。缺少本地化藥名時仍保留原始藥品名稱作為醒目標示。
+
+並發回歸另涵蓋：最後一筆勾選醫囑的時段、劑量、dose_count、active 或 PRN 任一快照不符時，Demo 與 SQL 都不得留下部分醫囑或稽核變更；實際變更醫囑後的舊確認快照重送必須拒絕且不新增稽核（原本就無須變更的提交仍可安全回傳 0）。Hook 另驗證「寫入回應遺失且重讀也失敗」仍要求重新核對，不自動重試。這些是隔離本機與虛構資料的證據，不能代替 staging 實際帳號、三時段與跨裝置並發驗收。
 
 ### 服用方式（issue #622／#624／#625／#627 決策落地）
 
@@ -234,7 +294,7 @@ PRN 顯示在固定藥之外的獨立區塊，不產生黃色「尚未服用」�
   `sourceLabelText()` 產生**中／印並列**文字（不跟隨目前語系），跟該頁既有 `bilingual()` 寫法一致 |
 
 精簡徽章三種語氣互斥（衝突永遠蓋過其餘兩種）：紅（衝突，`bg-red-600`）／橘（A 層需注意，`bg-orange-700`）／
-藍（僅 B 層有紀錄，`bg-sky-700`），色階沿用 `VitalAlertBadge.tsx` 的 700／600 色階（WCAG AA 4.5:1），
+深灰（僅 B 層有紀錄，`bg-slate-700`；設計系統 #1146 退役 sky，且刻意不用 brand 綠，避免這顆徽章出現在「尚未服用」琥珀卡時跟已服用的綠色語意混淆），色階沿用 `VitalAlertBadge.tsx` 的 700／600 色階（WCAG AA 4.5:1），
 且徽章與完整區塊都是文字＋圖示（unicode 符號，`aria-hidden`）＋顏色三者齊備，不靠顏色單獨傳遞語意。
 
 **填寫入口**：`MedicationInstructionEditor.tsx` 掛在 `PlanFields` 裡，只在 `patientId`／`medicationId`
@@ -242,8 +302,8 @@ PRN 顯示在固定藥之外的獨立區塊，不產生黃色「尚未服用」�
 要等藥品建立成新醫囑、以「調整既有醫囑」進來才會出現。刻意不放進會覆寫跨病人共用目錄的琥珀色
 「修正藥品資料」fieldset，避免照護者以為改的是共用藥品資料。
 
-**Demo**：`src/lib/demoData.ts` 的李阿姨藥單裡，伯基（腸溶微粒膠囊）示範 A 層——`official_dosage_form_text`
-直接填官方原文，讓 `resolveSwallowGuidance()` 命中 `swallow_whole`；立普妥示範 B 層——
+**Demo**：`src/lib/demoData.ts` 的李阿姨藥單裡，保衛康治潰樂（腸溶錠）示範 A 層——`official_dosage_form_text`
+直接填官方原文，讓 `resolveSwallowGuidance()` 命中 `swallow_whole`；冠脂妥示範 B 層——
 `getFallbackDemoLeePatientMedicationInstructions()` 模擬藥師交代過可磨粉配水、隨餐服用，跟藥單／藥品目錄
 一樣在 `initialDemoState()` 永遠存在，不需要真實資料或手動填寫就能驗證四個分頁與交接手冊。
 
@@ -253,7 +313,9 @@ PRN 顯示在固定藥之外的獨立區塊，不產生黃色「尚未服用」�
 提供的「改用基礎拍照辨識 (Vision OCR 備援)」切換按鈕，實際點開只會得到「尚未開通、請改用手動輸入」，對照護者是死路。
 `MedicationAdminSection` 因此暫時不再傳入 `onPickOcrCandidate`，讓 `MedicationAiDraftSection` 內的條件渲染整段跳過，
 `MedicationPhotoOcrSection` 元件與 `medication-ocr` Edge Function 都還在，未刪除任何程式碼；重新開通（設定 Vision Key
-並恢復傳入 `onPickOcrCandidate`）另外開票追蹤。
+並恢復傳入 `onPickOcrCandidate`）另外開票追蹤。**恢復入口時要同步拿掉服務條款第 5 節
+（`TermsPage.tsx`）「基礎版藥袋文字辨識目前暫停提供」那一句**（#1122）：條款只能說現在真的用得到的功能，
+入口隱藏期間仍承諾「恢復後免費」，不把它列進免費功能清單。
 
 拍藥袋只是幫忙猜品名，不是另一條寫入路徑：`MedicationPhotoOcrSection` 呼叫 `supabase/functions/medication-ocr`
 把壓縮後的照片位元組（沿用 `careEventPhotos.ts` 的 `prepareSingleCompressedImage`，不經 Storage、只存在單次
@@ -286,13 +348,21 @@ P0-1 決策記錄都已同步更新為這個措辭，同意版本也一併升版
 繞過人工確認的儲存路徑，安全邊界與基礎版 OCR 完全一致。
 
 **權限模型與基礎版 OCR 不同**：基礎版 Vision OCR（上方段落）對所有使用者一律免費，只受
-`medication_ocr_daily_limit` 的每日上限保護；AI 藥單草稿則依 `account_usage_limits.medication_ai_draft_tier`
-分兩級配額——未開通帳號每天 3 次免費試用（`medication_ai_draft_free_daily_limit`），已開通
-（付費）帳號維持較高的每日額度（`medication_ai_draft_daily_limit`，預設 20，2026-09-12 起從 4 調高，
-拉開與免費額度的差距，讓付費升級有感）。兩者都算在
-`medication_ocr_call_logs`（`call_kind='llm_draft'`），配額 trigger 依 tier 讀不同欄位，
-兩種帳號互不影響彼此額度。免費額度用完時，畫面會顯示明確的「升級 Premium」提示（三語），
-不是單純的錯誤訊息；已開通帳號用完則只顯示「明天再試」，不重複推銷。詳細的產品決策、
+`medication_ocr_daily_limit` 的每日上限保護（**每位病人**每天 4 次）；AI 藥單草稿則以**病人所屬家庭**為單位
+分兩級配額（issue #1177，ADR-012 D4）——免費家庭**全家**每天 3 次免費試用，Premium 家庭全家每天 20 次；
+兩位病人的家庭是兩人共用，不是每人各 3／20（成本才有上限，owner 1.7.4）。付費與否看病人屬於哪個家庭，
+不看是誰在操作：同一位看護在 Premium 家庭拿 20、在免費家庭拿 3。呼叫記在
+`medication_ocr_call_logs`（`call_kind='llm_draft'`），配額 trigger 的 `llm_draft` 分支以
+`current_household_daily_limit` 取額度、以全家庭病人計數、advisory lock 也鎖家庭（三者必須一起換，漏一個就會在
+兩位病人同時掃時超量）；Vision 分支不變。遷移期間（H7 #1188 之前）是 dual-read：記錄者帳號若已開通舊制
+`account_usage_limits.medication_ai_draft_tier = 'ai'`，取家庭與帳號兩者較大的額度，既有付費帳號不會在家庭
+補登前掉功能。後台全域 kill switch（`paid_feature_suspensions` 有 `medication_ai_draft`）在兩者之前判定：
+掛起時一律退回免費 3 次，舊制旗標也救不回來。免費額度用完時，畫面會顯示明確的「升級 Premium」提示（三語），
+不是單純的錯誤訊息；付費家庭用完則只顯示「明天再試」，不重複推銷；掛起期間用完顯示「Premium 的 AI 加值
+暫停提供」（三語），不叫人升級。升級提示只說「付費升級
+Premium 後每日次數大幅提升」，免費次數引用 `freeDailyLimit`、不寫死付費後的次數，也**不再叫使用者去找
+家庭照護管理者開通**（#1047）：目前只有系統管理者能在 `/admin` 開通，家庭照護管理者沒有這個權限，
+照提示做的人完成不了升級；提示同樣不放價格、按鈕或聯絡窗口（付費方式仍在 #1037 規劃）。詳細的產品決策、
 成本估算與被否決的替代方案見 [`docs/product/premium-entitlements-and-ai-medication-draft.md`](../product/premium-entitlements-and-ai-medication-draft.md)。
 
 **病人切換防呆（三道防線）**：拍照到辨識結果回來之間，照護者可能已經切換病人。Edge Function 會
@@ -336,7 +406,7 @@ mimeType）。任何未來改動這兩個呼叫點、或把上傳邏輯換一套
 ## 不採用的替代
 
 - 不以 localStorage 作服藥真相，因為 iPhone 與 Mac 會分裂。
-- 不複製媽媽藥單給照顧者，因為兩份 plan 與 log 會失去同步。
+- 不複製被照護者的藥單給照顧者，因為兩份 plan 與 log 會失去同步。
 - 不把舊處方每日一次猜成早餐或睡前；缺少提醒比錯誤醫囑安全。
 - 不刪除 plan／medication 來整理畫面，避免破壞歷史外鍵。
 - 不把登入帳號的閱讀偏好只放在 localStorage，因為 iPhone、Android 與桌機會各自記住不同狀態；偏好放在獨立的 `user_settings`，並以 `auth.uid()` RLS 隔離，不碰 patient 的健康資料授權。

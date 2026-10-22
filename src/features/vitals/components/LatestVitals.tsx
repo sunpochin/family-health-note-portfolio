@@ -13,6 +13,7 @@ import type { BpRecord } from '../../../types/database'
 import { TZ } from '../../../lib/timezone'
 import { common, useI18n, type Locale } from '../../../lib/i18n'
 import { VitalReading } from './VitalReading'
+import { Icon } from '../../../components/ui/Icon'
 
 dayjs.extend(utc)
 dayjs.extend(timezone)
@@ -72,7 +73,10 @@ export function LatestVitals({
   error = false,
   className = '',
   valueClassName = '',
-  unitClassName = 'text-gray-400',
+  // 預設單位字用 slate-600（issue #1162）：這個元件常放在警示淺色底（統計卡）或品牌淺綠底（今天頁）上，
+  // 原本的 gray-400 只有約 2.5:1；slate-500 在 red-100/80 上也只有 4.06:1，所以直接用 slate-600（6.47:1 以上）。
+  // 它會蓋掉 VitalReading 自己的預設值，所以 VitalReading 改色（#1152）不會自動改到這裡。
+  unitClassName = 'text-slate-600',
   showTimestamp = true,
   showInterval = true,
 }: {
@@ -111,10 +115,10 @@ export function LatestVitals({
   if (status.state === 'loading') {
     content = <span className="font-semibold text-emerald-700">{text(common.loading)}</span>
   } else if (status.state === 'error') {
-    content = <span className="font-semibold text-red-700">⚠️ {text(common.error)}</span>
+    content = <span className="inline-flex items-center gap-1 font-semibold text-red-700"><Icon name="alert-triangle" className="h-4 w-4 shrink-0" />{text(common.error)}</span>
   } else if (status.state === 'ready' && record) {
     content = <>
-      {showTimestamp && <span className="shrink-0 text-gray-600">{status.display.timestamp}</span>}
+      {showTimestamp && <span className="shrink-0 text-slate-600">{status.display.timestamp}</span>}
       <VitalReading
         systolic={record.systolic}
         diastolic={record.diastolic}
@@ -123,13 +127,13 @@ export function LatestVitals({
         unitClassName={unitClassName}
       />
       {showInterval && (
-        <span className="shrink-0 text-xs font-semibold text-gray-500" role="timer" aria-live="off">
+        <span className="shrink-0 text-xs font-semibold text-slate-600" role="timer" aria-live="off">
           {status.intervalText}
         </span>
       )}
     </>
   } else {
-    content = <span className="font-semibold text-gray-500">{text({ id: 'Belum ada', zh: '尚無資料', en: 'No User Memberships found' })}</span>
+    content = <span className="font-semibold text-slate-600">{text({ id: 'Belum ada', zh: '尚無資料', en: 'No User Memberships found' })}</span>
   }
 
   return (

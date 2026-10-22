@@ -6,7 +6,8 @@
   ../../shareSummaryV2Copy.ts（三語文案）。
 */
 import { useI18n } from '../../../../lib/i18n'
-import { ALERT_BAR_CLASS, ALERT_CHIP_CLASS } from '../../../../lib/alertPresentation'
+import { Icon } from '../../../../components/ui/Icon'
+import { ALERT_BAR_CLASS, ALERT_CHIP_CLASS, ALERT_ICON, alertLabelText } from '../../../../lib/alertPresentation'
 import { SESSION_LABELS } from '../../../../lib/dashboardStats'
 import { VitalReading } from '../../../vitals/components/VitalReading'
 import type { PatientShareSummaryV2Dto, ShareSummaryV2Reading } from '../../../../lib/shareSummaryV2Dto'
@@ -41,19 +42,22 @@ function ReadingRow({ reading, showStandardMarker }: { reading: ShareSummaryV2Re
   const { text, locale } = useI18n()
   const tone = readingTone(reading)
   // ruleKeys 每一條都要顯示；心跳警示是獨立旗標，另加一個標籤而不是混進血壓規則。
-  const labels = [...readingRuleLabels(reading.ruleKeys).map(text), ...(reading.pulseWarning ? [text(PULSE_WARNING_LABEL)] : [])]
+  // 標籤 emoji 留給推播；畫面剝掉後由 chip 前面的 SVG 圖示代替（issue #1153）。
+  const labels = [...readingRuleLabels(reading.ruleKeys), ...(reading.pulseWarning ? [PULSE_WARNING_LABEL] : [])]
+    .map(label => text(alertLabelText(label)))
   const sessionLabel = text(SESSION_LABELS[reading.session])
   return (
     <li className="flex flex-wrap items-center gap-x-3 gap-y-1 py-1.5">
-      <span className="w-12 shrink-0 tabular-nums text-xs text-gray-500">{formatTaipeiTime(reading.measuredAt)}</span>
-      {sessionLabel && <span className="shrink-0 text-xs text-gray-400">{sessionLabel}</span>}
+      <span className="w-12 shrink-0 tabular-nums text-xs text-slate-500">{formatTaipeiTime(reading.measuredAt)}</span>
+      {sessionLabel && <span className="shrink-0 text-xs text-slate-500">{sessionLabel}</span>}
       <VitalReading className="text-base" systolic={reading.systolic} diastolic={reading.diastolic} pulse={reading.pulse} />
-      <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-bold ${ALERT_CHIP_CLASS[tone]} ${ALERT_BAR_CLASS[tone]}`}>
+      <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-bold ${ALERT_CHIP_CLASS[tone]} ${ALERT_BAR_CLASS[tone]}`}>
+        <Icon name={ALERT_ICON[tone]} className="h-3.5 w-3.5 shrink-0" />
         {labels.join(locale === 'zh' ? '；' : '; ')}
       </span>
       {/* 跨越變更日時每筆都標出自己的標準，讀者不必猜這個顏色是哪一份算的（PR #941 Codex P1）。 */}
       {showStandardMarker && (
-        <span className="text-xs font-bold text-indigo-700" aria-label={`${text(SHARE_V2_STANDARD_PREFIX)} ${standardMarker(reading.standardIndex)}`}>
+        <span className="text-xs font-bold text-brand-700" aria-label={`${text(SHARE_V2_STANDARD_PREFIX)} ${standardMarker(reading.standardIndex)}`}>
           {standardMarker(reading.standardIndex)}
         </span>
       )}
@@ -63,9 +67,9 @@ function ReadingRow({ reading, showStandardMarker }: { reading: ShareSummaryV2Re
 
 function StatCard({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-xl bg-gray-50 px-3 py-2 ring-1 ring-inset ring-gray-200">
-      <p className="text-[11px] text-gray-500">{label}</p>
-      <p className="mt-0.5 text-sm font-extrabold tabular-nums text-gray-900">{value}</p>
+    <div className="rounded-xl bg-slate-50 px-3 py-2 ring-1 ring-inset ring-slate-200">
+      <p className="text-[11px] text-slate-500">{label}</p>
+      <p className="mt-0.5 text-sm font-extrabold tabular-nums text-slate-900">{value}</p>
     </div>
   )
 }
@@ -79,17 +83,17 @@ export function ShareSummaryBloodPressureSection({ bloodPressure }: { bloodPress
   const avg = summary.avgSystolic !== null && summary.avgDiastolic !== null ? `${summary.avgSystolic}/${summary.avgDiastolic}` : '—'
 
   return (
-    <section aria-labelledby="share-v2-bp-title" className="rounded-2xl border border-gray-200 p-4 print:break-inside-avoid">
-      <h2 id="share-v2-bp-title" className="text-sm font-bold text-gray-800">{text(SHARE_V2_LABELS.bloodPressure)}</h2>
+    <section aria-labelledby="share-v2-bp-title" className="rounded-2xl border border-slate-200 p-4 print:break-inside-avoid">
+      <h2 id="share-v2-bp-title" className="text-sm font-bold text-slate-800">{text(SHARE_V2_LABELS.bloodPressure)}</h2>
       {/* window.end 是排他的 04:00 邊界，要印「實際涵蓋到的最後一個照護日」，不能直接印它（PR #941 Codex P2）。 */}
-      <p className="mt-0.5 text-xs text-gray-500">{firstIncludedCareDay(bloodPressure.window.start)} – {lastIncludedCareDay(bloodPressure.window.end)} · n={summary.recordCount}</p>
+      <p className="mt-0.5 text-xs text-slate-500">{firstIncludedCareDay(bloodPressure.window.start)} – {lastIncludedCareDay(bloodPressure.window.end)} · n={summary.recordCount}</p>
 
       {readings.length === 0 ? (
-        <p className="mt-3 text-sm text-gray-500">{text(SHARE_V2_EMPTY_BP)}</p>
+        <p className="mt-3 text-sm text-slate-500">{text(SHARE_V2_EMPTY_BP)}</p>
       ) : (
         <>
           {/* R5：每一份用到的標準都列出（跨越變更日就是兩份），並明說不依現在的標準重判。 */}
-          <div className="mt-3 rounded-xl bg-indigo-50 px-3 py-2 text-xs text-indigo-900">
+          <div className="mt-3 rounded-xl bg-brand-50 px-3 py-2 text-xs text-slate-800">
             <ul className="space-y-0.5">
               {standardsUsed.map((standard, index) => (
                 <li key={index}>
@@ -102,8 +106,8 @@ export function ShareSummaryBloodPressureSection({ bloodPressure }: { bloodPress
                 </li>
               ))}
             </ul>
-            <p className="mt-1 text-[11px] text-indigo-800">{text(SHARE_V2_STANDARD_NOT_REPAINTED)}</p>
-            {showStandardMarker && <p className="mt-0.5 text-[11px] text-indigo-800">{text(SHARE_V2_STANDARD_MARKER_HINT)}</p>}
+            <p className="mt-1 text-[11px] text-brand-700">{text(SHARE_V2_STANDARD_NOT_REPAINTED)}</p>
+            {showStandardMarker && <p className="mt-0.5 text-[11px] text-brand-700">{text(SHARE_V2_STANDARD_MARKER_HINT)}</p>}
           </div>
 
           <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3">
@@ -114,7 +118,7 @@ export function ShareSummaryBloodPressureSection({ bloodPressure }: { bloodPress
             <StatCard label={text(SHARE_V2_LABELS.morningDays)} value={String(summary.daysWithMorning)} />
             <StatCard label={text(SHARE_V2_LABELS.eveningDays)} value={String(summary.daysWithEvening)} />
           </div>
-          <p className="mt-2 text-xs text-gray-600">
+          <p className="mt-2 text-xs text-slate-600">
             <span className="font-bold">{text(SHARE_V2_LABELS.levelCounts)}：</span>
             {(Object.keys(summary.levelCounts) as Array<keyof typeof summary.levelCounts>)
               .filter(level => summary.levelCounts[level] > 0)
@@ -128,8 +132,8 @@ export function ShareSummaryBloodPressureSection({ bloodPressure }: { bloodPress
           <div className="mt-3 space-y-3">
             {groups.map(group => (
               <div key={group.careDay}>
-                <p className="text-xs font-bold text-gray-500">{group.careDay}</p>
-                <ul className="divide-y divide-gray-100">
+                <p className="text-xs font-bold text-slate-500">{group.careDay}</p>
+                <ul className="divide-y divide-slate-100">
                   {group.readings.map(reading => <ReadingRow key={reading.measuredAt} reading={reading} showStandardMarker={showStandardMarker} />)}
                 </ul>
               </div>

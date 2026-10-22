@@ -16,8 +16,11 @@ interface BottomNavProps {
 
 export function BottomNav({ tab, onChangeTab }: BottomNavProps) {
   const { text } = useI18n()
+  // 英文 aria-label 曾誤帶 BuddyPress 這個與本產品無關的括號前綴，讀屏器會把它當成導覽名稱整段唸出來；
+  // 地標名稱只描述用途、不夾帶產品名。tests/unit/navigationSemantics.test.ts 只擋得住括號前綴與 BuddyPress 字樣，
+  // 其他產品名仍要靠 review 把關。
   return (
-    <nav aria-label={text({ id: 'Navigasi utama', zh: '主要導覽', en: '(BuddyPress) Primary navigation' })} className="print-hidden flex w-full max-w-md shrink-0 self-center border-t border-slate-200 bg-white/95 shadow-[0_-6px_24px_rgba(15,23,42,0.05)]">
+    <nav aria-label={text({ id: 'Navigasi utama', zh: '主要導覽', en: 'Primary navigation' })} className="print-hidden flex w-full max-w-md shrink-0 self-center border-t border-slate-200 bg-white/95 shadow-[0_-6px_24px_rgba(15,23,42,0.05)]">
       {/* 傳入 dataTutorial 讓新手教學 overlay 能精確定位底欄頁籤 */}
       {/* 一律走 changeTab，作為已封存對象萬一殘留在 activeSubject 時的最後防線。 */}
       <TabBtn active={tab === 'today'} onClick={() => onChangeTab('today')}
@@ -47,7 +50,7 @@ function TabBtn({ active, onClick, icon, label, dataTutorial }: {
   // 底部導覽是照護流程的主要入口，最小高度固定為 44px，並用 focus ring 補足鍵盤與低視力辨識。
   // active 顏色改用品牌色 brand-700，不再用 text-red-500——紅色在這個 app 同時代表「選中」
   // 與「血壓偏高」，導覽選到某個 tab 不該讓人聯想到危險數值（docs/product/clinical-care-ops-ui-design.md §4.1）。
-  // inactive 改用 text-slate-500：原本的 text-gray-400 在白底上對比僅約 2.5:1，不符 design doc §7
+  // inactive 改用 text-slate-500：原本的 gray-400 在白底上對比僅約 2.5:1，不符 design doc §7
   // 對 TabBtn 訂的 inactive slate-500（≥4.5:1）規格，slate-500 才能讓低視力照護者看清楚未選取的分頁。
   return (
     <button

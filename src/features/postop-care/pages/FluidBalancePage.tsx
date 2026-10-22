@@ -1,6 +1,6 @@
 /*
 檔案用途：記錄術後體液平衡觀察，包含便當攝取公克數（吃前／吃後秤重）、喝水量、尿量與大便次數。
-所在層：src/features/postop-care/pages；提供術後照護（如腦動脈瘤術後血鉀過低）的量化紀錄流程。
+所在層：src/features/postop-care/pages；提供術後照護（例如手術後需要量化追蹤進出量與電解質）的紀錄流程。
 主要關聯：DailyCarePage、FluidBalanceRecord、src/lib/fluidBalance.ts 與 Supabase fluid_balance_records；
 四種類型共用同一張表（見 migration 說明），因此送出時只需要一次 insert，列表也只需要一次查詢。
 */
@@ -137,7 +137,7 @@ export function FluidBalancePage({ patientId, userEmail }: {
     <section className="space-y-5 px-5 py-6">
       <form onSubmit={handleSubmit} className="space-y-4 rounded-2xl bg-white p-5 shadow-sm">
         <div>
-          <label className="block text-sm font-semibold text-gray-800">
+          <label className="block text-sm font-semibold text-slate-800">
             {text({ id: 'Jenis catatan', zh: '紀錄類型' ,en: "Record type" })}
           </label>
           <div className="mt-2 grid grid-cols-2 gap-2">
@@ -147,7 +147,7 @@ export function FluidBalancePage({ patientId, userEmail }: {
                 type="button"
                 onClick={() => { setRecordType(option); setAmountInput(''); setWeightBeforeInput(''); setWeightAfterInput('') }}
                 aria-pressed={recordType === option}
-                className={`min-h-11 rounded-xl px-3 py-2 text-sm font-bold transition ${recordType === option ? 'bg-indigo-700 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
+                className={`min-h-11 rounded-xl px-3 py-2 text-sm font-bold transition ${recordType === option ? 'bg-brand-700 text-white' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}`}
               >
                 {text(FLUID_BALANCE_TYPE_LABELS[option])}
               </button>
@@ -158,7 +158,7 @@ export function FluidBalancePage({ patientId, userEmail }: {
         {usesWeighing && (
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label htmlFor="fluid-weight-before" className="block text-sm font-semibold text-gray-800">
+              <label htmlFor="fluid-weight-before" className="block text-sm font-semibold text-slate-800">
                 {text({ id: 'Berat sebelum makan (g)', zh: '吃前秤重（公克）' ,en: "Weight before meal (g)" })}
               </label>
               <input
@@ -169,12 +169,13 @@ export function FluidBalancePage({ patientId, userEmail }: {
                 step="0.1"
                 value={weightBeforeInput}
                 onChange={e => setWeightBeforeInput(e.target.value)}
-                placeholder="例：450"
-                className="mt-1 w-full rounded-xl border border-gray-300 px-3 py-2.5"
+                // 為什麼：placeholder 也是畫面上的系統文字，不能寫死中文，否則印尼文／英文使用者會在輸入框看到中文（#1094）。
+                placeholder={text({ id: 'Contoh: 450', zh: '例：450', en: 'e.g. 450' })}
+                className="mt-1 w-full rounded-xl border-2 border-control-border px-3 py-2.5"
               />
             </div>
             <div>
-              <label htmlFor="fluid-weight-after" className="block text-sm font-semibold text-gray-800">
+              <label htmlFor="fluid-weight-after" className="block text-sm font-semibold text-slate-800">
                 {text({ id: 'Berat setelah makan (g)', zh: '吃後秤重（公克）' ,en: "Weight after meal (g)" })}
               </label>
               <input
@@ -185,12 +186,12 @@ export function FluidBalancePage({ patientId, userEmail }: {
                 step="0.1"
                 value={weightAfterInput}
                 onChange={e => setWeightAfterInput(e.target.value)}
-                placeholder="例：120"
-                className="mt-1 w-full rounded-xl border border-gray-300 px-3 py-2.5"
+                placeholder={text({ id: 'Contoh: 120', zh: '例：120', en: 'e.g. 120' })}
+                className="mt-1 w-full rounded-xl border-2 border-control-border px-3 py-2.5"
               />
             </div>
             {weightBefore !== null && weightAfter !== null && (
-              <p className="col-span-2 text-sm font-bold text-indigo-800">
+              <p className="col-span-2 text-sm font-bold text-brand-700">
                 {amountValue !== null
                   ? text({ id: `Jumlah yang dimakan: ${amountValue} g`, zh: `這餐吃了：${amountValue} 公克` ,en: `Amount consumed: ${amountValue} g` })
                   : text({ id: 'Berat setelah makan tidak boleh lebih berat dari sebelum makan.', zh: '吃後的重量不能比吃前重，請重新確認。' ,en: "Weight after meal cannot be greater than weight before meal." })}
@@ -201,7 +202,7 @@ export function FluidBalancePage({ patientId, userEmail }: {
 
         {needsAmount && !usesWeighing && (
           <div>
-            <label htmlFor="fluid-amount" className="block text-sm font-semibold text-gray-800">
+            <label htmlFor="fluid-amount" className="block text-sm font-semibold text-slate-800">
               {text(FLUID_BALANCE_TYPE_LABELS[recordType])}
             </label>
             <div className="mt-1 flex items-center gap-2">
@@ -213,22 +214,22 @@ export function FluidBalancePage({ patientId, userEmail }: {
                 step="1"
                 value={amountInput}
                 onChange={e => setAmountInput(e.target.value)}
-                placeholder="例：200"
-                className="min-h-11 w-full rounded-xl border border-gray-300 px-3 py-2.5"
+                placeholder={text({ id: 'Contoh: 200', zh: '例：200', en: 'e.g. 200' })}
+                className="min-h-11 w-full rounded-xl border-2 border-control-border px-3 py-2.5"
               />
-              <span className="text-sm font-bold text-gray-500">{unit}</span>
+              <span className="text-sm font-bold text-slate-500">{unit}</span>
             </div>
           </div>
         )}
 
         {recordType === 'bowel_movement' && (
-          <p className="text-xs text-gray-500">
+          <p className="text-xs text-slate-500">
             {text({ id: 'Hanya jumlah dan waktu yang dicatat, tidak perlu menimbang.', zh: '大便只需記錄次數與時間，不用秤重。' ,en: "Only count and time are recorded; no weighing needed." })}
           </p>
         )}
 
         <div>
-          <label htmlFor="fluid-notes" className="block text-sm font-semibold text-gray-800">
+          <label htmlFor="fluid-notes" className="block text-sm font-semibold text-slate-800">
             {text({ id: 'Catatan (opsional)', zh: '備註（可不填）' ,en: "Notes (optional)" })}
           </label>
           <textarea
@@ -237,12 +238,12 @@ export function FluidBalancePage({ patientId, userEmail }: {
             maxLength={240}
             onChange={e => setNotes(e.target.value)}
             rows={2}
-            className="mt-1 w-full resize-none rounded-xl border border-gray-300 px-3 py-2.5"
+            className="mt-1 w-full resize-none rounded-xl border-2 border-control-border px-3 py-2.5"
           />
         </div>
 
         {message && (
-          <p className={`text-sm ${status === 'err' ? 'text-red-600' : 'text-green-600'}`}>
+          <p className={`text-sm ${status === 'err' ? 'text-red-600' : 'text-emerald-700'}`}>
             {message}
           </p>
         )}
@@ -250,7 +251,7 @@ export function FluidBalancePage({ patientId, userEmail }: {
         <button
           type="submit"
           disabled={status === 'saving' || !draftValid}
-          className="w-full rounded-xl bg-indigo-700 px-4 py-3 text-sm font-bold text-white disabled:opacity-60"
+          className="w-full rounded-xl bg-brand-700 px-4 py-3 text-sm font-bold text-white disabled:opacity-60"
         >
           {text({ id: 'Simpan', zh: '儲存' ,en: "Save" })}
         </button>
@@ -258,21 +259,21 @@ export function FluidBalancePage({ patientId, userEmail }: {
 
       <div className="rounded-2xl bg-white p-5 shadow-sm">
         {/* 今日紀錄標題與空狀態英文修正 */}
-        <h3 className="text-sm font-bold text-gray-800">{text({ id: 'Catatan hari ini', zh: '今天的紀錄' ,en: "Today's records" })}</h3>
+        <h3 className="text-sm font-bold text-slate-800">{text({ id: 'Catatan hari ini', zh: '今天的紀錄' ,en: "Today's records" })}</h3>
         {loading ? (
-          <p className="mt-2 text-sm text-gray-500">{text({ id: 'Memuat…', zh: '讀取中…' ,en: "Loading…" })}</p>
+          <p className="mt-2 text-sm text-slate-500">{text({ id: 'Memuat…', zh: '讀取中…' ,en: "Loading…" })}</p>
         ) : todayRecords.length === 0 ? (
-          <p className="mt-2 text-sm text-gray-500">{text({ id: 'Belum ada catatan hari ini.', zh: '今天還沒有紀錄。' ,en: "No records for today yet." })}</p>
+          <p className="mt-2 text-sm text-slate-500">{text({ id: 'Belum ada catatan hari ini.', zh: '今天還沒有紀錄。' ,en: "No records for today yet." })}</p>
         ) : (
           <ul className="mt-2 space-y-2">
             {todayRecords.map(record => (
-              <li key={record.id} className="rounded-xl bg-gray-50 px-3 py-2 text-sm">
+              <li key={record.id} className="rounded-xl bg-slate-50 px-3 py-2 text-sm">
                 <div className="flex items-center justify-between">
-                  <span className="font-semibold text-gray-700">{text(FLUID_BALANCE_TYPE_LABELS[record.record_type])}</span>
-                  <span className="text-xs text-gray-500">{dayjs(record.occurred_at).tz(TZ).format('MM/DD HH:mm')}</span>
+                  <span className="font-semibold text-slate-700">{text(FLUID_BALANCE_TYPE_LABELS[record.record_type])}</span>
+                  <span className="text-xs text-slate-500">{dayjs(record.occurred_at).tz(TZ).format('MM/DD HH:mm')}</span>
                 </div>
                 {record.record_type === 'meal_intake' && record.weight_before_g != null && record.weight_after_g != null && (
-                  <p className="mt-1 text-gray-600">
+                  <p className="mt-1 text-slate-600">
                     {text({
                       id: `Sebelum ${record.weight_before_g}g → setelah ${record.weight_after_g}g (dimakan ${record.amount_value}g)`,
                       zh: `吃前 ${record.weight_before_g}g → 吃後 ${record.weight_after_g}g（共吃 ${record.amount_value}g）`,
@@ -281,9 +282,9 @@ export function FluidBalancePage({ patientId, userEmail }: {
                   </p>
                 )}
                 {record.record_type !== 'meal_intake' && record.record_type !== 'bowel_movement' && record.amount_value != null && (
-                  <p className="mt-1 text-gray-600">{record.amount_value} {fluidBalanceAmountUnit(record.record_type)}</p>
+                  <p className="mt-1 text-slate-600">{record.amount_value} {fluidBalanceAmountUnit(record.record_type)}</p>
                 )}
-                {record.notes && <p className="mt-1 text-gray-600">{record.notes}</p>}
+                {record.notes && <p className="mt-1 text-slate-600">{record.notes}</p>}
               </li>
             ))}
           </ul>

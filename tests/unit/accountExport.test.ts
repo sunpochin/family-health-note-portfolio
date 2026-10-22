@@ -196,14 +196,14 @@ describe('account CSV export builder & downloader', () => {
           diastolic: 80,
           pulse: 72,
           source: 'manual_web',
-          recorded_by: 'portfolio-author@example.com',
+          recorded_by: 'owner@example.com',
           created_at: '2026-07-31T08:00:00Z',
         },
       ],
       medicationPlans: [
         {
           id: 'plan-1',
-          account_email: 'portfolio-author@example.com',
+          account_email: 'owner@example.com',
           patient_id: 'patient-1',
           medication_id: 'med-1',
           schedule_slot: 'pagi',
@@ -218,7 +218,7 @@ describe('account CSV export builder & downloader', () => {
       medicationLogs: [
         {
           id: 'log-1',
-          account_email: 'portfolio-author@example.com',
+          account_email: 'owner@example.com',
           patient_id: 'patient-1',
           medication_id: 'med-1',
           medication_name: '=SUM(1,2)',
@@ -260,7 +260,7 @@ describe('account CSV export builder & downloader', () => {
           details: '+100 Note',
           occurred_at: '2026-07-29T10:00:00Z',
           reassess_on: null,
-          created_by: 'portfolio-author@example.com',
+          created_by: 'owner@example.com',
           created_at: '2026-07-29T10:00:00Z',
           medication_plan_id: null,
         },
@@ -269,7 +269,7 @@ describe('account CSV export builder & downloader', () => {
         {
           id: 'prn-1', patient_id: 'patient-1', plan_id: 'plan-1', medication_id: 'med-1',
           taken_at: '2026-07-31T09:00:00Z', care_date: '2026-07-31', dose_amount: 0.5, dose_unit: 'tablet',
-          reason: '頭暈', effect_status: 'pending', notes: '觀察', recorded_by_user_id: 'user-1', recorded_by_email: 'portfolio-author@example.com',
+          reason: '頭暈', effect_status: 'pending', notes: '觀察', recorded_by_user_id: 'user-1', recorded_by_email: 'owner@example.com',
           status: 'active', voided_at: null, voided_by_user_id: null, voided_by_email: null, void_reason: null, created_at: '2026-07-31T09:00:00Z',
         },
       ],
@@ -289,7 +289,7 @@ describe('account CSV export builder & downloader', () => {
       ],
       weightMeasurements: [
         {
-          id: 'weight-1', patient_id: 'patient-1', profile_email: 'portfolio-author@example.com', weight_kg: 52.4,
+          id: 'weight-1', patient_id: 'patient-1', profile_email: 'owner@example.com', weight_kg: 52.4,
           measured_on: '2026-07-30', measured_at: '2026-07-30T00:30:00Z', recorded_by: 'caregiver@example.com',
           created_at: '2026-07-30T00:30:00Z', measurement_number: 2,
         },
@@ -371,8 +371,8 @@ describe('account CSV export builder & downloader', () => {
       data: [
         {
           id: 'p-1',
-          account_email: 'portfolio-author@example.com',
-          patient_id: 'pat-mother',
+          account_email: 'owner@example.com',
+          patient_id: 'pat-lee',
           medication_id: 'med-exforge',
           schedule_slot: 'pagi',
           as_needed: false,
@@ -390,7 +390,7 @@ describe('account CSV export builder & downloader', () => {
         {
           id: 'log-1',
           account_email: 'caregiver@example.com',
-          patient_id: 'pat-mother',
+          patient_id: 'pat-lee',
           medication_id: 'med-exforge',
           medication_name: 'Exforge',
           plan_id: 'p-1',
@@ -429,25 +429,25 @@ describe('account CSV export builder & downloader', () => {
       error: null,
     }
 
-    await downloadAccountCsv('Mother / 媽媽', 'pat-mother')
-    expect(clickedLinkDownload.startsWith('care-export-Mother___媽媽-')).toBe(true)
+    await downloadAccountCsv('Patient / 病人', 'pat-lee')
+    expect(clickedLinkDownload.startsWith('care-export-Patient___病人-')).toBe(true)
   })
 
   test('downloadAccountCsv wraps database errors with bilingual message and retains cause', async () => {
     fetchErrorOnTable = 'blood_pressure_records'
-    await expect(downloadAccountCsv('Mother', 'pat-mother')).rejects.toThrow('Gagal mengunduh data perawatan lengkap')
+    await expect(downloadAccountCsv('Patient', 'pat-lee')).rejects.toThrow('Gagal mengunduh data perawatan lengkap')
   })
 
   test('treats a missing PRN table as an empty export instead of failing the whole download', async () => {
     // PRN migration 可能晚於前端 rollout；缺表時其他資料仍要能正常匯出。
     missingTableError = { table: 'prn_medication_events', error: { code: '42P01', message: 'relation "prn_medication_events" does not exist' } }
-    await expect(downloadAccountCsv('Mother', 'pat-mother')).resolves.toBeUndefined()
-    expect(clickedLinkDownload.startsWith('care-export-Mother-')).toBe(true)
+    await expect(downloadAccountCsv('Patient', 'pat-lee')).resolves.toBeUndefined()
+    expect(clickedLinkDownload.startsWith('care-export-Patient-')).toBe(true)
   })
 
   test('a non-missing-table PRN error still fails the download', async () => {
     missingTableError = { table: 'prn_medication_daily_assessments', error: { code: '42501', message: 'permission denied for table prn_medication_daily_assessments' } }
-    await expect(downloadAccountCsv('Mother', 'pat-mother')).rejects.toThrow('Gagal mengunduh data perawatan lengkap')
+    await expect(downloadAccountCsv('Patient', 'pat-lee')).rejects.toThrow('Gagal mengunduh data perawatan lengkap')
   })
 
   test('follows the pagination cursor until a short page signals the end', async () => {
@@ -468,7 +468,7 @@ describe('account CSV export builder & downloader', () => {
         { data: [{ ...fullPage[0], id: 'bp-page-1000' }], error: null },
       ],
     }
-    await downloadAccountCsv('Mother', 'pat-mother')
-    expect(clickedLinkDownload.startsWith('care-export-Mother-')).toBe(true)
+    await downloadAccountCsv('Patient', 'pat-lee')
+    expect(clickedLinkDownload.startsWith('care-export-Patient-')).toBe(true)
   })
 })

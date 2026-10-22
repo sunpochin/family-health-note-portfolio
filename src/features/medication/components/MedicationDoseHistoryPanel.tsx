@@ -9,6 +9,7 @@
 因此只呈現可從紀錄直接驗證的事實次數。原本的「變更紀錄」分頁記的是藥單被改過什麼，
 回答不了「這禮拜有沒有按時吃藥」，兩者互補而非重複。
 */
+import { MedicationHoldHistory } from './MedicationHoldHistory'
 import { useEffect, useState } from 'react'
 import dayjs from 'dayjs'
 import timezone from 'dayjs/plugin/timezone'
@@ -61,12 +62,23 @@ export function MedicationDoseHistoryPanel({ patientId, days }: { patientId: str
 
   // 載入失敗與空狀態的英文翻譯修正為標準自然英文
   if (failed) return <p role="alert" className="text-sm font-semibold text-red-700">{text({ id: 'Riwayat dosis tidak dapat dimuat.', zh: '目前無法讀取服藥次數紀錄。' ,en: 'Unable to load dose history.' })}</p>
-  if (!points) return <p role="status" className="text-sm text-slate-500">{text(common.loading)}</p>
+  // 趨勢圖載入時保留固定高度與平滑載入動畫，避免資料回傳瞬間產生突兀的版面位移（CLS）
+  if (!points) {
+    return (
+      <div role="status" className="flex h-44 w-full items-center justify-center rounded-2xl bg-slate-50 text-sm font-medium text-slate-400">
+        <span className="mr-2 inline-block h-4 w-4 animate-spin rounded-full border-2 border-slate-300 border-t-transparent" aria-hidden="true" />
+        {text(common.loading)}
+      </div>
+    )
+  }
 
+  // 圖線用 brand-700（#047857），與營養趨勢同色；原本的 #0369A1 是 info（sky）色值，info 只給系統訊息，
+  // 而且藍系跟舒張壓識別色 #2563EB 容易混淆（設計系統 #1146、docs/product/clinical-care-ops-ui-design.md §4.1／§7）。
   return <>
+    <MedicationHoldHistory key={`${patientId}:${days}`} patientId={patientId} days={days} />
     <DailyTrendChart
       points={points}
-      color="#0369A1"
+      color="#047857"
       unit={{ id: 'dosis', zh: '劑次' ,en: 'Dosage' }}
       seriesLabel={{ id: 'Dosis tercatat per hari perawatan', zh: '每個照護日已記錄的服用劑次' ,en: 'Recorded doses per day of care' }}
       emptyLabel={{ id: 'Belum ada catatan minum obat pada rentang ini.', zh: '這個區間還沒有服藥紀錄。' ,en: 'No medication records in this date range.' }}

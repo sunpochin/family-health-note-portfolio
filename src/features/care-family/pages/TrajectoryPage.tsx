@@ -29,7 +29,7 @@ export function TrajectoryPage({ patientId, availablePatients, userEmail, onSubj
   const editor = useTrajectoryEntryEditor({ patientId, userEmail, onSaved, confirm })
 
   return (
-    <div className="min-h-full bg-gray-50 px-5 pt-5 pb-6 text-gray-900">
+    <div className="min-h-full bg-slate-50 px-5 pt-5 pb-6 text-slate-900">
       {confirmDialog}
       <header className="mb-4 space-y-3">
         <TabHeader title="events" />

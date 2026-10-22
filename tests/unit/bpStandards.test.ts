@@ -25,7 +25,7 @@ const interval = (
 
 // 術後嚴格控制 8/1–9/22，之後換回一般成人。
 const HISTORY: BpStandardInterval[] = [
-  interval('post_op_strict', '2026-08-01T00:00:00Z', '2026-09-22T00:00:00Z', { prescribedNote: '2026-08 心血管科門診' }),
+  interval('post_op_strict', '2026-08-01T00:00:00Z', '2026-09-22T00:00:00Z', { prescribedNote: '2026-08 門診' }),
   interval('general_adult', '2026-09-22T00:00:00Z', null),
 ]
 
@@ -36,7 +36,7 @@ describe('resolveStandardAt', () => {
     const resolved = resolveStandardAt(HISTORY, '2026-08-15T09:00:00Z')
     expect(resolved.templateKey).toBe('post_op_strict')
     expect(resolved.configured).toBe(true)
-    expect(resolved.prescribedNote).toBe('2026-08 心血管科門診')
+    expect(resolved.prescribedNote).toBe('2026-08 門診')
   })
 
   test('補登舊量測套用當時的標準，不是補登當下的', () => {

@@ -8,6 +8,7 @@ import { useI18n } from '../../../lib/i18n'
 import { signMedicationAppearancePhotoPath } from '../../../lib/medication/medicationAppearancePhotos'
 import { resolveMedicationCategory } from '../../../lib/medication/medicationAtcCategories'
 import { resolveMedicationAppearanceImageUrl } from '../../../lib/medication/tfdaAppearanceImage'
+import { Icon } from '../../../components/ui/Icon'
 
 interface MedicationAppearanceData {
   brand_name: string
@@ -111,7 +112,7 @@ export function MedicationAppearance({ medication, compact = false, showAppearan
   return (
     <div className={`flex min-w-0 items-center gap-2 ${compact ? 'text-[11px]' : 'text-xs'}`}>
       {hasPhoto
-        // 日常服藥要先看清藥錠，裁去官方圖上方標題並對齊下方；完整原圖仍留在調藥頁供核對，放大時一律換回原圖。
+        // 日常服藥要先看清藥錠，裁去官方圖上方標題並對齊下方；完整原圖仍留在調藥頁供核對，放大時一律換回原圖。compact 縮圖是可點的放大鈕，原 40×40 偏小，改 44×44（#1198）。
         ? <span
             role="button"
             tabIndex={0}
@@ -121,25 +122,27 @@ export function MedicationAppearance({ medication, compact = false, showAppearan
             onKeyDown={event => {
               if (event.key === 'Enter' || event.key === ' ') openZoom(event)
             }}
-            className={`${compact ? 'h-10 w-10' : 'h-20 w-20'} shrink-0 cursor-zoom-in overflow-hidden rounded-lg border border-gray-200 bg-white`}
+            className={`${compact ? 'h-11 w-11' : 'h-20 w-20'} shrink-0 cursor-zoom-in overflow-hidden rounded-lg border border-slate-200 bg-white`}
           >
             <img src={photoUrl ?? ''} alt={medicationLabel} referrerPolicy="no-referrer" onError={() => setImageFailed(true)} className={`h-full w-full ${compact ? 'object-contain' : 'origin-bottom scale-[1.7] object-cover'}`} />
           </span>
         /* 圓錠與膠囊尺寸不同，照片失效時也能靠示意圖快速區分，而不是顯示無用的破圖圖示；粉包沒有錠形高度，畫成扁長條才不會被誤認成藥錠。 */
-        : <span role="img" aria-label={illustrationLabel} title={illustrationLabel} className={`block shrink-0 border border-gray-400/70 ${shapeKey === 'round' || (!shapeKey && genericShape === 'round') ? 'h-7 w-7 rounded-full' : shapeKey === 'capsule' || (!shapeKey && genericShape === 'capsule') ? 'h-7 w-10 rounded-full' : shapeKey === 'oval' ? 'h-7 w-10 rounded-[50%]' : shapeKey === 'sachet' || (!shapeKey && genericShape === 'sachet') ? 'h-3 w-10 rounded-sm' : 'h-7 w-10 rounded-md'}`} style={{ backgroundColor: color?.swatch ?? '#f8fafc' }} />}
+        : <span role="img" aria-label={illustrationLabel} title={illustrationLabel} className={`block shrink-0 border border-slate-400/70 ${shapeKey === 'round' || (!shapeKey && genericShape === 'round') ? 'h-7 w-7 rounded-full' : shapeKey === 'capsule' || (!shapeKey && genericShape === 'capsule') ? 'h-7 w-10 rounded-full' : shapeKey === 'oval' ? 'h-7 w-10 rounded-[50%]' : shapeKey === 'sachet' || (!shapeKey && genericShape === 'sachet') ? 'h-3 w-10 rounded-sm' : 'h-7 w-10 rounded-md'}`} style={{ backgroundColor: color?.swatch ?? '#f8fafc' }} />}
       {/* 外觀文字同樣要佔剩餘欄寬，否則 flex 預設的內容寬度會讓整張藥卡產生水平捲動。 */}
-      <span className={`min-w-0 flex-1 break-words ${compact ? 'text-gray-600' : 'text-base font-semibold leading-tight text-gray-700'}`}>
-        {details && <span className="block text-sm font-semibold text-gray-700">{details}</span>}
+      <span className={`min-w-0 flex-1 break-words ${compact ? 'text-slate-600' : 'text-base font-semibold leading-tight text-slate-700'}`}>
+        {details && <span className="block text-sm font-semibold text-slate-700">{details}</span>}
         {/* 主要功能標籤只在官方資料回填出可信分類時出現；showCategory=false 代表呼叫端已在藥名下方顯示過，這裡不重複。 */}
-        {showCategory && category && <span className="mt-1 inline-block rounded-full bg-fuchsia-100 px-2.5 py-1 text-sm font-black text-fuchsia-800">{text(category)}</span>}
+        {/* 分類 pill 用中性 chip（設計系統 #1146 退役 fuchsia）：分類是「補充資訊」，不是狀態，不該有自己的彩色。 */}
+        {showCategory && category && <span className="mt-1 inline-block rounded-full bg-slate-100 px-2.5 py-1 text-sm font-black text-slate-700">{text(category)}</span>}
         {/* 徽章一律文字＋圖示，不只靠顏色（規劃文件 §4.5）：讓照護者一眼看出這顆藥的顏色／形狀／照片
-            是這個人專屬的覆蓋值，不是全站共用的那一版，也不會被誤以為共用資料已經改了。 */}
-        {medication.appearance_source === 'patient_override' && <span className={`mt-1 inline-flex items-center gap-1 rounded-full bg-sky-100 font-black text-sky-800 ${compact ? 'px-1.5 py-0.5 text-[10px]' : 'px-2.5 py-1 text-sm'}`}>👤 {text({ id: 'Tampilan khusus orang ini', zh: '此人專屬外觀' ,en: 'Appearance set for this person' })}</span>}
+            是這個人專屬的覆蓋值，不是全站共用的那一版，也不會被誤以為共用資料已經改了。
+          配色用白底細框的中性款：這顆徽章也會出現在「尚未服用」的琥珀卡裡，不能用綠色混淆已服用語意。 */}
+        {medication.appearance_source === 'patient_override' && <span className={`mt-1 inline-flex items-center gap-1 rounded-full border border-slate-300 bg-white font-black text-slate-700 ${compact ? 'px-1.5 py-0.5 text-[10px]' : 'px-2.5 py-1 text-sm'}`}><Icon name="user" className={compact ? 'h-3 w-3 shrink-0' : 'h-3.5 w-3.5 shrink-0'} />{text({ id: 'Tampilan khusus orang ini', zh: '此人專屬外觀' ,en: 'Appearance set for this person' })}</span>}
         {/* 直接顯示顏色與形狀即可辨識藥品，省略固定標籤把有限寬度留給真正有用的描述。 */}
         <span className={`${compact ? 'block' : 'mt-1 block text-lg font-black leading-tight'}`}>{color ? text(color) : text({ id: 'Warna belum tercatat', zh: '顏色未登錄' ,en: 'Color not yet recorded' })} · {shape ? text(shape) : text({ id: 'Bentuk belum tercatat', zh: '形狀未登錄' ,en: 'Shape not yet recorded' })}
         {showAppearanceNote && medication.appearance_note && ` · ${medication.appearance_note}`}
         {/* 沒有實拍照時仍標示為示意圖，避免照護者把介面提示誤當成產品資訊。 */}
-        {!hasPhoto && <span className="text-gray-400"> · {text({ id: 'Ilustrasi', zh: '示意圖' ,en: 'Illustration' })}</span>}
+        {!hasPhoto && <span className="text-slate-500"> · {text({ id: 'Ilustrasi', zh: '示意圖' ,en: 'Illustration' })}</span>}
         </span>
       </span>
       {hasPhoto && isZoomOpen && (
@@ -153,6 +156,7 @@ export function MedicationAppearance({ medication, compact = false, showAppearan
             setIsZoomOpen(false)
           }}
         >
+          {/* 放大視窗的關閉鈕貼在畫面角落，原 40×40 改 44×44（#1198）。 */}
           <button
             type="button"
             onClick={event => {
@@ -160,7 +164,7 @@ export function MedicationAppearance({ medication, compact = false, showAppearan
               setIsZoomOpen(false)
             }}
             aria-label={closeZoomLabel}
-            className="absolute right-4 top-4 flex h-10 w-10 items-center justify-center rounded-full bg-white/90 text-2xl font-black text-gray-900 shadow-lg"
+            className="absolute right-4 top-4 flex h-11 w-11 items-center justify-center rounded-full bg-white/90 text-2xl font-black text-slate-900 shadow-lg"
           >
             ×
           </button>

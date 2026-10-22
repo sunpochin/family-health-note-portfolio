@@ -5,6 +5,7 @@
 */
 import { useMemo, useState } from 'react'
 import { useI18n, type LocalizedText } from '../../lib/i18n'
+import { ExperimentalBadge } from '../daily-care/ExperimentalModuleNotice'
 import { DAILY_CARE_MODULES, isModuleApplicableToSpecies, type DailyCareModuleId } from '../../lib/dailyCareModules'
 import { ONBOARDING_CARE_TARGET_OPTIONS, ONBOARDING_RECORDER_OPTIONS, recommendedOnboardingModuleIds, type OnboardingCareTarget, type OnboardingRecorder } from '../../lib/onboardingWizard'
 
@@ -62,10 +63,10 @@ export function OnboardingWizard({ initialCareTarget, canUseMedication, saving, 
   }
 
   return (
-    <main className="mx-auto flex min-h-dvh max-w-md flex-col bg-gray-50 px-5 py-10 text-gray-900">
+    <main className="mx-auto flex min-h-dvh max-w-md flex-col bg-slate-50 px-5 py-10 text-slate-900">
       <div className="flex items-center justify-between">
-        <p className="text-sm font-bold text-indigo-700">{text({ id: `Langkah ${step} dari ${TOTAL_STEPS}`, zh: `第 ${step} / ${TOTAL_STEPS} 題`, en: `Step ${step} of ${TOTAL_STEPS}` })}</p>
-        <button type="button" onClick={onSkip} disabled={saving} className="min-h-11 text-sm font-semibold text-gray-500 underline disabled:opacity-60">
+        <p className="text-sm font-bold text-brand-700">{text({ id: `Langkah ${step} dari ${TOTAL_STEPS}`, zh: `第 ${step} / ${TOTAL_STEPS} 題`, en: `Step ${step} of ${TOTAL_STEPS}` })}</p>
+        <button type="button" onClick={onSkip} disabled={saving} className="min-h-11 text-sm font-semibold text-slate-500 underline disabled:opacity-60">
           {text({ id: 'Lewati, atur nanti', zh: '略過，稍後再設定', en: 'Skip, set up later' })}
         </button>
       </div>
@@ -74,16 +75,16 @@ export function OnboardingWizard({ initialCareTarget, canUseMedication, saving, 
         {step === 1 && (
           <fieldset>
             <legend className="text-xl font-black">{text({ id: 'Siapa yang Anda rawat?', zh: '照顧誰？', en: 'Who are you caring for?' })}</legend>
-            <p className="mt-2 text-sm text-gray-500">{text({ id: 'Ini menentukan item perawatan yang relevan untuknya.', zh: '這會決定接下來要顯示哪些相關的照護項目。', en: 'This determines the relevant care modules to display.' })}</p>
+            <p className="mt-2 text-sm text-slate-500">{text({ id: 'Ini menentukan item perawatan yang relevan untuknya.', zh: '這會決定接下來要顯示哪些相關的照護項目。', en: 'This determines the relevant care modules to display.' })}</p>
             <div className="mt-4 space-y-2">
               {ONBOARDING_CARE_TARGET_OPTIONS.map(option => (
-                <label key={option.value} className="flex min-h-12 cursor-pointer items-center gap-3 rounded-xl bg-gray-50 px-3 py-2 text-sm">
-                  <input type="radio" name="onboarding-care-target" checked={careTarget === option.value} onChange={() => setCareTarget(option.value)} className="h-5 w-5 accent-indigo-600" />
-                  <span className="font-semibold text-gray-900">{text(option.label)}</span>
+                <label key={option.value} className="flex min-h-12 cursor-pointer items-center gap-3 rounded-xl bg-slate-50 px-3 py-2 text-sm">
+                  <input type="radio" name="onboarding-care-target" checked={careTarget === option.value} onChange={() => setCareTarget(option.value)} className="h-5 w-5 accent-brand-700" />
+                  <span className="font-semibold text-slate-900">{text(option.label)}</span>
                 </label>
               ))}
             </div>
-            <button type="button" disabled={!careTarget} onClick={() => setStep(2)} className="mt-6 w-full rounded-xl bg-indigo-700 px-4 py-3 font-bold text-white disabled:opacity-60">
+            <button type="button" disabled={!careTarget} onClick={() => setStep(2)} className="mt-6 w-full rounded-xl bg-brand-700 active:bg-emerald-800 px-4 py-3 font-bold text-white disabled:opacity-60">
               {text({ id: 'Lanjut', zh: '下一步', en: 'Next' })}
             </button>
           </fieldset>
@@ -92,21 +93,21 @@ export function OnboardingWizard({ initialCareTarget, canUseMedication, saving, 
         {step === 2 && (
           <fieldset>
             <legend className="text-xl font-black">{text({ id: 'Siapa yang akan mencatat?', zh: '誰記錄？', en: 'Who will be recording?' })}</legend>
-            <p className="mt-2 text-sm text-gray-500">{text({ id: 'Ini hanya menentukan item awal; Anda tetap bisa mengubahnya di Pengaturan.', zh: '這只是決定一開始顯示的項目，之後仍可以在設定頁調整。', en: 'This only determines the initial modules; you can always customize them in Settings.' })}</p>
+            <p className="mt-2 text-sm text-slate-500">{text({ id: 'Ini hanya menentukan item awal; Anda tetap bisa mengubahnya di Pengaturan.', zh: '這只是決定一開始顯示的項目，之後仍可以在設定頁調整。', en: 'This only determines the initial modules; you can always customize them in Settings.' })}</p>
             <div className="mt-4 space-y-2">
               {ONBOARDING_RECORDER_OPTIONS.map(option => (
-                <label key={option.value} className="flex min-h-12 cursor-pointer items-start gap-3 rounded-xl bg-gray-50 px-3 py-2 text-sm">
-                  <input type="radio" name="onboarding-recorder" checked={recorder === option.value} onChange={() => setRecorder(option.value)} className="mt-0.5 h-5 w-5 accent-indigo-600" />
+                <label key={option.value} className="flex min-h-12 cursor-pointer items-start gap-3 rounded-xl bg-slate-50 px-3 py-2 text-sm">
+                  <input type="radio" name="onboarding-recorder" checked={recorder === option.value} onChange={() => setRecorder(option.value)} className="mt-0.5 h-5 w-5 accent-brand-700" />
                   <span>
-                    <span className="block font-semibold text-gray-900">{text(option.label)}</span>
-                    <span className="mt-0.5 block text-xs text-gray-500">{text(option.description)}</span>
+                    <span className="block font-semibold text-slate-900">{text(option.label)}</span>
+                    <span className="mt-0.5 block text-xs text-slate-500">{text(option.description)}</span>
                   </span>
                 </label>
               ))}
             </div>
             <div className="mt-6 flex gap-3">
-              <button type="button" onClick={() => setStep(1)} className="min-h-12 flex-1 rounded-xl border border-gray-300 px-4 py-3 font-bold text-gray-700">{text({ id: 'Kembali', zh: '上一步', en: 'Back' })}</button>
-              <button type="button" disabled={!recorder} onClick={() => recorder && goToStep3(recorder)} className="min-h-12 flex-1 rounded-xl bg-indigo-700 px-4 py-3 font-bold text-white disabled:opacity-60">{text({ id: 'Lanjut', zh: '下一步', en: 'Next' })}</button>
+              <button type="button" onClick={() => setStep(1)} className="min-h-12 flex-1 rounded-xl border border-slate-300 px-4 py-3 font-bold text-slate-700">{text({ id: 'Kembali', zh: '上一步', en: 'Back' })}</button>
+              <button type="button" disabled={!recorder} onClick={() => recorder && goToStep3(recorder)} className="min-h-12 flex-1 rounded-xl bg-brand-700 active:bg-emerald-800 px-4 py-3 font-bold text-white disabled:opacity-60">{text({ id: 'Lanjut', zh: '下一步', en: 'Next' })}</button>
             </div>
           </fieldset>
         )}
@@ -114,26 +115,26 @@ export function OnboardingWizard({ initialCareTarget, canUseMedication, saving, 
         {step === 3 && selectedModuleIds && (
           <fieldset>
             <legend className="text-xl font-black">{text({ id: 'Apa yang ingin dicatat?', zh: '要記什麼？', en: 'What would you like to track?' })}</legend>
-            <p className="mt-2 text-sm text-gray-500">{text({ id: 'Kami sudah memilihkan beberapa; centang atau hapus sesuai kebutuhan.', zh: '我們先幫你勾選建議項目，你可以再自行增減。', en: 'We have pre-selected recommended items for you; check or uncheck as needed.' })}</p>
+            <p className="mt-2 text-sm text-slate-500">{text({ id: 'Kami sudah memilihkan beberapa; centang atau hapus sesuai kebutuhan.', zh: '我們先幫你勾選建議項目，你可以再自行增減。', en: 'We have pre-selected recommended items for you; check or uncheck as needed.' })}</p>
             <div className="mt-4 space-y-2">
               {applicableModules.map(module => (
-                <label key={module.id} htmlFor={`onboarding-module-${module.id}`} className="flex min-h-12 cursor-pointer items-center justify-between gap-3 rounded-xl bg-gray-50 px-3 py-2 text-sm">
-                  <span className="font-semibold text-gray-900">{text(module.label)}</span>
+                <label key={module.id} htmlFor={`onboarding-module-${module.id}`} className="flex min-h-12 cursor-pointer items-center justify-between gap-3 rounded-xl bg-slate-50 px-3 py-2 text-sm">
+                  <span className="font-semibold text-slate-900">{text(module.label)}{module.experimental && <>{' '}<ExperimentalBadge /></>}</span>
                   <input
                     id={`onboarding-module-${module.id}`}
                     type="checkbox"
                     checked={selectedModuleIds.has(module.id)}
                     disabled={saving}
                     onChange={event => toggleModule(module.id, event.target.checked)}
-                    className="h-5 w-5 shrink-0 accent-indigo-600"
+                    className="h-5 w-5 shrink-0 accent-brand-700"
                   />
                 </label>
               ))}
             </div>
             {error && <p role="alert" className="mt-3 rounded-xl bg-red-50 px-3 py-2 text-xs font-semibold text-red-700">{text(error)}</p>}
             <div className="mt-6 flex gap-3">
-              <button type="button" disabled={saving} onClick={() => setStep(2)} className="min-h-12 flex-1 rounded-xl border border-gray-300 px-4 py-3 font-bold text-gray-700 disabled:opacity-60">{text({ id: 'Kembali', zh: '上一步' ,en: "Back" })}</button>
-              <button type="button" disabled={saving || selectedModuleIds.size === 0} onClick={finish} className="min-h-12 flex-1 rounded-xl bg-indigo-700 px-4 py-3 font-bold text-white disabled:opacity-60">
+              <button type="button" disabled={saving} onClick={() => setStep(2)} className="min-h-12 flex-1 rounded-xl border border-slate-300 px-4 py-3 font-bold text-slate-700 disabled:opacity-60">{text({ id: 'Kembali', zh: '上一步' ,en: "Back" })}</button>
+              <button type="button" disabled={saving || selectedModuleIds.size === 0} onClick={finish} className="min-h-12 flex-1 rounded-xl bg-brand-700 active:bg-emerald-800 px-4 py-3 font-bold text-white disabled:opacity-60">
                 {saving ? text({ id: 'Menyimpan…', zh: '正在儲存…' ,en: "Saving…" }) : text({ id: 'Selesai', zh: '完成設定' ,en: "Done" })}
               </button>
             </div>

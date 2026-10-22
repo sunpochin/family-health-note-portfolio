@@ -67,7 +67,7 @@ describe('record exports', () => {
   ]
 
   test('builds UTF-8 CSV in chronological order with fixed timezone and escaping', () => {
-    const csv = buildRecordCsv(records, 'meiling, "媽媽"', {
+    const csv = buildRecordCsv(records, 'Meiling, "阿姨"', {
       selectedDays: 7,
       generatedAt: dayjs('2026-07-15T02:00:00+08:00'),
       standardResolver: GENERAL_ADULT_RESOLVER,
@@ -75,7 +75,7 @@ describe('record exports', () => {
 
     expect(csv.startsWith('\uFEFF')).toBe(true)
     expect(csv).toContain('"Asia/Taipei"')
-    expect(csv).toContain('"meiling, ""媽媽"""')
+    expect(csv).toContain('"Meiling, ""阿姨"""')
     expect(csv).toContain('"manual,""web"""')
     expect(csv).toContain('"2026-07-08 04:00 to 2026-07-15 04:00"')
     expect(csv).toContain('"2026-07-14T15:30:00.000Z"')
@@ -106,7 +106,7 @@ describe('record exports', () => {
     expect(text).toContain('2026-07-08 04:00 to 2026-07-15 04:00')
     expect(text).toContain('1/7')
     expect(text).toContain('Name-removed patient / 已移除姓名的紀錄對象')
-    expect(text).not.toContain('meiling')
+    expect(text).not.toContain('Meiling')
     expect(text).toContain('Offline cache / 離線快取')
     expect(text).toContain('資料限制')
     expect(text).toContain('不要診斷，也不要建議自行調藥')
@@ -149,6 +149,26 @@ describe('record exports', () => {
     expect(text).toContain('Amdixal / 脈優')
     expect(text).toContain('心臟科回診')
     expect(text).not.toContain('Unavailable sources')
+  })
+
+  test('prints the S3 visit department and type, but never the institution, on a health_visit trajectory line (#1035)', () => {
+    const visitEvent: TimelineTrajectoryEvent = {
+      id: 'visit-s3', occurredAt: '2026-07-11T00:00:00.000Z', kind: 'health_visit', title: '回診', details: '', reassessOn: null,
+      sourceEntry: {
+        id: 'visit-s3', patient_id: 'patient-1', event_type: 'health_visit', title: '回診', details: '', occurred_at: '2026-07-11T00:00:00.000Z',
+        reassess_on: null, created_by: 'user-1', created_at: '2026-07-11T00:00:00.000Z', medication_plan_id: null, medication_plan_change_log_id: null,
+        visit_kind: 'outpatient', visit_department: '心臟內科', visit_institution: '示範醫院',
+      },
+    }
+    const text = buildGptReportText(records, { selectedDays: 7, generatedAt: dayjs('2026-07-15T02:00:00+08:00'), standardResolver: GENERAL_ADULT_RESOLVER }, {
+      events: [visitEvent],
+      sourceStatus: { medicationChanges: 'ok', timelineEntries: 'ok', dueReminders: 'not_applicable' },
+    })
+
+    expect(text).toContain('department / departemen / 科別: 心臟內科')
+    expect(text).toContain('type / jenis / 類型: Outpatient/Rawat jalan/門診')
+    // 院所＋精確日期是強再識別向量，不得進外部 GPT 的複製文字（Codex review PR #1040）。
+    expect(text).not.toContain('示範醫院')
   })
 
   test('lists an overdue reminder in the trajectory section with days overdue', () => {

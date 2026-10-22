@@ -29,7 +29,7 @@ async function main() {
   await runStep('portfolio:build', ['run', 'scripts/portfolio/build.ts'])
   await runStep('portfolio:check', ['run', 'scripts/portfolio/check.ts'])
 
-  console.log('\n✅ portfolio:verify 全部通過。下一步：owner 逐檔 review 輸出目錄，之後才能執行 bun run portfolio:release。')
+  console.log('\n✅ portfolio:verify 全部通過。直接執行 bun run portfolio:release 會沿用這次的 check 結果（指紋相同時不重跑）。')
 }
 
 main()
